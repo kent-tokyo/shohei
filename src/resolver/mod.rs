@@ -1,0 +1,115 @@
+use std::net::SocketAddr;
+
+use hickory_proto::rr::RecordType;
+use serde::{Deserialize, Serialize};
+
+pub mod iterative;
+pub mod standard;
+
+#[derive(Debug, Clone)]
+pub struct QueryOptions {
+    pub domain: String,
+    pub record_type: RecordType,
+    pub server: Option<SocketAddr>,
+    pub validate_dnssec: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DnsQueryResult {
+    pub query: DnsQuery,
+    pub answers: Vec<DnsRecord>,
+    pub authority: Vec<DnsRecord>,
+    pub additional: Vec<DnsRecord>,
+    pub duration_ms: u64,
+    pub server_addr: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DnsQuery {
+    pub name: String,
+    pub record_type: String,
+    pub class: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DnsRecord {
+    pub name: String,
+    pub ttl: u32,
+    pub class: String,
+    pub record_type: String,
+    pub data: RecordData,
+    pub trust: TrustState,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
+pub enum RecordData {
+    A(String),
+    Aaaa(String),
+    Cname(String),
+    Mx {
+        priority: u16,
+        exchange: String,
+    },
+    Ns(String),
+    Txt(Vec<String>),
+    Soa {
+        mname: String,
+        rname: String,
+        serial: u32,
+        refresh: u32,
+        retry: u32,
+        expire: u32,
+        minimum: u32,
+    },
+    Ptr(String),
+    Srv {
+        priority: u16,
+        weight: u16,
+        port: u16,
+        target: String,
+    },
+    Dnskey {
+        flags: u16,
+        protocol: u8,
+        algorithm: u8,
+        public_key: String,
+    },
+    Ds {
+        key_tag: u16,
+        algorithm: u8,
+        digest_type: u8,
+        digest: String,
+    },
+    Rrsig {
+        type_covered: String,
+        algorithm: u8,
+        labels: u8,
+        orig_ttl: u32,
+        sig_expiration: String,
+        sig_inception: String,
+        key_tag: u16,
+        signer_name: String,
+        signature: String,
+    },
+    Unknown(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TrustState {
+    Secure,
+    Insecure,
+    Bogus,
+    Indeterminate,
+}
+
+impl std::fmt::Display for TrustState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TrustState::Secure => write!(f, "SECURE"),
+            TrustState::Insecure => write!(f, "INSECURE"),
+            TrustState::Bogus => write!(f, "BOGUS"),
+            TrustState::Indeterminate => write!(f, "INDETERMINATE"),
+        }
+    }
+}
