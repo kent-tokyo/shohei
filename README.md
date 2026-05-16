@@ -35,6 +35,17 @@
 
 ![DNSSEC chain of trust](images/demo_dnssec.svg)
 
+## Demo
+
+### Iterative Resolution Trace
+![Iterative trace demo](images/demo-trace.gif)
+
+### Watch Mode
+![Watch mode demo](images/demo-watch.gif)
+
+### Interactive TUI
+![TUI demo](images/demo-tui.gif)
+
 ## Installation
 
 ```bash

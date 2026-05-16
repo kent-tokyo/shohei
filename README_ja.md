@@ -35,6 +35,17 @@
 
 ![DNSSEC 信頼の連鎖](images/demo_dnssec.svg)
 
+## デモ
+
+### 反復解決トレース
+![反復解決トレース デモ](images/demo-trace.gif)
+
+### ウォッチモード
+![ウォッチモード デモ](images/demo-watch.gif)
+
+### インタラクティブ TUI
+![TUI デモ](images/demo-tui.gif)
+
 ## インストール
 
 ```bash

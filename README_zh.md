@@ -35,6 +35,17 @@
 
 ![DNSSEC 信任链](images/demo_dnssec.svg)
 
+## 演示
+
+### 迭代解析追踪
+![迭代解析追踪演示](images/demo-trace.gif)
+
+### 监控模式
+![监控模式演示](images/demo-watch.gif)
+
+### 交互式 TUI
+![TUI 演示](images/demo-tui.gif)
+
 ## 安装
 
 ```bash
