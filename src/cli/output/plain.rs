@@ -18,12 +18,7 @@ impl Render for PlainRenderer {
             trace.record_type, trace.target
         ));
         for (i, step) in trace.steps.iter().enumerate() {
-            let status = match &step.response_type {
-                crate::resolver::iterative::StepResponseType::Answer => "ANSWER",
-                crate::resolver::iterative::StepResponseType::Referral => "REFERRAL",
-                crate::resolver::iterative::StepResponseType::Nxdomain => "NXDOMAIN",
-                crate::resolver::iterative::StepResponseType::Error(_) => "ERROR",
-            };
+            let status = step.response_type.label();
             let indent = "  ".repeat(i);
             output.push_str(&format!(
                 "{}[{}] {} @ {} ({}ms)\n",
@@ -32,6 +27,9 @@ impl Render for PlainRenderer {
             if let Some(refs) = &step.referral_to {
                 output.push_str(&format!("{}    Referred to: {}\n", indent, refs.join(", ")));
             }
+        }
+        if let Some(msg) = &trace.truncated {
+            output.push_str(&format!("\nWARNING: {msg}\n"));
         }
         output
     }

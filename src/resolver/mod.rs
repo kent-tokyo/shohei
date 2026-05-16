@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 
+use hickory_proto::dnssec::Proof;
 use hickory_proto::rr::RecordType;
+use hickory_resolver::config::ResolverConfig;
 use serde::{Deserialize, Serialize};
 
 pub mod iterative;
@@ -11,6 +13,8 @@ pub struct QueryOptions {
     pub domain: String,
     pub record_type: RecordType,
     pub server: Option<SocketAddr>,
+    /// Pre-built transport config (DoH/DoT). Takes priority over `server`.
+    pub transport: Option<(ResolverConfig, String)>,
     pub validate_dnssec: bool,
 }
 
@@ -95,6 +99,14 @@ pub enum RecordData {
     Unknown(String),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DnsComparison {
+    pub domain: String,
+    pub record_type: String,
+    pub left: DnsQueryResult,
+    pub right: DnsQueryResult,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TrustState {
     Secure,
@@ -111,5 +123,14 @@ impl std::fmt::Display for TrustState {
             TrustState::Bogus => write!(f, "BOGUS"),
             TrustState::Indeterminate => write!(f, "INDETERMINATE"),
         }
+    }
+}
+
+pub(crate) fn proof_to_trust(proof: Proof) -> TrustState {
+    match proof {
+        Proof::Secure => TrustState::Secure,
+        Proof::Insecure => TrustState::Insecure,
+        Proof::Bogus => TrustState::Bogus,
+        Proof::Indeterminate => TrustState::Indeterminate,
     }
 }

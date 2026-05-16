@@ -1,6 +1,5 @@
 use hickory_proto::rr::RecordType;
 use shohei::resolver::{standard, QueryOptions, RecordData};
-use std::net::SocketAddr;
 
 #[tokio::test]
 async fn test_query_a_record() {
@@ -8,6 +7,7 @@ async fn test_query_a_record() {
         domain: "example.com".to_string(),
         record_type: RecordType::A,
         server: Some("8.8.8.8:53".parse().unwrap()),
+        transport: None,
         validate_dnssec: false,
     };
 
@@ -27,6 +27,7 @@ async fn test_query_mx_record() {
         domain: "gmail.com".to_string(),
         record_type: RecordType::MX,
         server: Some("8.8.8.8:53".parse().unwrap()),
+        transport: None,
         validate_dnssec: false,
     };
 
@@ -43,6 +44,7 @@ async fn test_query_txt_record() {
         domain: "example.com".to_string(),
         record_type: RecordType::TXT,
         server: Some("8.8.8.8:53".parse().unwrap()),
+        transport: None,
         validate_dnssec: false,
     };
 

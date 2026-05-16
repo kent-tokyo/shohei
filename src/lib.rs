@@ -4,3 +4,5 @@ pub mod dnssec;
 pub mod error;
 pub mod resolver;
 pub mod transport;
+#[cfg(feature = "tui")]
+pub mod tui;

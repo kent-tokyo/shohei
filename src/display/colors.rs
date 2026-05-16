@@ -21,16 +21,8 @@ pub fn paint_trust(text: &str, state: &TrustState) -> String {
     }
 }
 
-pub fn paint_header(text: &str) -> String {
-    format!("{}", text.if_supports_color(Stream::Stdout, |t| t.cyan()))
-}
-
 pub fn paint_dim(text: &str) -> String {
     format!("{}", text.if_supports_color(Stream::Stdout, |t| t.dimmed()))
-}
-
-pub fn paint_bold(text: &str) -> String {
-    format!("{}", text.if_supports_color(Stream::Stdout, |t| t.bold()))
 }
 
 pub fn trust_badge(state: &TrustState) -> String {

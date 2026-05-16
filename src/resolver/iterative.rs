@@ -27,11 +27,16 @@ const ROOT_HINTS: &[(&str, Ipv4Addr)] = &[
     ("m.root-servers.net", Ipv4Addr::new(202, 12, 27, 33)),
 ];
 
+const MAX_HOPS: usize = 10;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolutionTrace {
     pub target: String,
     pub record_type: String,
     pub steps: Vec<ResolutionStep>,
+    /// Set when trace was cut short by the hop limit
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,34 +58,73 @@ pub enum StepResponseType {
     Error(String),
 }
 
-pub async fn trace(domain: &str, record_type: RecordType) -> Result<ResolutionTrace> {
+impl StepResponseType {
+    pub fn label(&self) -> &'static str {
+        match self {
+            StepResponseType::Answer => "ANSWER",
+            StepResponseType::Referral => "REFERRAL",
+            StepResponseType::Nxdomain => "NXDOMAIN",
+            StepResponseType::Error(_) => "ERROR",
+        }
+    }
+}
+
+/// `current_servers` entry: (delegated_zone, server_name, server_addr)
+type ServerEntry = (String, String, SocketAddr);
+
+pub async fn trace(
+    domain: &str,
+    record_type: RecordType,
+    fallback_ns_ip: Option<IpAddr>,
+) -> Result<ResolutionTrace> {
     let mut steps = Vec::new();
+    let mut truncated = None;
 
-    let (root_name, root_ip) = ROOT_HINTS[0];
-    let root_addr = SocketAddr::new(IpAddr::V4(root_ip), 53);
-
-    let (step, next_servers) =
-        query_server(root_name, root_addr, ".", domain, record_type).await;
-    steps.push(step);
-
-    let mut current_servers = next_servers;
-    let mut hops = 0usize;
-    loop {
-        hops += 1;
-        if hops > 10 {
+    // Try root servers in order until one responds without error
+    let mut root_step_opt: Option<ResolutionStep> = None;
+    let mut root_next: Vec<ServerEntry> = vec![];
+    for &(root_name, root_ip) in ROOT_HINTS {
+        let root_addr = SocketAddr::new(IpAddr::V4(root_ip), 53);
+        let (step, next) = query_server(root_name, root_addr, ".", domain, record_type, fallback_ns_ip).await;
+        let ok = !matches!(step.response_type, StepResponseType::Error(_));
+        root_step_opt = Some(step);
+        root_next = next;
+        if ok {
             break;
         }
+    }
+    let root_step = root_step_opt.ok_or_else(|| {
+        ShoheError::Transport("All root servers unreachable".to_string())
+    })?;
+    if let StepResponseType::Error(msg) = &root_step.response_type {
+        return Err(ShoheError::Transport(format!(
+            "All root servers unreachable: {msg}"
+        )));
+    }
+    steps.push(root_step);
 
-        let Some((server_name, server_addr)) = current_servers.first().cloned() else {
+    let mut current_servers: Vec<ServerEntry> = root_next;
+    let mut hops = 0usize;
+
+    loop {
+        let Some((zone, server_name, server_addr)) = current_servers.first().cloned() else {
             break;
         };
 
-        let zone = extract_zone(&server_name);
         let (step, next) =
-            query_server(&server_name, server_addr, &zone, domain, record_type).await;
+            query_server(&server_name, server_addr, &zone, domain, record_type, fallback_ns_ip).await;
 
         match &step.response_type {
             StepResponseType::Referral => {
+                // Only count actual referrals toward the hop budget.
+                hops += 1;
+                if hops >= MAX_HOPS {
+                    steps.push(step);
+                    truncated = Some(format!(
+                        "Trace stopped after {MAX_HOPS} hops without reaching an authoritative answer."
+                    ));
+                    break;
+                }
                 steps.push(step);
                 if next.is_empty() {
                     break;
@@ -92,6 +136,7 @@ pub async fn trace(domain: &str, record_type: RecordType) -> Result<ResolutionTr
                 break;
             }
             StepResponseType::Error(_) => {
+                // Errors do not consume the hop budget — try the next server candidate.
                 steps.push(step);
                 if current_servers.len() > 1 {
                     current_servers = current_servers[1..].to_vec();
@@ -104,8 +149,9 @@ pub async fn trace(domain: &str, record_type: RecordType) -> Result<ResolutionTr
 
     Ok(ResolutionTrace {
         target: domain.to_string(),
-        record_type: format!("{record_type:?}"),
+        record_type: format!("{record_type}"),
         steps,
+        truncated,
     })
 }
 
@@ -128,7 +174,8 @@ async fn query_server(
     zone: &str,
     domain: &str,
     record_type: RecordType,
-) -> (ResolutionStep, Vec<(String, SocketAddr)>) {
+    fallback_ns_ip: Option<IpAddr>,
+) -> (ResolutionStep, Vec<ServerEntry>) {
     let resolver = match make_resolver(server_addr.ip()) {
         Ok(r) => r,
         Err(e) => {
@@ -169,7 +216,6 @@ async fn query_server(
         }
         Err(e) => {
             if let NetError::Dns(DnsError::NoRecordsFound(no_records)) = &e {
-                // NXDOMAIN — domain does not exist
                 if no_records.response_code == hickory_proto::op::ResponseCode::NXDomain {
                     return (
                         ResolutionStep {
@@ -185,14 +231,15 @@ async fn query_server(
                     );
                 }
 
-                // Referral: NS records in authority section
                 if let Some(ns_data) = &no_records.ns {
-                    let mut next_servers: Vec<(String, SocketAddr)> = Vec::new();
+                    let mut next_servers: Vec<ServerEntry> = Vec::new();
                     let mut referral_names: Vec<String> = Vec::new();
-                    let mut unglu_names: Vec<String> = Vec::new();
+                    let mut unglued: Vec<(String, String)> = Vec::new(); // (zone, ns_name)
 
                     for fwd in ns_data.iter() {
-                        // ns.data is RData::NS(hostname); ns.name is the zone owner
+                        // Zone is the NS record owner name (the delegated zone, e.g. "com.")
+                        let delegated_zone = fwd.ns.name.to_string();
+                        // NS target is the nameserver hostname
                         let ns_name = if let hickory_proto::rr::RData::NS(ns) = &fwd.ns.data {
                             ns.0.to_string()
                         } else {
@@ -200,7 +247,6 @@ async fn query_server(
                         };
                         referral_names.push(ns_name.clone());
 
-                        // Prefer glue records (avoid extra DNS lookup)
                         let mut found_glue = false;
                         for glue in fwd.glue.iter() {
                             let ip = match &glue.data {
@@ -209,19 +255,29 @@ async fn query_server(
                                 _ => None,
                             };
                             if let Some(ip) = ip {
-                                next_servers.push((ns_name.clone(), SocketAddr::new(ip, 53)));
+                                next_servers.push((
+                                    delegated_zone.clone(),
+                                    ns_name.clone(),
+                                    SocketAddr::new(ip, 53),
+                                ));
                                 found_glue = true;
                                 break;
                             }
                         }
                         if !found_glue {
-                            unglu_names.push(ns_name);
+                            unglued.push((delegated_zone, ns_name));
                         }
                     }
 
-                    // Resolve unglu'd NS names if we don't have enough servers yet
-                    if next_servers.is_empty() && !unglu_names.is_empty() {
-                        next_servers = resolve_ns_to_addrs(&unglu_names).await;
+                    if next_servers.is_empty() && !unglued.is_empty() {
+                        let names: Vec<String> = unglued.iter().map(|(_, n)| n.clone()).collect();
+                        let resolved = resolve_ns_to_addrs(&names, fallback_ns_ip).await;
+                        // Re-attach zone from unglued list
+                        for (zone_u, ns_name_u) in &unglued {
+                            if let Some((_, addr)) = resolved.iter().find(|(n, _)| n == ns_name_u) {
+                                next_servers.push((zone_u.clone(), ns_name_u.clone(), *addr));
+                            }
+                        }
                     }
 
                     return (
@@ -255,14 +311,22 @@ async fn query_server(
     }
 }
 
-async fn resolve_ns_to_addrs(ns_names: &[String]) -> Vec<(String, SocketAddr)> {
-    let resolver = match TokioResolver::builder_tokio().and_then(|b| b.build()) {
+/// Resolve unglued NS hostnames.  Uses `fallback_ip` when provided (honouring the user's
+/// --server flag), otherwise falls back to a well-known public resolver.  The system resolver
+/// is intentionally avoided to preserve the "iterative from root" isolation contract.
+async fn resolve_ns_to_addrs(
+    ns_names: &[String],
+    fallback_ip: Option<IpAddr>,
+) -> Vec<(String, SocketAddr)> {
+    let ip = fallback_ip.unwrap_or(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)));
+    let resolver = match make_resolver(ip) {
         Ok(r) => r,
         Err(_) => return vec![],
     };
 
     let mut addrs = Vec::new();
-    for ns in ns_names.iter().take(3) {
+    // Cap at 5 to bound latency; real-world delegations rarely exceed this.
+    for ns in ns_names.iter().take(5) {
         if let Ok(response) = resolver.lookup_ip(ns.as_str()).await {
             if let Some(ip) = response.iter().next() {
                 addrs.push((ns.clone(), SocketAddr::new(ip, 53)));
@@ -270,13 +334,4 @@ async fn resolve_ns_to_addrs(ns_names: &[String]) -> Vec<(String, SocketAddr)> {
         }
     }
     addrs
-}
-
-fn extract_zone(server_name: &str) -> String {
-    let parts: Vec<&str> = server_name.trim_end_matches('.').splitn(2, '.').collect();
-    if parts.len() > 1 {
-        format!("{}.", parts[1])
-    } else {
-        ".".to_string()
-    }
 }

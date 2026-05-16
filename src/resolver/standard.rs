@@ -1,4 +1,3 @@
-use std::net::IpAddr;
 use std::time::Instant;
 
 use hickory_proto::dnssec::rdata::DNSSECRData;
@@ -9,17 +8,29 @@ use hickory_resolver::net::runtime::TokioRuntimeProvider;
 use hickory_resolver::TokioResolver;
 
 use crate::error::Result;
-use crate::resolver::{DnsQuery, DnsQueryResult, DnsRecord, QueryOptions, RecordData, TrustState};
+use crate::resolver::{proof_to_trust, DnsQuery, DnsQueryResult, DnsRecord, QueryOptions, RecordData};
 
 pub async fn query(opts: &QueryOptions) -> Result<DnsQueryResult> {
     let mut resolver_opts = ResolverOpts::default();
+    resolver_opts.attempts = 1;
+    resolver_opts.timeout = std::time::Duration::from_secs(5);
     if opts.validate_dnssec {
         resolver_opts.validate = true;
     }
 
-    let (resolver, server_addr) = if let Some(server) = &opts.server {
-        let ip: IpAddr = server.ip();
-        let ns = NameServerConfig::udp(ip);
+    let (resolver, server_addr) = if let Some((config, label)) = &opts.transport {
+        // DoH / DoT transport takes highest priority
+        let r = TokioResolver::builder_with_config(config.clone(), TokioRuntimeProvider::default())
+            .with_options(resolver_opts)
+            .build()?;
+        (r, label.clone())
+    } else if let Some(server) = &opts.server {
+        // Custom server with correct port
+        let mut ns = NameServerConfig::udp(server.ip());
+        debug_assert!(!ns.connections.is_empty(), "hickory NameServerConfig::udp must yield ≥1 connection");
+        if let Some(conn) = ns.connections.first_mut() {
+            conn.port = server.port();
+        }
         let config = ResolverConfig::from_parts(None, vec![], vec![ns]);
         let r = TokioResolver::builder_with_config(config, TokioRuntimeProvider::default())
             .with_options(resolver_opts)
@@ -40,7 +51,7 @@ pub async fn query(opts: &QueryOptions) -> Result<DnsQueryResult> {
 
     let dns_query = DnsQuery {
         name: opts.domain.clone(),
-        record_type: format!("{:?}", opts.record_type),
+        record_type: opts.record_type.to_string(),
         class: "IN".to_string(),
     };
 
@@ -61,6 +72,7 @@ fn record_to_dns_record(record: &hickory_proto::rr::Record) -> DnsRecord {
     let ttl = record.ttl;
     let record_type = record.record_type().to_string();
     let data = rdata_to_record_data(&record.data);
+    let trust = proof_to_trust(record.proof);
 
     DnsRecord {
         name,
@@ -68,7 +80,7 @@ fn record_to_dns_record(record: &hickory_proto::rr::Record) -> DnsRecord {
         class: "IN".to_string(),
         record_type,
         data,
-        trust: TrustState::Indeterminate,
+        trust,
     }
 }
 
@@ -94,9 +106,9 @@ fn rdata_to_record_data(rdata: &RData) -> RecordData {
             mname: soa.mname.to_string(),
             rname: soa.rname.to_string(),
             serial: soa.serial,
-            refresh: soa.refresh as u32,
-            retry: soa.retry as u32,
-            expire: soa.expire as u32,
+            refresh: soa.refresh.max(0) as u32,
+            retry: soa.retry.max(0) as u32,
+            expire: soa.expire.max(0) as u32,
             minimum: soa.minimum,
         },
         RData::PTR(ptr) => RecordData::Ptr(ptr.0.to_string()),

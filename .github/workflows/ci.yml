@@ -27,7 +27,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build
         run: cargo build --all-features
+      - name: Build (no features)
+        run: cargo build
       - name: Test
+        # Network-dependent tests are #[ignore = "requires network"] and skipped here.
+        # Run them manually with: cargo test -- --include-ignored
         run: cargo test --all-features
 
   clippy:
@@ -39,8 +43,10 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - name: Run clippy
+      - name: Clippy (all features)
         run: cargo clippy --all-features -- -D warnings
+      - name: Clippy (no features)
+        run: cargo clippy -- -D warnings
 
   fmt:
     name: Rustfmt

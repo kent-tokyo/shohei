@@ -9,6 +9,7 @@ use clap::{Parser, ValueEnum};
 )]
 pub struct Args {
     /// Domain name to query
+    #[arg(value_parser = validate_domain)]
     pub domain: String,
 
     /// DNS record type to query
@@ -33,17 +34,34 @@ pub struct Args {
     #[arg(long, value_name = "URL")]
     pub doh: Option<String>,
 
-    /// Use DNS-over-TLS (e.g. 8.8.8.8:853)
-    #[arg(long, value_name = "HOST:PORT")]
+    /// Use DNS-over-TLS (e.g. 8.8.8.8:853) — IP address required, not hostname
+    #[arg(long, value_name = "IP:PORT")]
     pub dot: Option<String>,
 
-    /// Custom DNS server address
+    /// Custom DNS server address (e.g. 8.8.8.8, 8.8.8.8:53, [::1]:53)
     #[arg(long, short = 's', value_name = "ADDR")]
     pub server: Option<String>,
 
     /// Output format
     #[arg(long, short = 'o', value_enum, default_value = "colored")]
     pub output: OutputFormat,
+
+    /// Print only record data values, one per line (like dig +short)
+    #[arg(long)]
+    pub short: bool,
+
+    /// Re-query every N seconds until Ctrl+C
+    #[arg(long, value_name = "SECS", value_parser = clap::value_parser!(u64).range(1..))]
+    pub watch: Option<u64>,
+
+    /// Compare responses from a second server (e.g. 1.1.1.1, [::1]:53)
+    #[arg(long, value_name = "ADDR")]
+    pub compare: Option<String>,
+
+    /// Launch interactive TUI (requires --features tui)
+    #[cfg(feature = "tui")]
+    #[arg(long)]
+    pub tui: bool,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -82,6 +100,31 @@ impl RType {
             RType::Any => RecordType::ANY,
         }
     }
+}
+
+fn validate_domain(s: &str) -> std::result::Result<String, String> {
+    let trimmed = s.trim_end_matches('.');
+    if trimmed.is_empty() {
+        return Err("domain name cannot be empty".to_string());
+    }
+    if trimmed.len() > 253 {
+        return Err(format!(
+            "domain name too long ({} chars, RFC 1035 max 253)",
+            trimmed.len()
+        ));
+    }
+    for label in trimmed.split('.') {
+        if label.is_empty() {
+            return Err("domain name contains an empty label".to_string());
+        }
+        if label.len() > 63 {
+            return Err(format!(
+                "label '{label}' too long ({} chars, RFC 1035 max 63)",
+                label.len()
+            ));
+        }
+    }
+    Ok(s.to_string())
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
