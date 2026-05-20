@@ -9,10 +9,15 @@
 
 **shohei** 是下一代 DNS 诊断命令行工具。它不仅仅是 `dig` 的替代品，还能将从根到答案的完整 **DNSSEC 信任链（Chain of Trust）**、逐跳迭代解析路径以及 **DoH / DoT** 现代传输协议以彩色树状结构直接渲染在终端中。
 
-- **DNSSEC 信任链树** — 可视化从 `.` 到目标域名每个 DS、DNSKEY 步骤
+- **DNSSEC 信任链树** — 可视化从 `.` 到目标域名每个 DS、DNSKEY 步骤；`-v` 显示密钥标签和算法名称
 - **迭代解析追踪** — 展示从根服务器 → TLD → 权威 NS 的完整查询路径
+- **Authority + Additional 区段** — 直接查询权威服务器时显示 NS 委派和胶水记录
 - **双服务器对比** — 使用 `--compare` 并排对比两个解析器的结果
 - **DoH / DoT 支持** — 内置 DNS-over-HTTPS 和 DNS-over-TLS
+- **多记录类型** — `--type a --type aaaa --type mx` 一次查询多种类型
+- **反向 DNS** — `-x 1.2.3.4` 快速解析 IPv4/IPv6 的 PTR 记录
+- **stdin 批量模式** — 通过管道传入域名列表，批量查询
+- **TTL 人性化显示** — `300` 显示为 `5m`，`3600` 显示为 `1h`
 - **JSON 输出** — 适用于脚本和自动化的管道友好输出
 - **监控模式** — 使用 `--watch` 定期自动刷新
 - **精简输出** — 使用 `--short` 每行仅输出数据值（适用于脚本）
@@ -20,18 +25,30 @@
 
 ## 为什么选择 shohei？
 
-| 功能 | shohei | dig | dog |
-|------|:------:|:---:|:---:|
-| 彩色表格输出 | ✓ | | ✓ |
-| DNSSEC 信任链树 | **✓** | | |
-| 迭代解析追踪 | **✓** | | |
-| 双服务器对比 (`--compare`) | **✓** | | |
-| 监控模式 (`--watch`) | **✓** | | |
-| 精简输出 (`--short`) | **✓** | | |
-| DNS-over-HTTPS (DoH) | ✓ | ✓ | ✓ |
-| DNS-over-TLS (DoT) | ✓ | ✓ | ✓ |
-| JSON 输出 | ✓ | | ✓ |
-| 交互式 TUI | **✓** | | |
+DNS 工具大致分为三类：输出原始文本的经典工具（`dig`、`drill`、`delv`）；增加彩色显示和现代传输协议的新一代工具（`dog`、`doggo`、`q`）；以及 shohei —— 兼具上述所有能力，并在业界首创终端原生的 **DNSSEC 信任链可视化** 与 **带注释的迭代解析追踪**。
+
+| 功能 | shohei | dig | dog | doggo | q | delv | drill |
+|------|:------:|:---:|:---:|:-----:|:-:|:----:|:-----:|
+| 彩色输出 | ✓ | | ✓ | ✓ | ✓ | | |
+| **DNSSEC 信任链树** | **✓** | | | | | | |
+| DNSSEC 验证 | ✓ | ✓ | | | | ✓ | ✓ |
+| **迭代解析追踪（可视化）** | **✓** | | | | | | |
+| Authority + Additional 区段 | ✓ | ✓ | | | | ✓ | ✓ |
+| 双服务器对比 (`--compare`) | **✓** | | | | | | |
+| 监控模式 (`--watch`) | **✓** | | | | | | |
+| 精简输出 (`--short`) | **✓** | | | | | | |
+| **多记录类型同时查询** (`--type a --type mx`) | **✓** | | | ✓ | | | |
+| **反向 DNS 简写** (`-x 1.2.3.4`) | **✓** | ✓ | | ✓ | | | |
+| 强制 TCP (`--tcp`) | ✓ | ✓ | | | | | ✓ |
+| 禁用递归 (`--no-recurse`) | ✓ | ✓ | | | | ✓ | ✓ |
+| 查询延迟显示 | ✓ | ✓ | | ✓ | ✓ | | |
+| DNS-over-HTTPS (DoH) | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| DNS-over-TLS (DoT) | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| DNS-over-QUIC (DoQ) | | | | | ✓ | | |
+| JSON 输出 | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| 交互式 TUI | **✓** | | | | | | |
+
+> dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC 验证解析器; drill = 基于 ldns; DoQ 待 hickory QUIC 支持后实现
 
 ![DNSSEC 信任链](images/demo_dnssec.svg)
 
@@ -69,11 +86,32 @@ shohei google.com              # A 记录（默认）
 shohei google.com --type AAAA  # AAAA 记录
 shohei google.com --type NS    # 名称服务器
 shohei gmail.com  --type MX    # 邮件交换记录
+
+# 一次查询多种记录类型
+shohei google.com --type a --type aaaa --type mx
 ```
 
 ![DNS 记录查询](images/demo_basic.svg)
 
 ![MX 记录](images/demo_mx.svg)
+
+```bash
+# 安全 / DNSSEC 相关记录类型
+shohei google.com --type caa       # 证书颁发机构授权（CAA）
+shohei github.com --type sshfp     # SSH 指纹
+shohei _443._tcp.example.com --type tlsa  # DANE TLSA
+```
+
+![CAA 记录](images/demo_caa.svg)
+
+### 反向 DNS
+
+解析 IP 地址的 PTR 记录，支持 IPv4 和 IPv6。
+
+```bash
+shohei -x 1.1.1.1              # → one.one.one.one
+shohei -x 2606:4700:4700::1111 # IPv6 反向解析
+```
 
 ### DNSSEC 信任链
 
@@ -81,6 +119,9 @@ shohei gmail.com  --type MX    # 邮件交换记录
 
 ```bash
 shohei cloudflare.com --dnssec
+
+# 详细模式：显示密钥标签、算法名称和 KSK/ZSK 类型
+shohei cloudflare.com --dnssec --verbose
 ```
 
 ![DNSSEC 信任链](images/demo_dnssec.svg)
@@ -108,6 +149,28 @@ shohei google.com --dot 1.1.1.1:853
 shohei google.com --server 8.8.8.8
 ```
 
+### Authority 和 Additional 区段
+
+直接查询权威服务器时，shohei 显示 **Authority Section**（NS 委派）和 **Additional Section**（胶水 A/AAAA 记录）——与 `dig` 默认行为一致。
+
+```bash
+# 查询 .com TLD 名称服务器中的 google.com — 显示 NS 委派和胶水记录
+shohei google.com -s 192.5.6.30 --no-recurse
+
+# 直接查询权威名称服务器
+shohei example.com -s 199.43.135.53 --no-recurse --type ns
+```
+
+![Authority 和 Additional 区段](images/demo_authority.svg)
+
+### 强制 TCP
+
+强制使用 TCP 而非 UDP 发送 DNS 查询。适用于响应被截断或 UDP/53 被封锁的环境。
+
+```bash
+shohei example.com -s 8.8.8.8 --tcp
+```
+
 ### 精简输出
 
 去除所有装饰，仅输出记录数据值，每行一条。非常适合 Shell 脚本处理。
@@ -133,6 +196,16 @@ shohei google.com --server 8.8.8.8 --compare 1.1.1.1
 ![对比 — 结果一致](images/demo_compare_match.svg)
 
 ![对比 — 存在差异](images/demo_compare_diff.svg)
+
+### 批量 / stdin 模式
+
+通过管道传入以换行符分隔的域名列表，shohei 将依次查询每个域名。
+以 `#` 开头的行将被忽略（注释）。
+
+```bash
+echo -e "google.com\nexample.com\ncloudflare.com" | shohei
+cat domains.txt | shohei --type mx --short
+```
 
 ### 监控模式
 
@@ -184,9 +257,14 @@ shohei google.com --tui
 
 | 参数 | 缩写 | 说明 |
 |------|------|------|
-| `--type <TYPE>` | `-t` | 记录类型：`a`, `aaaa`, `mx`, `ns`, `txt`, `cname`, `soa`, `ptr`, `srv`, `dnskey`, `ds`, `rrsig`, `any` |
+| `--type <TYPE>` | `-t` | 记录类型（可重复）：`a`, `aaaa`, `mx`, `ns`, `txt`, `cname`, `soa`, `ptr`, `srv`, `dnskey`, `ds`, `rrsig`, `caa`, `tlsa`, `sshfp`, `nsec`, `nsec3`, `any` |
+| `--reverse <IP>` | `-x` | 反向 DNS — 自动将 IP 转换为 PTR 查询（支持 IPv4/IPv6） |
 | `--dnssec` | `-d` | 显示 DNSSEC 信任链验证树 |
+| `--verbose` | `-v` | 显示详细信息（DNSSEC 链中的密钥标签和算法） |
 | `--trace` | | 显示从根服务器开始的迭代解析路径 |
+| `--no-recurse` | | 清除 RD 位 — 直接查询权威服务器；显示 Authority + Additional 区段 |
+| `--tcp` | | 强制使用 TCP（需要 `-s`；适用于大型/截断响应） |
+| `--timeout <SECS>` | | DNS 查询超时秒数（默认: 5，最大: 60） |
 | `--short` | | 仅输出数据值，每行一条（适用于脚本） |
 | `--watch <SECS>` | | 每隔 N 秒重复查询（Ctrl+C 停止） |
 | `--compare <ADDR>` | | 向第二个服务器查询并对比差异 |

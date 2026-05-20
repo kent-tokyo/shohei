@@ -9,10 +9,15 @@
 
 **shohei** is a next-generation DNS diagnostic CLI. Where `dig` shows raw records, shohei visualizes the complete picture: the **DNSSEC chain of trust** from root to answer, the iterative resolution path hop-by-hop, and modern transports (DoH / DoT) — all rendered as color-coded trees in your terminal.
 
-- **DNSSEC chain tree** — see every DS, DNSKEY, and trust step from `.` to your domain
+- **DNSSEC chain tree** — see every DS, DNSKEY, and trust step from `.` to your domain; add `-v` for key tags and algorithm names
 - **Iterative resolution trace** — watch queries travel from root servers to TLD to authoritative NS
+- **Authority + Additional sections** — see NS referrals and glue records when querying authoritative servers directly
 - **Server comparison** — diff two resolvers side-by-side with `--compare`
 - **DoH and DoT** — DNS-over-HTTPS and DNS-over-TLS built in
+- **Multiple record types** — `--type a --type aaaa --type mx` in a single invocation
+- **Reverse DNS** — `-x 1.2.3.4` resolves PTR records for IPv4 and IPv6
+- **Stdin batch mode** — pipe a list of domains and query them all at once
+- **Human-readable TTL** — `300` displayed as `5m`, `3600` as `1h`
 - **JSON output** — pipe-friendly for scripting and automation
 - **Watch mode** — auto-refresh at a set interval with `--watch`
 - **Short output** — data values only, one per line, with `--short`
@@ -20,18 +25,30 @@
 
 ## Why shohei?
 
-| Feature | shohei | dig | dog |
-|---------|:------:|:---:|:---:|
-| Colored table output | ✓ | | ✓ |
-| DNSSEC chain-of-trust tree | **✓** | | |
-| Iterative resolution trace | **✓** | | |
-| Two-server comparison (`--compare`) | **✓** | | |
-| Watch / auto-refresh (`--watch`) | **✓** | | |
-| Short / script-friendly output (`--short`) | **✓** | | |
-| DNS-over-HTTPS (DoH) | ✓ | ✓ | ✓ |
-| DNS-over-TLS (DoT) | ✓ | ✓ | ✓ |
-| JSON output | ✓ | | ✓ |
-| Interactive TUI | **✓** | | |
+DNS tooling splits into three camps: classic tools (`dig`, `drill`, `delv`) that show raw output with no visual layer; modern alternatives (`dog`, `doggo`, `q`) that add colors and modern transports but skip deep diagnostics; and shohei, which combines both and adds the only terminal-native **DNSSEC chain-of-trust visualization** and **annotated iterative trace** in the space.
+
+| Feature | shohei | dig | dog | doggo | q | delv | drill |
+|---------|:------:|:---:|:---:|:-----:|:-:|:----:|:-----:|
+| Colored output | ✓ | | ✓ | ✓ | ✓ | | |
+| **DNSSEC chain-of-trust tree** | **✓** | | | | | | |
+| DNSSEC validation | ✓ | ✓ | | | | ✓ | ✓ |
+| **Iterative resolution trace (visual)** | **✓** | | | | | | |
+| Authority + Additional sections | ✓ | ✓ | | | | ✓ | ✓ |
+| Two-server comparison (`--compare`) | **✓** | | | | | | |
+| Watch / auto-refresh (`--watch`) | **✓** | | | | | | |
+| Script-friendly output (`--short`) | **✓** | | | | | | |
+| **Multiple record types** (`--type a --type mx`) | **✓** | | | ✓ | | | |
+| **Reverse DNS shorthand** (`-x 1.2.3.4`) | **✓** | ✓ | | ✓ | | | |
+| Force TCP (`--tcp`) | ✓ | ✓ | | | | | ✓ |
+| Disable recursion (`--no-recurse`) | ✓ | ✓ | | | | ✓ | ✓ |
+| Query latency display | ✓ | ✓ | | ✓ | ✓ | | |
+| DNS-over-HTTPS (DoH) | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| DNS-over-TLS (DoT) | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| DNS-over-QUIC (DoQ) | | | | | ✓ | | |
+| JSON output | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| Interactive TUI | **✓** | | | | | | |
+
+> dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC-validating resolver; drill = ldns-based; DoQ support planned pending hickory QUIC availability
 
 ![DNSSEC chain of trust](images/demo_dnssec.svg)
 
@@ -69,11 +86,32 @@ shohei google.com              # A records (default)
 shohei google.com --type AAAA  # AAAA records
 shohei google.com --type NS    # Nameservers
 shohei gmail.com  --type MX    # Mail exchangers
+
+# Multiple record types in one command
+shohei google.com --type a --type aaaa --type mx
 ```
 
 ![DNS record query](images/demo_basic.svg)
 
 ![MX records](images/demo_mx.svg)
+
+```bash
+# Security / DNSSEC-related record types
+shohei google.com --type caa       # Certificate Authority Authorization
+shohei github.com --type sshfp     # SSH fingerprints
+shohei _443._tcp.example.com --type tlsa  # DANE TLSA
+```
+
+![CAA records](images/demo_caa.svg)
+
+### Reverse DNS
+
+Resolve the PTR record for an IP address. IPv4 and IPv6 are both supported.
+
+```bash
+shohei -x 1.1.1.1              # → one.one.one.one
+shohei -x 2606:4700:4700::1111 # IPv6 reverse lookup
+```
 
 ### DNSSEC chain of trust
 
@@ -82,6 +120,9 @@ Each zone's DS and DNSKEY records are checked individually.
 
 ```bash
 shohei cloudflare.com --dnssec
+
+# Verbose: show key tags, algorithm names, and KSK/ZSK roles
+shohei cloudflare.com --dnssec --verbose
 ```
 
 ![DNSSEC chain of trust](images/demo_dnssec.svg)
@@ -109,6 +150,28 @@ shohei google.com --dot 1.1.1.1:853
 shohei google.com --server 8.8.8.8
 ```
 
+### Authority and Additional sections
+
+When querying an authoritative server directly, shohei displays the **Authority Section** (NS referrals) and **Additional Section** (glue A/AAAA records) — matching `dig`'s default behavior.
+
+```bash
+# Query the .com TLD nameserver for google.com — shows NS referral + glue records
+shohei google.com -s 192.5.6.30 --no-recurse
+
+# Query an authoritative nameserver directly
+shohei example.com -s 199.43.135.53 --no-recurse --type ns
+```
+
+![Authority and Additional sections](images/demo_authority.svg)
+
+### Force TCP
+
+Force DNS queries over TCP instead of UDP. Useful for large responses that get truncated (TC bit set) or environments that block UDP/53.
+
+```bash
+shohei example.com -s 8.8.8.8 --tcp
+```
+
 ### Short output
 
 Strip all decoration and return just the record data — one value per line. Ideal for shell scripting.
@@ -134,6 +197,16 @@ shohei google.com --server 8.8.8.8 --compare 1.1.1.1
 ![Compare — matching](images/demo_compare_match.svg)
 
 ![Compare — diverging](images/demo_compare_diff.svg)
+
+### Batch / stdin mode
+
+Pipe a newline-separated list of domains and shohei queries each one in sequence.
+Lines starting with `#` are ignored as comments.
+
+```bash
+echo -e "google.com\nexample.com\ncloudflare.com" | shohei
+cat domains.txt | shohei --type mx --short
+```
 
 ### Watch mode
 
@@ -185,9 +258,14 @@ shohei google.com --tui
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--type <TYPE>` | `-t` | Record type: `a`, `aaaa`, `mx`, `ns`, `txt`, `cname`, `soa`, `ptr`, `srv`, `dnskey`, `ds`, `rrsig`, `any` |
+| `--type <TYPE>` | `-t` | Record type (repeatable): `a`, `aaaa`, `mx`, `ns`, `txt`, `cname`, `soa`, `ptr`, `srv`, `dnskey`, `ds`, `rrsig`, `caa`, `tlsa`, `sshfp`, `nsec`, `nsec3`, `any` |
+| `--reverse <IP>` | `-x` | Reverse DNS — auto-converts IP to PTR query (IPv4 and IPv6) |
 | `--dnssec` | `-d` | DNSSEC chain-of-trust validation tree |
+| `--verbose` | `-v` | Show verbose detail (key tags, algorithms) in DNSSEC chain |
 | `--trace` | | Iterative resolution path from root servers |
+| `--no-recurse` | | Clear RD bit — query authoritative servers directly; shows Authority + Additional sections |
+| `--tcp` | | Force TCP instead of UDP (requires `-s`; useful for large/truncated responses) |
+| `--timeout <SECS>` | | DNS query timeout in seconds (default: 5, max: 60) |
 | `--short` | | Output data values only, one per line (script-friendly) |
 | `--watch <SECS>` | | Repeat query every N seconds; Ctrl+C to stop |
 | `--compare <ADDR>` | | Query a second server and diff the results |

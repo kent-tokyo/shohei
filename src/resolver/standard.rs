@@ -5,6 +5,7 @@ use hickory_proto::dnssec::PublicKey;
 use hickory_proto::rr::RData;
 use hickory_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
 use hickory_resolver::net::runtime::TokioRuntimeProvider;
+use hickory_resolver::net::{DnsError, NetError};
 use hickory_resolver::TokioResolver;
 
 use crate::error::Result;
@@ -13,9 +14,12 @@ use crate::resolver::{proof_to_trust, DnsQuery, DnsQueryResult, DnsRecord, Query
 pub async fn query(opts: &QueryOptions) -> Result<DnsQueryResult> {
     let mut resolver_opts = ResolverOpts::default();
     resolver_opts.attempts = 1;
-    resolver_opts.timeout = std::time::Duration::from_secs(5);
+    resolver_opts.timeout = std::time::Duration::from_secs(opts.timeout_secs);
     if opts.validate_dnssec {
         resolver_opts.validate = true;
+    }
+    if opts.no_recurse {
+        resolver_opts.recursion_desired = false;
     }
 
     let (resolver, server_addr) = if let Some((config, label)) = &opts.transport {
@@ -26,7 +30,11 @@ pub async fn query(opts: &QueryOptions) -> Result<DnsQueryResult> {
         (r, label.clone())
     } else if let Some(server) = &opts.server {
         // Custom server with correct port
-        let mut ns = NameServerConfig::udp(server.ip());
+        let mut ns = if opts.force_tcp {
+            NameServerConfig::tcp(server.ip())
+        } else {
+            NameServerConfig::udp(server.ip())
+        };
         debug_assert!(!ns.connections.is_empty(), "hickory NameServerConfig::udp must yield ≥1 connection");
         if let Some(conn) = ns.connections.first_mut() {
             conn.port = server.port();
@@ -44,9 +52,7 @@ pub async fn query(opts: &QueryOptions) -> Result<DnsQueryResult> {
     };
 
     let start = Instant::now();
-    let lookup = resolver
-        .lookup(opts.domain.as_str(), opts.record_type)
-        .await?;
+    let lookup_result = resolver.lookup(opts.domain.as_str(), opts.record_type).await;
     let duration_ms = start.elapsed().as_millis() as u64;
 
     let dns_query = DnsQuery {
@@ -55,16 +61,48 @@ pub async fn query(opts: &QueryOptions) -> Result<DnsQueryResult> {
         class: "IN".to_string(),
     };
 
-    let answers: Vec<DnsRecord> = lookup.answers().iter().map(record_to_dns_record).collect();
-
-    Ok(DnsQueryResult {
-        query: dns_query,
-        answers,
-        authority: vec![],
-        additional: vec![],
-        duration_ms,
-        server_addr,
-    })
+    match lookup_result {
+        Ok(lookup) => {
+            let answers = lookup.answers().iter().map(record_to_dns_record).collect();
+            let authority = lookup.authorities().iter().map(record_to_dns_record).collect();
+            let additional = lookup.additionals().iter().map(record_to_dns_record).collect();
+            Ok(DnsQueryResult {
+                query: dns_query,
+                answers,
+                authority,
+                additional,
+                duration_ms,
+                server_addr,
+            })
+        }
+        Err(e) => {
+            // Referral response: ANSWER is empty but AUTHORITY (NS) + ADDITIONAL (glue) are present.
+            // hickory returns this as NoRecordsFound rather than a successful Lookup.
+            if let NetError::Dns(DnsError::NoRecordsFound(no_records)) = &e {
+                if let Some(ns_data) = &no_records.ns {
+                    let mut authority: Vec<DnsRecord> = Vec::new();
+                    let mut additional: Vec<DnsRecord> = Vec::new();
+                    for fwd in ns_data.iter() {
+                        authority.push(record_to_dns_record(&fwd.ns));
+                        for glue in fwd.glue.iter() {
+                            additional.push(record_to_dns_record(glue));
+                        }
+                    }
+                    if !authority.is_empty() {
+                        return Ok(DnsQueryResult {
+                            query: dns_query,
+                            answers: vec![],
+                            authority,
+                            additional,
+                            duration_ms,
+                            server_addr,
+                        });
+                    }
+                }
+            }
+            Err(e.into())
+        }
+    }
 }
 
 fn record_to_dns_record(record: &hickory_proto::rr::Record) -> DnsRecord {
@@ -117,6 +155,22 @@ fn rdata_to_record_data(rdata: &RData) -> RecordData {
             weight: srv.weight,
             port: srv.port,
             target: srv.target.to_string(),
+        },
+        RData::CAA(caa) => RecordData::Caa {
+            flags: caa.issuer_critical as u8,
+            tag: caa.tag.clone(),
+            value: String::from_utf8_lossy(&caa.value).into_owned(),
+        },
+        RData::TLSA(tlsa) => RecordData::Tlsa {
+            usage: u8::from(tlsa.cert_usage),
+            selector: u8::from(tlsa.selector),
+            matching_type: u8::from(tlsa.matching),
+            cert_data: hex_encode(&tlsa.cert_data),
+        },
+        RData::SSHFP(fp) => RecordData::Sshfp {
+            algorithm: u8::from(fp.algorithm),
+            fingerprint_type: u8::from(fp.fingerprint_type),
+            fingerprint: hex_encode(&fp.fingerprint),
         },
         RData::DNSSEC(dnssec) => rdata_dnssec_to_record_data(dnssec),
         other => RecordData::Unknown(format!("{other}")),

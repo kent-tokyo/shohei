@@ -3,6 +3,24 @@ use comfy_table::{Cell, CellAlignment, Table};
 use crate::display::colors::{paint_dim, trust_badge};
 use crate::resolver::{DnsQueryResult, RecordData};
 
+fn format_ttl(secs: u32) -> String {
+    if secs < 60 {
+        format!("{secs}s")
+    } else if secs < 3600 {
+        let m = secs / 60;
+        let s = secs % 60;
+        if s == 0 { format!("{m}m") } else { format!("{m}m{s}s") }
+    } else if secs < 86400 {
+        let h = secs / 3600;
+        let m = (secs % 3600) / 60;
+        if m == 0 { format!("{h}h") } else { format!("{h}h{m}m") }
+    } else {
+        let d = secs / 86400;
+        let h = (secs % 86400) / 3600;
+        if h == 0 { format!("{d}d") } else { format!("{d}d{h}h") }
+    }
+}
+
 pub fn render_result(result: &DnsQueryResult, use_color: bool) -> String {
     let mut output = String::new();
 
@@ -25,30 +43,27 @@ pub fn render_result(result: &DnsQueryResult, use_color: bool) -> String {
 
     if result.answers.is_empty() {
         output.push_str("  No records found.\n");
-        return output;
+    } else {
+        output.push_str(&render_records_table(&result.answers, use_color));
     }
 
-    let mut table = Table::new();
-    table.set_header(vec!["NAME", "TTL", "TYPE", "DATA", "TRUST"]);
-
-    for record in &result.answers {
-        let trust_cell = if use_color {
-            trust_badge(&record.trust)
+    if !result.authority.is_empty() {
+        if use_color {
+            output.push_str(&format!("\n  {}\n\n", paint_dim("Authority Section:")));
         } else {
-            record.trust.to_string()
-        };
-
-        table.add_row(vec![
-            Cell::new(&record.name),
-            Cell::new(record.ttl.to_string()).set_alignment(CellAlignment::Right),
-            Cell::new(&record.record_type),
-            Cell::new(format_record_data(&record.data)),
-            Cell::new(trust_cell),
-        ]);
+            output.push_str("\nAuthority Section:\n\n");
+        }
+        output.push_str(&render_records_table(&result.authority, use_color));
     }
 
-    output.push_str(&table.to_string());
-    output.push('\n');
+    if !result.additional.is_empty() {
+        if use_color {
+            output.push_str(&format!("\n  {}\n\n", paint_dim("Additional Section:")));
+        } else {
+            output.push_str("\nAdditional Section:\n\n");
+        }
+        output.push_str(&render_records_table(&result.additional, use_color));
+    }
 
     if use_color {
         output.push_str(&format!(
@@ -66,6 +81,31 @@ pub fn render_result(result: &DnsQueryResult, use_color: bool) -> String {
     }
 
     output
+}
+
+fn render_records_table(records: &[crate::resolver::DnsRecord], use_color: bool) -> String {
+    let mut table = Table::new();
+    table.set_header(vec!["NAME", "TTL", "TYPE", "DATA", "TRUST"]);
+
+    for record in records {
+        let trust_cell = if use_color {
+            trust_badge(&record.trust)
+        } else {
+            record.trust.to_string()
+        };
+
+        table.add_row(vec![
+            Cell::new(&record.name),
+            Cell::new(format_ttl(record.ttl)).set_alignment(CellAlignment::Right),
+            Cell::new(&record.record_type),
+            Cell::new(format_record_data(&record.data)),
+            Cell::new(trust_cell),
+        ]);
+    }
+
+    let mut out = table.to_string();
+    out.push('\n');
+    out
 }
 
 pub fn format_record_data(data: &RecordData) -> String {
@@ -121,6 +161,25 @@ pub fn format_record_data(data: &RecordData) -> String {
             signer_name,
             ..
         } => format!("{type_covered} tag={key_tag} signer={signer_name}"),
+        RecordData::Caa { flags, tag, value } => format!("{flags} {tag} \"{value}\""),
+        RecordData::Tlsa {
+            usage,
+            selector,
+            matching_type,
+            cert_data,
+        } => {
+            let preview = if cert_data.len() > 20 {
+                format!("{}…", &cert_data[..20])
+            } else {
+                cert_data.clone()
+            };
+            format!("usage={usage} sel={selector} type={matching_type} {preview}")
+        }
+        RecordData::Sshfp {
+            algorithm,
+            fingerprint_type,
+            fingerprint,
+        } => format!("alg={algorithm} type={fingerprint_type} {fingerprint}"),
         RecordData::Unknown(s) => s.clone(),
     }
 }

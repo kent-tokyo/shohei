@@ -8,19 +8,30 @@ use clap::{Parser, ValueEnum};
     long_about = "shohei queries DNS records and can visualize the full DNSSEC chain of trust,\niterative resolution path, and supports modern transports like DoH and DoT."
 )]
 pub struct Args {
-    /// Domain name to query
-    #[arg(value_parser = validate_domain)]
-    pub domain: String,
+    /// Domain name to query (use '-' to read domains from stdin)
+    #[arg(value_parser = validate_domain_or_stdin)]
+    pub domain: Option<String>,
 
-    /// DNS record type to query
+    /// Reverse DNS lookup — resolve PTR record for an IP (IPv4 or IPv6), like dig -x
+    #[arg(short = 'x', long = "reverse", value_name = "IP", conflicts_with = "domain")]
+    pub reverse: Option<String>,
+
+    /// Show verbose detail (e.g. key tags and algorithms in DNSSEC chain)
+    #[arg(short = 'v', long = "verbose")]
+    pub verbose: bool,
+
+    /// DNS record type (can be repeated: --type a --type aaaa)
+    ///
+    /// Supported types: a, aaaa, mx, ns, txt, cname, soa, ptr, srv, dnskey, ds, rrsig, caa, tlsa, sshfp, nsec, nsec3, any
     #[arg(
         long = "type",
         short = 't',
         value_enum,
-        default_value = "a",
+        num_args = 1..,
+        default_values = ["a"],
         ignore_case = true
     )]
-    pub record_type: RType,
+    pub record_types: Vec<RType>,
 
     /// Show DNSSEC chain-of-trust validation tree
     #[arg(long, short = 'd')]
@@ -58,6 +69,18 @@ pub struct Args {
     #[arg(long, value_name = "ADDR")]
     pub compare: Option<String>,
 
+    /// Force DNS queries over TCP instead of UDP (requires -s; useful for large/truncated responses)
+    #[arg(long, conflicts_with_all = ["doh", "dot"], requires = "server")]
+    pub tcp: bool,
+
+    /// Send query without the RD (Recursion Desired) bit — query authoritative servers directly
+    #[arg(long)]
+    pub no_recurse: bool,
+
+    /// DNS query timeout in seconds (default: 5)
+    #[arg(long, value_name = "SECS", default_value = "5", value_parser = clap::value_parser!(u64).range(1..=60))]
+    pub timeout: u64,
+
     /// Launch interactive TUI (requires --features tui)
     #[cfg(feature = "tui")]
     #[arg(long)]
@@ -78,6 +101,11 @@ pub enum RType {
     Dnskey,
     Ds,
     Rrsig,
+    Caa,
+    Tlsa,
+    Sshfp,
+    Nsec,
+    Nsec3,
     Any,
 }
 
@@ -97,9 +125,21 @@ impl RType {
             RType::Dnskey => RecordType::DNSKEY,
             RType::Ds => RecordType::DS,
             RType::Rrsig => RecordType::RRSIG,
+            RType::Caa => RecordType::CAA,
+            RType::Tlsa => RecordType::TLSA,
+            RType::Sshfp => RecordType::SSHFP,
+            RType::Nsec => RecordType::NSEC,
+            RType::Nsec3 => RecordType::NSEC3,
             RType::Any => RecordType::ANY,
         }
     }
+}
+
+fn validate_domain_or_stdin(s: &str) -> std::result::Result<String, String> {
+    if s == "-" {
+        return Ok(s.to_string());
+    }
+    validate_domain(s)
 }
 
 fn validate_domain(s: &str) -> std::result::Result<String, String> {

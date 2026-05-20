@@ -9,6 +9,9 @@ async fn test_query_a_record() {
         server: Some("8.8.8.8:53".parse().unwrap()),
         transport: None,
         validate_dnssec: false,
+        force_tcp: false,
+        no_recurse: false,
+        timeout_secs: 5,
     };
 
     let result = standard::query(&opts).await.expect("query failed");
@@ -29,6 +32,9 @@ async fn test_query_mx_record() {
         server: Some("8.8.8.8:53".parse().unwrap()),
         transport: None,
         validate_dnssec: false,
+        force_tcp: false,
+        no_recurse: false,
+        timeout_secs: 5,
     };
 
     let result = standard::query(&opts).await.expect("query failed");
@@ -46,6 +52,9 @@ async fn test_query_txt_record() {
         server: Some("8.8.8.8:53".parse().unwrap()),
         transport: None,
         validate_dnssec: false,
+        force_tcp: false,
+        no_recurse: false,
+        timeout_secs: 5,
     };
 
     let result = standard::query(&opts).await.expect("query failed");

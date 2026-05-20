@@ -22,6 +22,9 @@ pub fn render_dnssec_tree(chain: &DnssecChain) -> String {
             step.label,
             step.detail
         ));
+        for line in &step.verbose_lines {
+            out.push_str(&format!("{indent}     {line}\n"));
+        }
     }
     out.push('\n');
     out

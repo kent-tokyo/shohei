@@ -1,5 +1,6 @@
-use hickory_proto::dnssec::Proof;
-use hickory_proto::rr::RecordType;
+use hickory_proto::dnssec::rdata::DNSSECRData;
+use hickory_proto::dnssec::{Proof, PublicKey};
+use hickory_proto::rr::{RData, RecordType};
 use hickory_resolver::TokioResolver;
 use hickory_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
 use hickory_resolver::net::runtime::TokioRuntimeProvider;
@@ -27,6 +28,9 @@ pub struct DnssecStep {
     pub step_type: DnssecStepType,
     pub status: TrustState,
     pub detail: String,
+    /// Populated only when verbose = true
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub verbose_lines: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +75,7 @@ pub async fn build_chain(
     domain: &str,
     record_type: RecordType,
     resolver_ip: Option<IpAddr>,
+    verbose: bool,
 ) -> Result<DnssecChain> {
     // Reject domains with empty labels (e.g. "a..b.com")
     if domain.trim_end_matches('.').split('.').any(|l| l.is_empty()) {
@@ -103,12 +108,23 @@ pub async fn build_chain(
         step_type: DnssecStepType::TrustAnchor,
         status: TrustState::Secure,
         detail: "Root KSK trust anchor (RFC 8509)".to_string(),
+        verbose_lines: vec![],
     });
 
     // Per-zone DS and DNSKEY queries
     for zone in &zone_labels {
-        let has_ds = query_has_records(&resolver, zone, RecordType::DS).await;
-        let has_dnskey = query_has_records(&resolver, zone, RecordType::DNSKEY).await;
+        let (has_ds, ds_lines) = if verbose {
+            let lines = query_ds_detail(&resolver, zone).await;
+            (!lines.is_empty(), lines)
+        } else {
+            (query_has_records(&resolver, zone, RecordType::DS).await, vec![])
+        };
+        let (has_dnskey, dnskey_lines) = if verbose {
+            let lines = query_dnskey_detail(&resolver, zone).await;
+            (!lines.is_empty(), lines)
+        } else {
+            (query_has_records(&resolver, zone, RecordType::DNSKEY).await, vec![])
+        };
 
         if has_ds {
             steps.push(DnssecStep {
@@ -116,6 +132,7 @@ pub async fn build_chain(
                 step_type: DnssecStepType::Ds,
                 status: zone_step_status(true, &overall),
                 detail: format!("DS record delegates trust to {zone}"),
+                verbose_lines: ds_lines,
             });
         } else {
             steps.push(DnssecStep {
@@ -123,6 +140,7 @@ pub async fn build_chain(
                 step_type: DnssecStepType::Ds,
                 status: zone_step_status(false, &overall),
                 detail: format!("No DS delegation for {zone}"),
+                verbose_lines: vec![],
             });
         }
 
@@ -132,6 +150,7 @@ pub async fn build_chain(
                 step_type: DnssecStepType::Dnskey,
                 status: zone_step_status(true, &overall),
                 detail: format!("DNSKEY RRset verified for {zone}"),
+                verbose_lines: dnskey_lines,
             });
         } else {
             steps.push(DnssecStep {
@@ -139,6 +158,7 @@ pub async fn build_chain(
                 step_type: DnssecStepType::Dnskey,
                 status: zone_step_status(false, &overall),
                 detail: format!("No DNSKEY for {zone}"),
+                verbose_lines: vec![],
             });
         }
     }
@@ -148,6 +168,7 @@ pub async fn build_chain(
         step_type: DnssecStepType::Answer,
         status: overall.clone(),
         detail: "chain validation complete".to_string(),
+        verbose_lines: vec![],
     });
 
     Ok(DnssecChain {
@@ -197,6 +218,84 @@ fn worst_proof(a: Proof, b: Proof) -> Proof {
         Proof::Secure => 0,
     };
     if sev(a) >= sev(b) { a } else { b }
+}
+
+async fn query_ds_detail(resolver: &TokioResolver, name: &str) -> Vec<String> {
+    let Ok(lookup) = resolver.lookup(name, RecordType::DS).await else {
+        return vec![];
+    };
+    lookup
+        .answers()
+        .iter()
+        .filter_map(|r| {
+            if let RData::DNSSEC(DNSSECRData::DS(ds)) = &r.data {
+                let alg: u8 = ds.algorithm().into();
+                let dt: u8 = ds.digest_type().into();
+                Some(format!(
+                    "  key_tag={}, alg={} ({}), digest={}",
+                    ds.key_tag(),
+                    alg_name(alg),
+                    alg,
+                    digest_name(dt),
+                ))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+async fn query_dnskey_detail(resolver: &TokioResolver, name: &str) -> Vec<String> {
+    let Ok(lookup) = resolver.lookup(name, RecordType::DNSKEY).await else {
+        return vec![];
+    };
+    lookup
+        .answers()
+        .iter()
+        .filter_map(|r| {
+            if let RData::DNSSEC(DNSSECRData::DNSKEY(key)) = &r.data {
+                let alg: u8 = key.public_key().algorithm().into();
+                let key_type = match key.flags() {
+                    257 => "KSK",
+                    256 => "ZSK",
+                    _ => "unknown",
+                };
+                Some(format!(
+                    "  flags={} ({}), alg={} ({})",
+                    key.flags(),
+                    key_type,
+                    alg_name(alg),
+                    alg,
+                ))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn alg_name(alg: u8) -> &'static str {
+    match alg {
+        5 => "RSA/SHA-1",
+        7 => "RSASHA1-NSEC3",
+        8 => "RSA/SHA-256",
+        10 => "RSA/SHA-512",
+        13 => "ECDSA-P256/SHA-256",
+        14 => "ECDSA-P384/SHA-384",
+        15 => "Ed25519",
+        16 => "Ed448",
+        _ => "Unknown",
+    }
+}
+
+fn digest_name(dt: u8) -> &'static str {
+    match dt {
+        1 => "SHA-1",
+        2 => "SHA-256",
+        3 => "GOST R 34.11-94",
+        4 => "SHA-384",
+        _ => "Unknown",
+    }
 }
 
 async fn query_has_records(resolver: &TokioResolver, name: &str, rtype: RecordType) -> bool {

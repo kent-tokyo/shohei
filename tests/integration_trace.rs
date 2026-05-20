@@ -4,7 +4,7 @@ use shohei::resolver::iterative::{StepResponseType, trace};
 #[tokio::test]
 #[ignore = "requires network"]
 async fn test_trace_has_steps() {
-    let result = trace("example.com", RecordType::A)
+    let result = trace("example.com", RecordType::A, None)
         .await
         .expect("trace failed");
 
@@ -15,7 +15,7 @@ async fn test_trace_has_steps() {
 #[tokio::test]
 #[ignore = "requires network"]
 async fn test_trace_ends_with_answer() {
-    let result = trace("example.com", RecordType::A)
+    let result = trace("example.com", RecordType::A, None)
         .await
         .expect("trace failed");
 
@@ -30,7 +30,7 @@ async fn test_trace_ends_with_answer() {
 #[tokio::test]
 #[ignore = "requires network"]
 async fn test_trace_starts_with_root_referral() {
-    let result = trace("google.com", RecordType::A)
+    let result = trace("google.com", RecordType::A, None)
         .await
         .expect("trace failed");
 
@@ -50,7 +50,7 @@ async fn test_trace_starts_with_root_referral() {
 #[ignore = "requires network"]
 async fn test_trace_has_at_least_three_steps() {
     // root → TLD → authoritative
-    let result = trace("example.com", RecordType::A)
+    let result = trace("example.com", RecordType::A, None)
         .await
         .expect("trace failed");
 
@@ -64,7 +64,7 @@ async fn test_trace_has_at_least_three_steps() {
 #[tokio::test]
 #[ignore = "requires network"]
 async fn test_trace_referrals_have_referral_names() {
-    let result = trace("example.com", RecordType::A)
+    let result = trace("example.com", RecordType::A, None)
         .await
         .expect("trace failed");
 
@@ -81,7 +81,7 @@ async fn test_trace_referrals_have_referral_names() {
 #[tokio::test]
 #[ignore = "requires network"]
 async fn test_trace_nxdomain() {
-    let result = trace("this-domain-definitely-does-not-exist-xyz123.com", RecordType::A)
+    let result = trace("this-domain-definitely-does-not-exist-xyz123.com", RecordType::A, None)
         .await
         .expect("trace should not error on NXDOMAIN");
 

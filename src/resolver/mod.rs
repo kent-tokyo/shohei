@@ -16,6 +16,12 @@ pub struct QueryOptions {
     /// Pre-built transport config (DoH/DoT). Takes priority over `server`.
     pub transport: Option<(ResolverConfig, String)>,
     pub validate_dnssec: bool,
+    /// Force TCP transport instead of UDP (requires `server` to be set).
+    pub force_tcp: bool,
+    /// Clear the RD (Recursion Desired) bit — useful for querying authoritative servers directly.
+    pub no_recurse: bool,
+    /// Query timeout in seconds.
+    pub timeout_secs: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,6 +101,22 @@ pub enum RecordData {
         key_tag: u16,
         signer_name: String,
         signature: String,
+    },
+    Caa {
+        flags: u8,
+        tag: String,
+        value: String,
+    },
+    Tlsa {
+        usage: u8,
+        selector: u8,
+        matching_type: u8,
+        cert_data: String,
+    },
+    Sshfp {
+        algorithm: u8,
+        fingerprint_type: u8,
+        fingerprint: String,
     },
     Unknown(String),
 }

@@ -47,6 +47,9 @@ impl Render for PlainRenderer {
                 "{}{}[{}] {} ({}) — {}\n",
                 indent, connector, step.status, step.label, step.step_type, step.detail
             ));
+            for line in &step.verbose_lines {
+                output.push_str(&format!("{}   {line}\n", indent));
+            }
         }
         output.push('\n');
         output
