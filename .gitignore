@@ -4,3 +4,6 @@
 .DS_Store
 tasks/
 CLAUDE.md
+memo.txt
+.claude/
+.env
