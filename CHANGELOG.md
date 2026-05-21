@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-21
+
 ### Added
 - **`--doq <IP:PORT>`** — DNS-over-QUIC transport (`quic-ring` feature)
 - **`--axfr`** — Full zone transfer over a dedicated raw TCP connection; requires `-s`; caps at 500,000 records; validates SOA serial per RFC 5936

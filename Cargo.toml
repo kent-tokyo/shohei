@@ -1,6 +1,6 @@
 [package]
 name = "shohei"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.75"
 description = "Next-generation DNS diagnostic CLI: visualize DNSSEC chain-of-trust, DoH/DoT, and iterative resolution paths in the terminal"
