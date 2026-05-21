@@ -12,11 +12,12 @@
 - **DNSSEC 信任链树** — 可视化从 `.` 到目标域名每个 DS、DNSKEY 步骤；`-v` 显示密钥标签和算法名称
 - **迭代解析追踪** — 展示从根服务器 → TLD → 权威 NS 的完整查询路径
 - **Authority + Additional 区段** — 直接查询权威服务器时显示 NS 委派和胶水记录
-- **双服务器对比** — 使用 `--compare` 并排对比两个解析器的结果
-- **DoH / DoT 支持** — 内置 DNS-over-HTTPS 和 DNS-over-TLS
+- **N 路服务器对比** — 多次指定 `--compare` 可同时对比任意数量的解析器
+- **DoH / DoT / DoQ 支持** — 内置 DNS-over-HTTPS、DNS-over-TLS 和 DNS-over-QUIC
+- **区域传输（AXFR）** — 使用 `--axfr` 从权威服务器获取完整区域数据
 - **多记录类型** — `--type a --type aaaa --type mx` 一次查询多种类型
 - **反向 DNS** — `-x 1.2.3.4` 快速解析 IPv4/IPv6 的 PTR 记录
-- **stdin 批量模式** — 通过管道传入域名列表，批量查询
+- **stdin 与文件批量模式** — 通过管道传入域名列表，或使用 `-f domains.txt`
 - **TTL 人性化显示** — `300` 显示为 `5m`，`3600` 显示为 `1h`
 - **JSON 输出** — 适用于脚本和自动化的管道友好输出
 - **监控模式** — 使用 `--watch` 定期自动刷新
@@ -34,7 +35,8 @@ DNS 工具大致分为三类：输出原始文本的经典工具（`dig`、`dril
 | DNSSEC 验证 | ✓ | ✓ | | | | ✓ | ✓ |
 | **迭代解析追踪（可视化）** | **✓** | | | | | | |
 | Authority + Additional 区段 | ✓ | ✓ | | | | ✓ | ✓ |
-| 双服务器对比 (`--compare`) | **✓** | | | | | | |
+| N 路服务器对比 (`--compare`) | **✓** | | | | | | |
+| 区域传输（AXFR） | **✓** | ✓ | | | | | ✓ |
 | 监控模式 (`--watch`) | **✓** | | | | | | |
 | 精简输出 (`--short`) | **✓** | | | | | | |
 | **多记录类型同时查询** (`--type a --type mx`) | **✓** | | | ✓ | | | |
@@ -44,11 +46,11 @@ DNS 工具大致分为三类：输出原始文本的经典工具（`dig`、`dril
 | 查询延迟显示 | ✓ | ✓ | | ✓ | ✓ | | |
 | DNS-over-HTTPS (DoH) | ✓ | ✓ | ✓ | ✓ | ✓ | | |
 | DNS-over-TLS (DoT) | ✓ | ✓ | ✓ | ✓ | ✓ | | |
-| DNS-over-QUIC (DoQ) | | | | | ✓ | | |
+| DNS-over-QUIC (DoQ) | **✓** | | | | ✓ | | |
 | JSON 输出 | ✓ | ✓ | ✓ | ✓ | ✓ | | |
 | 交互式 TUI | **✓** | | | | | | |
 
-> dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC 验证解析器; drill = 基于 ldns; DoQ 待 hickory QUIC 支持后实现
+> dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC 验证解析器; drill = 基于 ldns
 
 ![DNSSEC 信任链](images/demo_dnssec.svg)
 
@@ -145,6 +147,9 @@ shohei google.com --doh https://dns.google/dns-query
 # DNS-over-TLS
 shohei google.com --dot 1.1.1.1:853
 
+# DNS-over-QUIC
+shohei google.com --doq 8.8.8.8
+
 # 自定义解析器
 shohei google.com --server 8.8.8.8
 ```
@@ -181,9 +186,9 @@ shohei gmail.com --type MX --short
 
 ![精简输出](images/demo_short.svg)
 
-### 双服务器对比
+### 服务器对比
 
-同时向两个 DNS 服务器查询同一域名，并对比差异。适用于检测 CDN 任播差异或验证新解析器。
+同时向多个 DNS 服务器查询同一域名，并对比差异。适用于检测 CDN 任播差异或验证新解析器。多次指定 `--compare` 可进行 N 路对比。
 
 ```bash
 # 验证两个服务器返回相同的 NS 记录
@@ -191,20 +196,34 @@ shohei cloudflare.com --type NS --server 8.8.8.8 --compare 1.1.1.1
 
 # 发现 CDN 导致的 A 记录差异
 shohei google.com --server 8.8.8.8 --compare 1.1.1.1
+
+# 三路对比
+shohei google.com --server 8.8.8.8 --compare 1.1.1.1 --compare 9.9.9.9
 ```
 
 ![对比 — 结果一致](images/demo_compare_match.svg)
 
 ![对比 — 存在差异](images/demo_compare_diff.svg)
 
+### 区域传输（AXFR）
+
+从权威服务器获取完整的区域数据。需要使用 `-s` 指定权威名称服务器。
+
+```bash
+shohei zonetransfer.me --axfr -s 81.4.108.41
+```
+
+![AXFR 区域传输](images/demo_axfr.svg)
+
 ### 批量 / stdin 模式
 
 通过管道传入以换行符分隔的域名列表，shohei 将依次查询每个域名。
-以 `#` 开头的行将被忽略（注释）。
+以 `#` 开头的行将被忽略（注释）。也可以使用 `-f` 从文件读取。
 
 ```bash
 echo -e "google.com\nexample.com\ncloudflare.com" | shohei
 cat domains.txt | shohei --type mx --short
+shohei -f domains.txt --type mx --short
 ```
 
 ### 监控模式
@@ -257,20 +276,25 @@ shohei google.com --tui
 
 | 参数 | 缩写 | 说明 |
 |------|------|------|
-| `--type <TYPE>` | `-t` | 记录类型（可重复）：`a`, `aaaa`, `mx`, `ns`, `txt`, `cname`, `soa`, `ptr`, `srv`, `dnskey`, `ds`, `rrsig`, `caa`, `tlsa`, `sshfp`, `nsec`, `nsec3`, `any` |
+| `--type <TYPE>` | `-t` | 记录类型（可重复）：`a`, `aaaa`, `mx`, `ns`, `txt`, `cname`, `soa`, `ptr`, `srv`, `https`, `svcb`, `naptr`, `dnskey`, `ds`, `rrsig`, `caa`, `tlsa`, `sshfp`, `nsec`, `nsec3`, `any` |
 | `--reverse <IP>` | `-x` | 反向 DNS — 自动将 IP 转换为 PTR 查询（支持 IPv4/IPv6） |
+| `--file <FILE>` | `-f` | 从文件读取域名列表（每行一个），类似 `dig -f` |
 | `--dnssec` | `-d` | 显示 DNSSEC 信任链验证树 |
 | `--verbose` | `-v` | 显示详细信息（DNSSEC 链中的密钥标签和算法） |
 | `--trace` | | 显示从根服务器开始的迭代解析路径 |
 | `--no-recurse` | | 清除 RD 位 — 直接查询权威服务器；显示 Authority + Additional 区段 |
+| `--axfr` | | 从 `-s` 指定的服务器执行区域传输（AXFR） |
 | `--tcp` | | 强制使用 TCP（需要 `-s`；适用于大型/截断响应） |
 | `--timeout <SECS>` | | DNS 查询超时秒数（默认: 5，最大: 60） |
 | `--short` | | 仅输出数据值，每行一条（适用于脚本） |
 | `--watch <SECS>` | | 每隔 N 秒重复查询（Ctrl+C 停止） |
-| `--compare <ADDR>` | | 向第二个服务器查询并对比差异 |
+| `--compare <ADDR>` | | 向额外服务器查询并对比；可重复指定进行 N 路对比 |
 | `--doh <URL>` | | DNS-over-HTTPS（例如 `https://dns.google/dns-query`） |
 | `--dot <IP:PORT>` | | DNS-over-TLS（例如 `1.1.1.1:853`） |
+| `--doq <IP:PORT>` | | DNS-over-QUIC（例如 `8.8.8.8` 或 `8.8.8.8:853`） |
 | `--server <ADDR>` | `-s` | 自定义 DNS 服务器（`8.8.8.8` 或 `8.8.8.8:53`） |
+| `-4` | | 强制使用 IPv4 传输 |
+| `-6` | | 强制使用 IPv6 传输 |
 | `--output <FORMAT>` | `-o` | `colored`（默认）· `plain` · `json` |
 | `--tui` | | 交互式 TUI（需要 `--features tui`） |
 

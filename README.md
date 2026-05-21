@@ -12,11 +12,12 @@
 - **DNSSEC chain tree** — see every DS, DNSKEY, and trust step from `.` to your domain; add `-v` for key tags and algorithm names
 - **Iterative resolution trace** — watch queries travel from root servers to TLD to authoritative NS
 - **Authority + Additional sections** — see NS referrals and glue records when querying authoritative servers directly
-- **Server comparison** — diff two resolvers side-by-side with `--compare`
-- **DoH and DoT** — DNS-over-HTTPS and DNS-over-TLS built in
+- **N-way server comparison** — diff any number of resolvers simultaneously with `--compare`
+- **DoH, DoT, and DoQ** — DNS-over-HTTPS, DNS-over-TLS, and DNS-over-QUIC built in
+- **Zone transfer (AXFR)** — dump an entire zone from an authoritative server with `--axfr`
 - **Multiple record types** — `--type a --type aaaa --type mx` in a single invocation
 - **Reverse DNS** — `-x 1.2.3.4` resolves PTR records for IPv4 and IPv6
-- **Stdin batch mode** — pipe a list of domains and query them all at once
+- **Stdin and file batch mode** — pipe a list of domains or use `-f domains.txt`
 - **Human-readable TTL** — `300` displayed as `5m`, `3600` as `1h`
 - **JSON output** — pipe-friendly for scripting and automation
 - **Watch mode** — auto-refresh at a set interval with `--watch`
@@ -34,7 +35,8 @@ DNS tooling splits into three camps: classic tools (`dig`, `drill`, `delv`) that
 | DNSSEC validation | ✓ | ✓ | | | | ✓ | ✓ |
 | **Iterative resolution trace (visual)** | **✓** | | | | | | |
 | Authority + Additional sections | ✓ | ✓ | | | | ✓ | ✓ |
-| Two-server comparison (`--compare`) | **✓** | | | | | | |
+| N-way server comparison (`--compare`) | **✓** | | | | | | |
+| Zone transfer (AXFR) | **✓** | ✓ | | | | | ✓ |
 | Watch / auto-refresh (`--watch`) | **✓** | | | | | | |
 | Script-friendly output (`--short`) | **✓** | | | | | | |
 | **Multiple record types** (`--type a --type mx`) | **✓** | | | ✓ | | | |
@@ -44,11 +46,11 @@ DNS tooling splits into three camps: classic tools (`dig`, `drill`, `delv`) that
 | Query latency display | ✓ | ✓ | | ✓ | ✓ | | |
 | DNS-over-HTTPS (DoH) | ✓ | ✓ | ✓ | ✓ | ✓ | | |
 | DNS-over-TLS (DoT) | ✓ | ✓ | ✓ | ✓ | ✓ | | |
-| DNS-over-QUIC (DoQ) | | | | | ✓ | | |
+| DNS-over-QUIC (DoQ) | **✓** | | | | ✓ | | |
 | JSON output | ✓ | ✓ | ✓ | ✓ | ✓ | | |
 | Interactive TUI | **✓** | | | | | | |
 
-> dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC-validating resolver; drill = ldns-based; DoQ support planned pending hickory QUIC availability
+> dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC-validating resolver; drill = ldns-based
 
 ![DNSSEC chain of trust](images/demo_dnssec.svg)
 
@@ -146,6 +148,9 @@ shohei google.com --doh https://dns.google/dns-query
 # DNS-over-TLS
 shohei google.com --dot 1.1.1.1:853
 
+# DNS-over-QUIC
+shohei google.com --doq 8.8.8.8
+
 # Custom resolver
 shohei google.com --server 8.8.8.8
 ```
@@ -182,9 +187,9 @@ shohei gmail.com --type MX --short
 
 ![Short output](images/demo_short.svg)
 
-### Compare two resolvers
+### Compare resolvers
 
-Query the same domain from two DNS servers simultaneously and diff the results. Useful for detecting CDN anycast differences or verifying a new resolver.
+Query the same domain from multiple DNS servers simultaneously and diff the results. Useful for detecting CDN anycast differences or verifying a new resolver. Repeat `--compare` for N-way comparison.
 
 ```bash
 # Show that both servers return the same NS records
@@ -192,20 +197,34 @@ shohei cloudflare.com --type NS --server 8.8.8.8 --compare 1.1.1.1
 
 # Reveal CDN-induced A record differences
 shohei google.com --server 8.8.8.8 --compare 1.1.1.1
+
+# N-way comparison across three resolvers
+shohei google.com --server 8.8.8.8 --compare 1.1.1.1 --compare 9.9.9.9
 ```
 
 ![Compare — matching](images/demo_compare_match.svg)
 
 ![Compare — diverging](images/demo_compare_diff.svg)
 
+### Zone transfer (AXFR)
+
+Fetch the complete zone from an authoritative server. Requires `-s` to specify the authoritative nameserver.
+
+```bash
+shohei zonetransfer.me --axfr -s 81.4.108.41
+```
+
+![AXFR zone transfer](images/demo_axfr.svg)
+
 ### Batch / stdin mode
 
 Pipe a newline-separated list of domains and shohei queries each one in sequence.
-Lines starting with `#` are ignored as comments.
+Lines starting with `#` are ignored as comments. You can also read targets from a file with `-f`.
 
 ```bash
 echo -e "google.com\nexample.com\ncloudflare.com" | shohei
 cat domains.txt | shohei --type mx --short
+shohei -f domains.txt --type mx --short
 ```
 
 ### Watch mode
@@ -258,20 +277,25 @@ shohei google.com --tui
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--type <TYPE>` | `-t` | Record type (repeatable): `a`, `aaaa`, `mx`, `ns`, `txt`, `cname`, `soa`, `ptr`, `srv`, `dnskey`, `ds`, `rrsig`, `caa`, `tlsa`, `sshfp`, `nsec`, `nsec3`, `any` |
+| `--type <TYPE>` | `-t` | Record type (repeatable): `a`, `aaaa`, `mx`, `ns`, `txt`, `cname`, `soa`, `ptr`, `srv`, `https`, `svcb`, `naptr`, `dnskey`, `ds`, `rrsig`, `caa`, `tlsa`, `sshfp`, `nsec`, `nsec3`, `any` |
 | `--reverse <IP>` | `-x` | Reverse DNS — auto-converts IP to PTR query (IPv4 and IPv6) |
+| `--file <FILE>` | `-f` | Read domains from a file (one per line), like `dig -f` |
 | `--dnssec` | `-d` | DNSSEC chain-of-trust validation tree |
 | `--verbose` | `-v` | Show verbose detail (key tags, algorithms) in DNSSEC chain |
 | `--trace` | | Iterative resolution path from root servers |
 | `--no-recurse` | | Clear RD bit — query authoritative servers directly; shows Authority + Additional sections |
+| `--axfr` | | Full zone transfer from the server specified with `-s` |
 | `--tcp` | | Force TCP instead of UDP (requires `-s`; useful for large/truncated responses) |
 | `--timeout <SECS>` | | DNS query timeout in seconds (default: 5, max: 60) |
 | `--short` | | Output data values only, one per line (script-friendly) |
 | `--watch <SECS>` | | Repeat query every N seconds; Ctrl+C to stop |
-| `--compare <ADDR>` | | Query a second server and diff the results |
+| `--compare <ADDR>` | | Query an additional server and diff; repeat for N-way comparison |
 | `--doh <URL>` | | DNS-over-HTTPS (e.g. `https://dns.google/dns-query`) |
 | `--dot <IP:PORT>` | | DNS-over-TLS (e.g. `1.1.1.1:853`) |
+| `--doq <IP:PORT>` | | DNS-over-QUIC (e.g. `8.8.8.8` or `8.8.8.8:853`) |
 | `--server <ADDR>` | `-s` | Custom DNS server (`8.8.8.8` or `8.8.8.8:53`) |
+| `-4` | | Force queries over IPv4 transport |
+| `-6` | | Force queries over IPv6 transport |
 | `--output <FORMAT>` | `-o` | `colored` (default) · `plain` · `json` |
 | `--tui` | | Interactive TUI (requires `--features tui`) |
 

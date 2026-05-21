@@ -4,7 +4,7 @@ use crate::display::table as display_table;
 use crate::display::tree::{render_dnssec_tree, render_trace_tree};
 use crate::dnssec::chain::DnssecChain;
 use crate::resolver::iterative::ResolutionTrace;
-use crate::resolver::{DnsComparison, DnsQueryResult};
+use crate::resolver::{DnsComparison, DnsMultiQuery, DnsQueryResult};
 
 pub struct ColoredRenderer;
 
@@ -23,5 +23,9 @@ impl Render for ColoredRenderer {
 
     fn render_compare(&self, cmp: &DnsComparison) -> String {
         compare::render_comparison(cmp, true)
+    }
+
+    fn render_multi(&self, multi: &DnsMultiQuery) -> String {
+        compare::render_multi_query(multi, true)
     }
 }

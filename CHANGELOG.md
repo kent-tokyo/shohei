@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`--doq <IP:PORT>`** — DNS-over-QUIC transport (`quic-ring` feature)
+- **`--axfr`** — Full zone transfer over a dedicated raw TCP connection; requires `-s`; caps at 500,000 records; validates SOA serial per RFC 5936
+- **N-way `--compare`** — `--compare` can now be specified multiple times for 3+ server comparison; all queries run in parallel; per-server failures warn and continue
+- **`-4` / `-6`** — Force IPv4-only or IPv6-only transport
+- **`-f <FILE>` / `--file <FILE>`** — Read domains from a file (one per line), like `dig -f`
+- **HTTPS, SVCB, NAPTR record types** — added to `--type`; structured display and JSON support
+
+### Fixed
+- **S1** — Sanitize ASCII control characters (`0x00–0x1f`, `0x7f`) in DNS TXT, CAA, NAPTR, and Unknown record data before terminal output; prevents ANSI/VT escape injection
+- **S2** — AXFR zone transfer capped at 500,000 records to prevent memory exhaustion
+- **S3/B7** — Validate each domain in stdin/file batch modes; invalid entries print an error and continue; exits 1 if any failed
+- **B1** — AXFR returns error immediately on non-NoError RCODE (REFUSED, SERVFAIL, etc.)
+- **B3** — N-way `--compare` warns on per-server failure and continues; previously aborted on first error
+- **B4** — Watch loop prints error and retries on transient query failure; previously exited the loop
+- **B6** — Batch modes (stdin, `--file`) exit with code 1 when any domain query fails
+- **B8** — TUI mode warns when multiple `--type` flags are given (only the first type is used)
+- **B9** — Custom `--server` port is now applied to all hickory connections, not just the first
+
 ## [0.2.0] - 2026-05-20
 
 ### Added

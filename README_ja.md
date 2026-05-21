@@ -12,11 +12,12 @@
 - **DNSSEC チェーンツリー** — `.` から対象ドメインまで DS・DNSKEY の各ステップを可視化；`-v` でキータグ・アルゴリズム名も表示
 - **反復解決トレース** — ルートサーバー → TLD → 権威NSへのクエリ経路をステップ表示
 - **Authority + Additional セクション** — 権威サーバーへの直接クエリで NS 委任とグルーレコードを表示
-- **2サーバー比較** — `--compare` で2つのリゾルバの結果を並べて差分表示
-- **DoH / DoT 対応** — DNS-over-HTTPS / DNS-over-TLS をビルトインサポート
+- **N-way サーバー比較** — `--compare` を複数回指定して何台でも同時比較
+- **DoH / DoT / DoQ 対応** — DNS-over-HTTPS・DNS-over-TLS・DNS-over-QUIC をビルトインサポート
+- **ゾーン転送（AXFR）** — `--axfr` で権威サーバーからゾーン全体を取得
 - **複数レコードタイプ** — `--type a --type aaaa --type mx` で1コマンドで一括取得
 - **逆引き DNS** — `-x 1.2.3.4` で IPv4/IPv6 の PTR レコードをすぐ解決
-- **stdin バッチモード** — ドメイン一覧をパイプして一括クエリ
+- **stdin・ファイルバッチモード** — ドメイン一覧をパイプするか `-f domains.txt` で一括クエリ
 - **TTL 人間向け表示** — `300` を `5m`、`3600` を `1h` と表示
 - **JSON 出力** — スクリプト・自動化に対応したパイプフレンドリーな出力
 - **ウォッチモード** — `--watch` で定期的に自動更新
@@ -34,7 +35,8 @@ DNS ツールは大きく3つに分類されます。生のテキスト出力に
 | DNSSEC 検証 | ✓ | ✓ | | | | ✓ | ✓ |
 | **反復解決トレース（可視化）** | **✓** | | | | | | |
 | Authority + Additional セクション | ✓ | ✓ | | | | ✓ | ✓ |
-| 2サーバー比較 (`--compare`) | **✓** | | | | | | |
+| N-way サーバー比較 (`--compare`) | **✓** | | | | | | |
+| ゾーン転送（AXFR） | **✓** | ✓ | | | | | ✓ |
 | 自動更新 (`--watch`) | **✓** | | | | | | |
 | 短縮出力 (`--short`) | **✓** | | | | | | |
 | **複数レコードタイプ一括クエリ** (`--type a --type mx`) | **✓** | | | ✓ | | | |
@@ -44,11 +46,11 @@ DNS ツールは大きく3つに分類されます。生のテキスト出力に
 | クエリ応答速度表示 | ✓ | ✓ | | ✓ | ✓ | | |
 | DNS-over-HTTPS (DoH) | ✓ | ✓ | ✓ | ✓ | ✓ | | |
 | DNS-over-TLS (DoT) | ✓ | ✓ | ✓ | ✓ | ✓ | | |
-| DNS-over-QUIC (DoQ) | | | | | ✓ | | |
+| DNS-over-QUIC (DoQ) | **✓** | | | | ✓ | | |
 | JSON 出力 | ✓ | ✓ | ✓ | ✓ | ✓ | | |
 | インタラクティブ TUI | **✓** | | | | | | |
 
-> dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC 検証リゾルバ; drill = ldns ベース; DoQ は hickory QUIC 対応後に実装予定
+> dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC 検証リゾルバ; drill = ldns ベース
 
 ![DNSSEC 信頼の連鎖](images/demo_dnssec.svg)
 
@@ -146,6 +148,9 @@ shohei google.com --doh https://dns.google/dns-query
 # DNS-over-TLS
 shohei google.com --dot 1.1.1.1:853
 
+# DNS-over-QUIC
+shohei google.com --doq 8.8.8.8
+
 # カスタムリゾルバ
 shohei google.com --server 8.8.8.8
 ```
@@ -182,9 +187,9 @@ shohei gmail.com --type MX --short
 
 ![短縮出力](images/demo_short.svg)
 
-### 2サーバー比較
+### サーバー比較
 
-同じドメインを2つのDNSサーバーに同時にクエリし、結果を差分表示します。CDNのエニーキャストによる差異の検出や、新しいリゾルバの検証に便利です。
+同じドメインを複数のDNSサーバーに同時にクエリし、結果を差分表示します。CDNのエニーキャストによる差異の検出や、新しいリゾルバの検証に便利です。`--compare` を複数回指定すると N-way 比較ができます。
 
 ```bash
 # 両サーバーが同じ NS レコードを返すことを確認
@@ -192,20 +197,34 @@ shohei cloudflare.com --type NS --server 8.8.8.8 --compare 1.1.1.1
 
 # CDN によって異なる A レコードを確認
 shohei google.com --server 8.8.8.8 --compare 1.1.1.1
+
+# 3台同時比較
+shohei google.com --server 8.8.8.8 --compare 1.1.1.1 --compare 9.9.9.9
 ```
 
 ![比較 — 一致](images/demo_compare_match.svg)
 
 ![比較 — 差分あり](images/demo_compare_diff.svg)
 
+### ゾーン転送（AXFR）
+
+権威サーバーからゾーン全体を取得します。`-s` で権威ネームサーバーを指定する必要があります。
+
+```bash
+shohei zonetransfer.me --axfr -s 81.4.108.41
+```
+
+![AXFR ゾーン転送](images/demo_axfr.svg)
+
 ### バッチ / stdin モード
 
 改行区切りのドメイン一覧をパイプすると、順番にクエリを実行します。
-`#` で始まる行はコメントとして無視されます。
+`#` で始まる行はコメントとして無視されます。`-f` でファイルから読み込むことも可能です。
 
 ```bash
 echo -e "google.com\nexample.com\ncloudflare.com" | shohei
 cat domains.txt | shohei --type mx --short
+shohei -f domains.txt --type mx --short
 ```
 
 ### ウォッチモード
@@ -258,20 +277,25 @@ shohei google.com --tui
 
 | フラグ | 短縮 | 説明 |
 |--------|------|------|
-| `--type <TYPE>` | `-t` | レコードタイプ（複数可）: `a`, `aaaa`, `mx`, `ns`, `txt`, `cname`, `soa`, `ptr`, `srv`, `dnskey`, `ds`, `rrsig`, `caa`, `tlsa`, `sshfp`, `nsec`, `nsec3`, `any` |
+| `--type <TYPE>` | `-t` | レコードタイプ（複数可）: `a`, `aaaa`, `mx`, `ns`, `txt`, `cname`, `soa`, `ptr`, `srv`, `https`, `svcb`, `naptr`, `dnskey`, `ds`, `rrsig`, `caa`, `tlsa`, `sshfp`, `nsec`, `nsec3`, `any` |
 | `--reverse <IP>` | `-x` | 逆引き — IP を PTR クエリに自動変換（IPv4・IPv6 対応） |
+| `--file <FILE>` | `-f` | ファイルからドメイン一覧を読み込む（dig -f 相当） |
 | `--dnssec` | `-d` | DNSSEC 信頼の連鎖の検証ツリーを表示 |
 | `--verbose` | `-v` | 詳細表示（DNSSEC チェーンのキータグ・アルゴリズム等） |
 | `--trace` | | ルートサーバーからの反復解決パスを表示 |
 | `--no-recurse` | | RD ビットをクリア — 権威サーバーへ直接クエリ（Authority + Additional セクション表示） |
+| `--axfr` | | `-s` で指定したサーバーからゾーン転送（AXFR）を実行 |
 | `--tcp` | | UDP の代わりに TCP を強制（`-s` が必要；大きなレスポンスに有効） |
 | `--timeout <SECS>` | | DNSクエリのタイムアウト秒数（デフォルト: 5、最大: 60） |
 | `--short` | | データ値のみを1行ずつ出力（スクリプト向け） |
 | `--watch <SECS>` | | N秒ごとにクエリを繰り返す（Ctrl+C で停止） |
-| `--compare <ADDR>` | | 第2サーバーにもクエリして差分表示 |
+| `--compare <ADDR>` | | 追加サーバーにもクエリして差分表示；複数回指定で N-way 比較 |
 | `--doh <URL>` | | DNS-over-HTTPS（例: `https://dns.google/dns-query`） |
 | `--dot <IP:PORT>` | | DNS-over-TLS（例: `1.1.1.1:853`） |
+| `--doq <IP:PORT>` | | DNS-over-QUIC（例: `8.8.8.8` または `8.8.8.8:853`） |
 | `--server <ADDR>` | `-s` | カスタムDNSサーバー（`8.8.8.8` または `8.8.8.8:53`） |
+| `-4` | | IPv4 トランスポートを強制 |
+| `-6` | | IPv6 トランスポートを強制 |
 | `--output <FORMAT>` | `-o` | `colored`（デフォルト）· `plain` · `json` |
 | `--tui` | | インタラクティブ TUI（`--features tui` が必要） |
 

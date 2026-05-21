@@ -27,12 +27,14 @@ hickory-resolver = { version = "0.26", features = [
     "dnssec-ring",
     "https-ring",
     "tls-ring",
+    "quic-ring",
     "tokio",
     "webpki-roots",
     "system-config",
 ] }
 hickory-proto = { version = "0.26", features = ["dnssec-ring"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "sync"] }
+futures-util = "0.3"
 clap = { version = "4", features = ["derive"] }
 owo-colors = { version = "4", features = ["supports-colors"] }
 comfy-table = "7"

@@ -1,7 +1,7 @@
 use crate::display::compare;
 use crate::dnssec::chain::DnssecChain;
 use crate::resolver::iterative::ResolutionTrace;
-use crate::resolver::{DnsComparison, DnsQueryResult};
+use crate::resolver::{DnsComparison, DnsMultiQuery, DnsQueryResult};
 
 pub mod json;
 pub mod plain;
@@ -16,5 +16,10 @@ pub trait Render {
     /// Default: plain-text diff. Override in ColoredRenderer for colored output.
     fn render_compare(&self, cmp: &DnsComparison) -> String {
         compare::render_comparison(cmp, false)
+    }
+
+    /// Default: plain-text multi-server results. Override for colored output.
+    fn render_multi(&self, multi: &DnsMultiQuery) -> String {
+        compare::render_multi_query(multi, false)
     }
 }

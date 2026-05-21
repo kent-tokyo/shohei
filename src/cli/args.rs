@@ -22,7 +22,7 @@ pub struct Args {
 
     /// DNS record type (can be repeated: --type a --type aaaa)
     ///
-    /// Supported types: a, aaaa, mx, ns, txt, cname, soa, ptr, srv, dnskey, ds, rrsig, caa, tlsa, sshfp, nsec, nsec3, any
+    /// Supported types: a, aaaa, mx, ns, txt, cname, soa, ptr, srv, https, svcb, naptr, dnskey, ds, rrsig, caa, tlsa, sshfp, nsec, nsec3, any
     #[arg(
         long = "type",
         short = 't',
@@ -49,6 +49,10 @@ pub struct Args {
     #[arg(long, value_name = "IP:PORT")]
     pub dot: Option<String>,
 
+    /// Use DNS-over-QUIC (e.g. 8.8.8.8 or 8.8.8.8:853) — IP address required
+    #[arg(long, value_name = "IP:PORT", conflicts_with_all = ["doh", "dot"])]
+    pub doq: Option<String>,
+
     /// Custom DNS server address (e.g. 8.8.8.8, 8.8.8.8:53, [::1]:53)
     #[arg(long, short = 's', value_name = "ADDR")]
     pub server: Option<String>,
@@ -65,12 +69,16 @@ pub struct Args {
     #[arg(long, value_name = "SECS", value_parser = clap::value_parser!(u64).range(1..))]
     pub watch: Option<u64>,
 
-    /// Compare responses from a second server (e.g. 1.1.1.1, [::1]:53)
-    #[arg(long, value_name = "ADDR")]
-    pub compare: Option<String>,
+    /// Compare responses from additional servers — can be repeated for N-way query
+    #[arg(long, value_name = "ADDR", action = clap::ArgAction::Append)]
+    pub compare: Vec<String>,
+
+    /// Perform a full zone transfer (AXFR) from the server specified with -s
+    #[arg(long, conflicts_with_all = ["dnssec", "trace", "watch", "doq", "doh", "dot"], requires = "server")]
+    pub axfr: bool,
 
     /// Force DNS queries over TCP instead of UDP (requires -s; useful for large/truncated responses)
-    #[arg(long, conflicts_with_all = ["doh", "dot"], requires = "server")]
+    #[arg(long, conflicts_with_all = ["doh", "dot", "doq"], requires = "server")]
     pub tcp: bool,
 
     /// Send query without the RD (Recursion Desired) bit — query authoritative servers directly
@@ -80,6 +88,18 @@ pub struct Args {
     /// DNS query timeout in seconds (default: 5)
     #[arg(long, value_name = "SECS", default_value = "5", value_parser = clap::value_parser!(u64).range(1..=60))]
     pub timeout: u64,
+
+    /// Read domains from a file (one per line), like dig -f
+    #[arg(short = 'f', long = "file", value_name = "FILE", conflicts_with_all = ["domain", "reverse"])]
+    pub file: Option<std::path::PathBuf>,
+
+    /// Force queries over IPv4 transport
+    #[arg(short = '4', conflicts_with = "ipv6_only")]
+    pub ipv4_only: bool,
+
+    /// Force queries over IPv6 transport
+    #[arg(short = '6', conflicts_with = "ipv4_only")]
+    pub ipv6_only: bool,
 
     /// Launch interactive TUI (requires --features tui)
     #[cfg(feature = "tui")]
@@ -98,6 +118,9 @@ pub enum RType {
     Soa,
     Ptr,
     Srv,
+    Https,
+    Svcb,
+    Naptr,
     Dnskey,
     Ds,
     Rrsig,
@@ -122,6 +145,9 @@ impl RType {
             RType::Soa => RecordType::SOA,
             RType::Ptr => RecordType::PTR,
             RType::Srv => RecordType::SRV,
+            RType::Https => RecordType::HTTPS,
+            RType::Svcb => RecordType::SVCB,
+            RType::Naptr => RecordType::NAPTR,
             RType::Dnskey => RecordType::DNSKEY,
             RType::Ds => RecordType::DS,
             RType::Rrsig => RecordType::RRSIG,
@@ -142,7 +168,7 @@ fn validate_domain_or_stdin(s: &str) -> std::result::Result<String, String> {
     validate_domain(s)
 }
 
-fn validate_domain(s: &str) -> std::result::Result<String, String> {
+pub fn validate_domain(s: &str) -> std::result::Result<String, String> {
     let trimmed = s.trim_end_matches('.');
     if trimmed.is_empty() {
         return Err("domain name cannot be empty".to_string());

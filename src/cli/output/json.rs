@@ -1,7 +1,7 @@
 use crate::cli::output::Render;
 use crate::dnssec::chain::DnssecChain;
 use crate::resolver::iterative::ResolutionTrace;
-use crate::resolver::{DnsComparison, DnsQueryResult};
+use crate::resolver::{DnsComparison, DnsMultiQuery, DnsQueryResult};
 
 pub struct JsonRenderer;
 
@@ -25,5 +25,9 @@ impl Render for JsonRenderer {
 
     fn render_compare(&self, cmp: &DnsComparison) -> String {
         serde_json::to_string_pretty(cmp).unwrap_or_else(|e| json_error(&e))
+    }
+
+    fn render_multi(&self, multi: &DnsMultiQuery) -> String {
+        serde_json::to_string_pretty(multi).unwrap_or_else(|e| json_error(&e))
     }
 }

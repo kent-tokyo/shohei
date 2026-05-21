@@ -108,6 +108,20 @@ fn render_records_table(records: &[crate::resolver::DnsRecord], use_color: bool)
     out
 }
 
+/// Strip ASCII control characters from DNS-sourced strings before terminal output (S1).
+/// Prevents ANSI/VT escape injection from crafted TXT, CAA, NAPTR records.
+fn sanitize_display(s: &str) -> std::borrow::Cow<'_, str> {
+    if s.bytes().any(|b| matches!(b, 0..=0x1f | 0x7f)) {
+        std::borrow::Cow::Owned(
+            s.chars()
+                .map(|c| if c.is_ascii_control() { '?' } else { c })
+                .collect(),
+        )
+    } else {
+        std::borrow::Cow::Borrowed(s)
+    }
+}
+
 pub fn format_record_data(data: &RecordData) -> String {
     match data {
         RecordData::A(ip) => ip.clone(),
@@ -115,7 +129,11 @@ pub fn format_record_data(data: &RecordData) -> String {
         RecordData::Cname(name) => name.clone(),
         RecordData::Mx { priority, exchange } => format!("{priority} {exchange}"),
         RecordData::Ns(name) => name.clone(),
-        RecordData::Txt(strings) => strings.join(" "),
+        RecordData::Txt(strings) => strings
+            .iter()
+            .map(|s| sanitize_display(s).into_owned())
+            .collect::<Vec<_>>()
+            .join(" "),
         RecordData::Soa {
             mname,
             rname,
@@ -161,7 +179,9 @@ pub fn format_record_data(data: &RecordData) -> String {
             signer_name,
             ..
         } => format!("{type_covered} tag={key_tag} signer={signer_name}"),
-        RecordData::Caa { flags, tag, value } => format!("{flags} {tag} \"{value}\""),
+        RecordData::Caa { flags, tag, value } => {
+            format!("{flags} {tag} \"{}\"", sanitize_display(value))
+        }
         RecordData::Tlsa {
             usage,
             selector,
@@ -180,6 +200,28 @@ pub fn format_record_data(data: &RecordData) -> String {
             fingerprint_type,
             fingerprint,
         } => format!("alg={algorithm} type={fingerprint_type} {fingerprint}"),
-        RecordData::Unknown(s) => s.clone(),
+        RecordData::Https { priority, target, params } => {
+            if params.is_empty() {
+                format!("{priority} {target}")
+            } else {
+                format!("{priority} {target} {params}")
+            }
+        }
+        RecordData::Svcb { priority, target, params } => {
+            if params.is_empty() {
+                format!("{priority} {target}")
+            } else {
+                format!("{priority} {target} {params}")
+            }
+        }
+        RecordData::Naptr { order, preference, flags, services, regexp, replacement } => {
+            format!(
+                "{order} {preference} \"{}\" \"{}\" \"{}\" {replacement}",
+                sanitize_display(flags),
+                sanitize_display(services),
+                sanitize_display(regexp),
+            )
+        }
+        RecordData::Unknown(s) => sanitize_display(s).into_owned(),
     }
 }

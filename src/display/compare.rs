@@ -2,8 +2,40 @@ use std::collections::HashSet;
 
 use owo_colors::{OwoColorize, Stream};
 
-use crate::display::table::format_record_data;
-use crate::resolver::DnsComparison;
+use crate::display::table::{format_record_data, render_result};
+use crate::resolver::{DnsComparison, DnsMultiQuery};
+
+pub fn render_multi_query(multi: &DnsMultiQuery, use_color: bool) -> String {
+    let mut out = String::new();
+    if use_color {
+        out.push_str(&format!(
+            "\n{} {} {}\n",
+            "Multi-server query:".if_supports_color(Stream::Stdout, |t| t.dimmed()),
+            format!("{} {}", multi.record_type, multi.domain)
+                .if_supports_color(Stream::Stdout, |t| t.bold()),
+            format!("({} servers)", multi.results.len())
+                .if_supports_color(Stream::Stdout, |t| t.dimmed()),
+        ));
+    } else {
+        out.push_str(&format!(
+            "\nMulti-server query: {} {} ({} servers)\n",
+            multi.record_type, multi.domain, multi.results.len()
+        ));
+    }
+    for result in &multi.results {
+        if use_color {
+            out.push_str(&format!(
+                "\n{}\n",
+                format!("─── {} ───", result.server_addr)
+                    .if_supports_color(Stream::Stdout, |t| t.cyan()),
+            ));
+        } else {
+            out.push_str(&format!("\n--- {} ---\n", result.server_addr));
+        }
+        out.push_str(&render_result(result, use_color));
+    }
+    out
+}
 
 pub fn render_comparison(cmp: &DnsComparison, use_color: bool) -> String {
     let left_set: HashSet<String> = cmp

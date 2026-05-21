@@ -3,7 +3,7 @@ use std::time::Instant;
 use hickory_proto::dnssec::rdata::DNSSECRData;
 use hickory_proto::dnssec::PublicKey;
 use hickory_proto::rr::RData;
-use hickory_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
+use hickory_resolver::config::{LookupIpStrategy, NameServerConfig, ResolverConfig, ResolverOpts};
 use hickory_resolver::net::runtime::TokioRuntimeProvider;
 use hickory_resolver::net::{DnsError, NetError};
 use hickory_resolver::TokioResolver;
@@ -21,6 +21,11 @@ pub async fn query(opts: &QueryOptions) -> Result<DnsQueryResult> {
     if opts.no_recurse {
         resolver_opts.recursion_desired = false;
     }
+    if opts.ipv4_only {
+        resolver_opts.ip_strategy = LookupIpStrategy::Ipv4Only;
+    } else if opts.ipv6_only {
+        resolver_opts.ip_strategy = LookupIpStrategy::Ipv6Only;
+    }
 
     let (resolver, server_addr) = if let Some((config, label)) = &opts.transport {
         // DoH / DoT transport takes highest priority
@@ -36,7 +41,7 @@ pub async fn query(opts: &QueryOptions) -> Result<DnsQueryResult> {
             NameServerConfig::udp(server.ip())
         };
         debug_assert!(!ns.connections.is_empty(), "hickory NameServerConfig::udp must yield ≥1 connection");
-        if let Some(conn) = ns.connections.first_mut() {
+        for conn in &mut ns.connections {
             conn.port = server.port();
         }
         let config = ResolverConfig::from_parts(None, vec![], vec![ns]);
@@ -105,7 +110,7 @@ pub async fn query(opts: &QueryOptions) -> Result<DnsQueryResult> {
     }
 }
 
-fn record_to_dns_record(record: &hickory_proto::rr::Record) -> DnsRecord {
+pub(crate) fn record_to_dns_record(record: &hickory_proto::rr::Record) -> DnsRecord {
     let name = record.name.to_string();
     let ttl = record.ttl;
     let record_type = record.record_type().to_string();
@@ -172,9 +177,35 @@ fn rdata_to_record_data(rdata: &RData) -> RecordData {
             fingerprint_type: u8::from(fp.fingerprint_type),
             fingerprint: hex_encode(&fp.fingerprint),
         },
+        RData::HTTPS(h) => RecordData::Https {
+            priority: h.0.svc_priority,
+            target: h.0.target_name.to_string(),
+            params: format_svc_params(&h.0.svc_params),
+        },
+        RData::SVCB(s) => RecordData::Svcb {
+            priority: s.svc_priority,
+            target: s.target_name.to_string(),
+            params: format_svc_params(&s.svc_params),
+        },
+        RData::NAPTR(n) => RecordData::Naptr {
+            order: n.order,
+            preference: n.preference,
+            flags: String::from_utf8_lossy(&n.flags).into_owned(),
+            services: String::from_utf8_lossy(&n.services).into_owned(),
+            regexp: String::from_utf8_lossy(&n.regexp).into_owned(),
+            replacement: n.replacement.to_string(),
+        },
         RData::DNSSEC(dnssec) => rdata_dnssec_to_record_data(dnssec),
         other => RecordData::Unknown(format!("{other}")),
     }
+}
+
+fn format_svc_params(params: &[(hickory_proto::rr::rdata::svcb::SvcParamKey, hickory_proto::rr::rdata::svcb::SvcParamValue)]) -> String {
+    params
+        .iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn rdata_dnssec_to_record_data(dnssec: &DNSSECRData) -> RecordData {

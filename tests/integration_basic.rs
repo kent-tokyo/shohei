@@ -12,6 +12,8 @@ async fn test_query_a_record() {
         force_tcp: false,
         no_recurse: false,
         timeout_secs: 5,
+        ipv4_only: false,
+        ipv6_only: false,
     };
 
     let result = standard::query(&opts).await.expect("query failed");
@@ -35,6 +37,8 @@ async fn test_query_mx_record() {
         force_tcp: false,
         no_recurse: false,
         timeout_secs: 5,
+        ipv4_only: false,
+        ipv6_only: false,
     };
 
     let result = standard::query(&opts).await.expect("query failed");
@@ -55,6 +59,8 @@ async fn test_query_txt_record() {
         force_tcp: false,
         no_recurse: false,
         timeout_secs: 5,
+        ipv4_only: false,
+        ipv6_only: false,
     };
 
     let result = standard::query(&opts).await.expect("query failed");

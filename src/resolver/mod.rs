@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod iterative;
 pub mod standard;
+pub mod zone_transfer;
 
 #[derive(Debug, Clone)]
 pub struct QueryOptions {
@@ -22,6 +23,10 @@ pub struct QueryOptions {
     pub no_recurse: bool,
     /// Query timeout in seconds.
     pub timeout_secs: u64,
+    /// Restrict transport to IPv4 (like dig -4).
+    pub ipv4_only: bool,
+    /// Restrict transport to IPv6 (like dig -6).
+    pub ipv6_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,6 +123,24 @@ pub enum RecordData {
         fingerprint_type: u8,
         fingerprint: String,
     },
+    Https {
+        priority: u16,
+        target: String,
+        params: String,
+    },
+    Svcb {
+        priority: u16,
+        target: String,
+        params: String,
+    },
+    Naptr {
+        order: u16,
+        preference: u16,
+        flags: String,
+        services: String,
+        regexp: String,
+        replacement: String,
+    },
     Unknown(String),
 }
 
@@ -127,6 +150,13 @@ pub struct DnsComparison {
     pub record_type: String,
     pub left: DnsQueryResult,
     pub right: DnsQueryResult,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DnsMultiQuery {
+    pub domain: String,
+    pub record_type: String,
+    pub results: Vec<DnsQueryResult>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
