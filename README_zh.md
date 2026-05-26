@@ -9,13 +9,13 @@
 
 **shohei** 是下一代 DNS 诊断命令行工具。它不仅仅是 `dig` 的替代品，还能将从根到答案的完整 **DNSSEC 信任链（Chain of Trust）**、逐跳迭代解析路径以及 **DoH / DoT** 现代传输协议以彩色树状结构直接渲染在终端中。
 
-- **DNSSEC 信任链树** — 可视化从 `.` 到目标域名每个 DS、DNSKEY 步骤；`-v` 显示密钥标签和算法名称
+- **DNSSEC 信任链树** — 可视化从 `.` 到目标域名每个 DS、DNSKEY 步骤（各区域并发验证）；`-v` 显示密钥标签和算法名称
 - **迭代解析追踪** — 展示从根服务器 → TLD → 权威 NS 的完整查询路径
 - **Authority + Additional 区段** — 直接查询权威服务器时显示 NS 委派和胶水记录
 - **N 路服务器对比** — 多次指定 `--compare` 可同时对比任意数量的解析器
 - **DoH / DoT / DoQ 支持** — 内置 DNS-over-HTTPS、DNS-over-TLS 和 DNS-over-QUIC
 - **区域传输（AXFR）** — 使用 `--axfr` 从权威服务器获取完整区域数据
-- **多记录类型** — `--type a --type aaaa --type mx` 一次查询多种类型
+- **多记录类型** — `--type a --type aaaa --type mx` 并发查询多种类型
 - **反向 DNS** — `-x 1.2.3.4` 快速解析 IPv4/IPv6 的 PTR 记录
 - **stdin 与文件批量模式** — 通过管道传入域名列表，或使用 `-f domains.txt`
 - **TTL 人性化显示** — `300` 显示为 `5m`，`3600` 显示为 `1h`

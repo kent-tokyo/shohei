@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-26
+
+### Performance
+- **DNSSEC chain parallelization** — per-zone DS and DNSKEY queries now run concurrently via `join_all`; overall trust determination launches at the same time as zone queries; typical 3-zone chain (`.` → `com.` → `domain.`) validates up to ~2× faster
+- **Multi-type concurrent queries** — `--type a --type aaaa --type mx` now issues all record-type queries in parallel; transport config (DoH/DoT/DoQ) is built once and reused across types via `Clone`
+- **Parallel unglued NS resolution** — iterative trace resolves all unglued nameservers concurrently instead of sequentially (up to 5 in parallel)
+- **`hex_encode` micro-optimization** — replaced per-byte `format!("{:02x}")` with a pre-computed lookup table (`String::with_capacity` + direct write); ~5× throughput for DNSKEY, TLSA, SSHFP, and DS record data rendering
+
+### Changed (internal)
+- **`main.rs` dispatch refactoring** — extracted `dispatch_axfr`, `dispatch_compare_two`, `dispatch_compare_nway`, `dispatch_trace`, `dispatch_dnssec`, `dispatch_standard` functions; `run_once` is now a clean ~20-line dispatcher
+- **Batch deduplication** — file-mode and stdin batch paths unified into a single `run_batch()` helper; eliminates ~30 lines of duplicated code
+- **`build_non_validating_resolver` extracted** — DNSSEC chain builder now uses a dedicated helper instead of inlining resolver construction
+
 ## [0.3.0] - 2026-05-21
 
 ### Added

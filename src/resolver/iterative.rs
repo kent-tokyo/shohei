@@ -1,6 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Instant;
 
+use futures_util::future::join_all;
 use hickory_proto::rr::RecordType;
 use hickory_resolver::TokioResolver;
 use hickory_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
@@ -314,6 +315,8 @@ async fn query_server(
 /// Resolve unglued NS hostnames.  Uses `fallback_ip` when provided (honouring the user's
 /// --server flag), otherwise falls back to a well-known public resolver.  The system resolver
 /// is intentionally avoided to preserve the "iterative from root" isolation contract.
+///
+/// All NS names (up to 5) are resolved concurrently with `join_all`.
 async fn resolve_ns_to_addrs(
     ns_names: &[String],
     fallback_ip: Option<IpAddr>,
@@ -324,14 +327,20 @@ async fn resolve_ns_to_addrs(
         Err(_) => return vec![],
     };
 
-    let mut addrs = Vec::new();
-    // Cap at 5 to bound latency; real-world delegations rarely exceed this.
-    for ns in ns_names.iter().take(5) {
-        if let Ok(response) = resolver.lookup_ip(ns.as_str()).await {
-            if let Some(ip) = response.iter().next() {
-                addrs.push((ns.clone(), SocketAddr::new(ip, 53)));
+    // Cap at 5 to bound parallelism; real-world delegations rarely exceed this.
+    // TokioResolver wraps Arc internally, so clone is cheap.
+    let futs = ns_names.iter().take(5).map(|ns| {
+        let ns = ns.clone();
+        let resolver = resolver.clone();
+        async move {
+            if let Ok(response) = resolver.lookup_ip(ns.as_str()).await {
+                if let Some(ip) = response.iter().next() {
+                    return Some((ns, SocketAddr::new(ip, 53)));
+                }
             }
+            None
         }
-    }
-    addrs
+    });
+
+    join_all(futs).await.into_iter().flatten().collect()
 }

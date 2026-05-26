@@ -1,3 +1,7 @@
+use std::net::{IpAddr, Ipv4Addr};
+use std::sync::Arc;
+
+use futures_util::future::join_all;
 use hickory_proto::dnssec::rdata::DNSSECRData;
 use hickory_proto::dnssec::{Proof, PublicKey};
 use hickory_proto::rr::{RData, RecordType};
@@ -5,7 +9,6 @@ use hickory_resolver::TokioResolver;
 use hickory_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
 use hickory_resolver::net::runtime::TokioRuntimeProvider;
 use serde::{Deserialize, Serialize};
-use std::net::{IpAddr, Ipv4Addr};
 
 use crate::error::{Result, ShoheError};
 use crate::resolver::{proof_to_trust, TrustState};
@@ -71,6 +74,19 @@ fn zone_step_status(has_records: bool, overall: &TrustState) -> TrustState {
     }
 }
 
+/// Build a non-validating resolver for per-zone record queries.
+fn build_non_validating_resolver(resolver_ip: IpAddr) -> Result<TokioResolver> {
+    let ns = NameServerConfig::udp(resolver_ip);
+    let mut opts = ResolverOpts::default();
+    opts.attempts = 1;
+    opts.timeout = std::time::Duration::from_secs(5);
+    let config = ResolverConfig::from_parts(None, vec![], vec![ns]);
+    TokioResolver::builder_with_config(config, TokioRuntimeProvider::default())
+        .with_options(opts)
+        .build()
+        .map_err(|e| ShoheError::Transport(format!("Failed to build resolver: {e}")))
+}
+
 pub async fn build_chain(
     domain: &str,
     record_type: RecordType,
@@ -86,22 +102,58 @@ pub async fn build_chain(
 
     let resolver_ip = resolver_ip.unwrap_or(DNSSEC_RESOLVER_FALLBACK);
 
-    // Step 1: Determine overall chain trust via DNSSEC-validating resolver
-    let overall = get_overall_trust(domain, record_type, resolver_ip).await?;
-
-    // Step 2: Build a non-validating resolver for per-zone record existence queries
-    let ns = NameServerConfig::udp(resolver_ip);
-    let mut opts = ResolverOpts::default();
-    opts.attempts = 1;
-    opts.timeout = std::time::Duration::from_secs(5);
-    let config = ResolverConfig::from_parts(None, vec![], vec![ns]);
-    let resolver = TokioResolver::builder_with_config(config, TokioRuntimeProvider::default())
-        .with_options(opts)
-        .build()
-        .map_err(|e| ShoheError::Transport(format!("Failed to build resolver: {e}")))?;
-
+    // Build a non-validating resolver (shared across all zone queries via Arc).
+    // TokioResolver wraps Arc internally so clone is cheap.
+    let resolver = Arc::new(build_non_validating_resolver(resolver_ip)?);
     let zone_labels = build_zone_labels(domain);
-    let mut steps = Vec::new();
+
+    // Fire the DNSSEC-validating overall-trust query concurrently with all
+    // per-zone DS/DNSKEY existence queries.  Each zone also runs its DS and
+    // DNSKEY lookups in parallel via tokio::join!.
+    let zone_futs: Vec<_> = zone_labels
+        .iter()
+        .map(|zone| {
+            let resolver = Arc::clone(&resolver);
+            let zone = zone.clone();
+            async move {
+                let (ds_result, dnskey_result) = tokio::join!(
+                    async {
+                        if verbose {
+                            let lines = query_ds_detail(&resolver, &zone).await;
+                            (!lines.is_empty(), lines)
+                        } else {
+                            (
+                                query_has_records(&resolver, &zone, RecordType::DS).await,
+                                vec![],
+                            )
+                        }
+                    },
+                    async {
+                        if verbose {
+                            let lines = query_dnskey_detail(&resolver, &zone).await;
+                            (!lines.is_empty(), lines)
+                        } else {
+                            (
+                                query_has_records(&resolver, &zone, RecordType::DNSKEY).await,
+                                vec![],
+                            )
+                        }
+                    },
+                );
+                (ds_result, dnskey_result)
+            }
+        })
+        .collect();
+
+    // Run overall trust determination alongside all per-zone queries.
+    let (overall_result, zone_results) = tokio::join!(
+        get_overall_trust(domain, record_type, resolver_ip),
+        join_all(zone_futs),
+    );
+    let overall = overall_result?;
+
+    // Build steps from collected results.
+    let mut steps = Vec::with_capacity(1 + zone_labels.len() * 2 + 1);
 
     steps.push(DnssecStep {
         label: ".".to_string(),
@@ -111,21 +163,9 @@ pub async fn build_chain(
         verbose_lines: vec![],
     });
 
-    // Per-zone DS and DNSKEY queries
-    for zone in &zone_labels {
-        let (has_ds, ds_lines) = if verbose {
-            let lines = query_ds_detail(&resolver, zone).await;
-            (!lines.is_empty(), lines)
-        } else {
-            (query_has_records(&resolver, zone, RecordType::DS).await, vec![])
-        };
-        let (has_dnskey, dnskey_lines) = if verbose {
-            let lines = query_dnskey_detail(&resolver, zone).await;
-            (!lines.is_empty(), lines)
-        } else {
-            (query_has_records(&resolver, zone, RecordType::DNSKEY).await, vec![])
-        };
-
+    for (zone, ((has_ds, ds_lines), (has_dnskey, dnskey_lines))) in
+        zone_labels.iter().zip(zone_results)
+    {
         if has_ds {
             steps.push(DnssecStep {
                 label: zone.clone(),

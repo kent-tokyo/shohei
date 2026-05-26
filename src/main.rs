@@ -10,6 +10,7 @@ mod tui;
 use std::time::Duration;
 
 use clap::Parser;
+use futures_util::future::join_all;
 use hickory_proto::rr::RecordType;
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -17,7 +18,7 @@ use cli::args::{Args, OutputFormat};
 use cli::output::{
     json::JsonRenderer, plain::PlainRenderer, short::ShortRenderer, table::ColoredRenderer, Render,
 };
-use futures_util::future::join_all;
+use resolver::QueryOptions;
 
 #[tokio::main]
 async fn main() {
@@ -54,7 +55,7 @@ async fn main() {
                 std::process::exit(1);
             }
         };
-        // B8: TUI only uses the first record type; warn if multiple were given
+        // TUI only uses the first record type; warn if multiple were given
         let mut rtypes_iter = rtypes.into_iter();
         let record_type = rtypes_iter.next().unwrap_or(RecordType::A);
         if rtypes_iter.next().is_some() {
@@ -115,19 +116,7 @@ async fn main() {
             eprintln!("Error: no domains found in '{}'", path.display());
             std::process::exit(1);
         }
-        let mut any_failed = false;
-        for domain in &domains {
-            // Validate each batch domain the same way the CLI arg validator does (S3/B7)
-            if let Err(e) = cli::args::validate_domain(domain) {
-                eprintln!("Error: invalid domain '{domain}': {e}");
-                any_failed = true;
-                continue;
-            }
-            if !run_once(&args, &*renderer, Some(domain.as_str())).await {
-                any_failed = true;
-            }
-        }
-        if any_failed {
+        if !run_batch(&args, &*renderer, domains).await {
             std::process::exit(1);
         }
         return;
@@ -147,19 +136,7 @@ async fn main() {
             eprintln!("Error: no domains read from stdin");
             std::process::exit(1);
         }
-        let mut any_failed = false;
-        for domain in &domains {
-            // Validate each batch domain the same way the CLI arg validator does (S3/B7)
-            if let Err(e) = cli::args::validate_domain(domain) {
-                eprintln!("Error: invalid domain '{domain}': {e}");
-                any_failed = true;
-                continue;
-            }
-            if !run_once(&args, &*renderer, Some(domain.as_str())).await {
-                any_failed = true;
-            }
-        }
-        if any_failed {
+        if !run_batch(&args, &*renderer, domains).await {
             std::process::exit(1);
         }
         return;
@@ -175,7 +152,7 @@ async fn main() {
 
         run_once(&args, &*renderer, None).await;
 
-        // B4: continue watch loop even on transient query errors
+        // Continue watch loop even on transient query errors
         match args.watch {
             Some(secs) => {
                 eprintln!("\n  Refreshing in {secs}s — Ctrl+C to stop");
@@ -185,6 +162,31 @@ async fn main() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Batch helpers
+// ---------------------------------------------------------------------------
+
+/// Run the same query for each domain in `domains`.  Validates each domain
+/// before querying.  Returns `true` if all queries succeeded.
+async fn run_batch(args: &Args, renderer: &dyn Render, domains: Vec<String>) -> bool {
+    let mut any_failed = false;
+    for domain in &domains {
+        if let Err(e) = cli::args::validate_domain(domain) {
+            eprintln!("Error: invalid domain '{domain}': {e}");
+            any_failed = true;
+            continue;
+        }
+        if !run_once(args, renderer, Some(domain.as_str())).await {
+            any_failed = true;
+        }
+    }
+    !any_failed
+}
+
+// ---------------------------------------------------------------------------
+// Core query loop
+// ---------------------------------------------------------------------------
 
 /// Finish the spinner, print an error, and return false (stops the watch loop).
 fn bail(spinner: &ProgressBar, msg: &dyn std::fmt::Display) -> bool {
@@ -204,202 +206,281 @@ async fn run_once(args: &Args, renderer: &dyn Render, domain_override: Option<&s
     };
     let primary_type = record_types[0];
 
-    // AXFR zone transfer mode
     if args.axfr {
-        let server = match &args.server {
-            None => return bail(&spinner, &"--axfr requires -s <server>"),
-            Some(s) => {
-                let addr_str = parse_server_addr(s);
-                match addr_str.parse::<std::net::SocketAddr>() {
-                    Ok(a) => a,
-                    Err(e) => return bail(&spinner, &format!("invalid --server address '{s}': {e}")),
-                }
-            }
-        };
-        spinner.set_message(format!("Fetching zone {} via AXFR from {}...", domain, server));
-        match resolver::zone_transfer::axfr(&domain, server, args.timeout).await {
-            Ok(result) => {
-                spinner.finish_and_clear();
-                print!("{}", renderer.render_records(&result));
-                true
-            }
-            Err(e) => bail(&spinner, &e),
-        }
-    // Compare mode
+        dispatch_axfr(args, renderer, &domain, &spinner).await
     } else if !args.compare.is_empty() {
-        if args.compare.len() == 1 {
-            // 2-way diff (original behavior)
-            let compare_addr = &args.compare[0];
-            spinner.set_message(format!("Comparing {} against {}...", domain, compare_addr));
-
-            let opts_left = match build_query_opts(args, &domain, primary_type).await {
-                Ok(o) => o,
-                Err(e) => return bail(&spinner, &e),
-            };
-
-            let compare_addr_str = parse_server_addr(compare_addr);
-            let compare_sock = match compare_addr_str.parse::<std::net::SocketAddr>() {
-                Ok(a) => a,
-                Err(e) => {
-                    return bail(
-                        &spinner,
-                        &format!("invalid --compare address '{compare_addr}': {e}"),
-                    )
-                }
-            };
-            let opts_right = resolver::QueryOptions {
-                domain: domain.clone(),
-                record_type: primary_type,
-                server: Some(compare_sock),
-                transport: None,
-                validate_dnssec: args.dnssec,
-                force_tcp: false,
-                no_recurse: args.no_recurse,
-                timeout_secs: args.timeout,
-                ipv4_only: args.ipv4_only,
-                ipv6_only: args.ipv6_only,
-            };
-
-            let (left_res, right_res) = tokio::join!(
-                resolver::standard::query(&opts_left),
-                resolver::standard::query(&opts_right),
-            );
-            spinner.finish_and_clear();
-
-            match (left_res, right_res) {
-                (Ok(left), Ok(right)) => {
-                    let cmp = resolver::DnsComparison {
-                        domain,
-                        record_type: primary_type.to_string(),
-                        left,
-                        right,
-                    };
-                    print!("{}", renderer.render_compare(&cmp));
-                    true
-                }
-                (Err(e1), Err(e2)) => {
-                    eprintln!("Error (left): {e1}");
-                    eprintln!("Error (right): {e2}");
-                    false
-                }
-                (Err(e), _) | (_, Err(e)) => {
-                    eprintln!("Error: {e}");
-                    false
-                }
-            }
-        } else {
-            // N-way multi-server query (primary + all compare addresses)
-            let compare_addrs = args.compare.iter().map(|a| a.as_str()).collect::<Vec<_>>();
-            spinner.set_message(format!(
-                "Querying {} across {} servers...",
-                domain,
-                compare_addrs.len() + 1
-            ));
-
-            let opts_primary = match build_query_opts(args, &domain, primary_type).await {
-                Ok(o) => o,
-                Err(e) => return bail(&spinner, &e),
-            };
-
-            let mut all_opts = vec![opts_primary];
-            for addr in &args.compare {
-                let addr_str = parse_server_addr(addr);
-                let sock = match addr_str.parse::<std::net::SocketAddr>() {
-                    Ok(a) => a,
-                    Err(e) => return bail(&spinner, &format!("invalid --compare address '{addr}': {e}")),
-                };
-                all_opts.push(resolver::QueryOptions {
-                    domain: domain.clone(),
-                    record_type: primary_type,
-                    server: Some(sock),
-                    transport: None,
-                    validate_dnssec: args.dnssec,
-                    force_tcp: false,
-                    no_recurse: args.no_recurse,
-                    timeout_secs: args.timeout,
-                    ipv4_only: args.ipv4_only,
-                    ipv6_only: args.ipv6_only,
-                });
-            }
-
-            let results = join_all(all_opts.iter().map(|o| resolver::standard::query(o))).await;
-            spinner.finish_and_clear();
-
-            // B3: warn on per-server errors but continue with servers that succeeded
-            let mut query_results = Vec::new();
-            for (i, result) in results.into_iter().enumerate() {
-                match result {
-                    Ok(r) => query_results.push(r),
-                    Err(e) => eprintln!("Warning: server {i} failed: {e}"),
-                }
-            }
-            if query_results.is_empty() {
-                spinner.finish_and_clear();
-                eprintln!("Error: all servers failed");
-                return false;
-            }
-
-            let multi = resolver::DnsMultiQuery {
-                domain,
-                record_type: primary_type.to_string(),
-                results: query_results,
-            };
-            print!("{}", renderer.render_multi(&multi));
-            true
-        }
+        dispatch_compare(args, renderer, &domain, primary_type, &spinner).await
     } else if args.trace {
-        spinner.set_message(format!("Tracing resolution path for {}...", domain));
-        match resolver::iterative::trace(&domain, primary_type, resolver_ip).await {
-            Ok(trace) => {
-                spinner.finish_and_clear();
-                print!("{}", renderer.render_trace(&trace));
-                true
-            }
-            Err(e) => bail(&spinner, &e),
-        }
+        dispatch_trace(renderer, &domain, primary_type, resolver_ip, &spinner).await
     } else if args.dnssec {
-        spinner.set_message(format!("Validating DNSSEC chain for {}...", domain));
-        match dnssec::build_chain(&domain, primary_type, resolver_ip, args.verbose).await {
-            Ok(chain) => {
-                spinner.finish_and_clear();
-                print!("{}", renderer.render_dnssec(&chain));
-                true
-            }
-            Err(e) => bail(&spinner, &e),
-        }
+        dispatch_dnssec(args, renderer, &domain, primary_type, resolver_ip, &spinner).await
     } else {
-        spinner.set_message(format!("Querying {}...", domain));
-        let mut cleared = false;
-        let mut success = true;
-        for &rtype in &record_types {
-            let opts = match build_query_opts(args, &domain, rtype).await {
-                Ok(o) => o,
-                Err(e) => return bail(&spinner, &e),
-            };
-            match resolver::standard::query(&opts).await {
-                Ok(result) => {
-                    if !cleared {
-                        spinner.finish_and_clear();
-                        cleared = true;
-                    }
-                    print!("{}", renderer.render_records(&result));
-                }
-                Err(e) => {
-                    if !cleared {
-                        spinner.finish_and_clear();
-                        cleared = true;
-                    }
-                    eprintln!("Error: {e}");
-                    success = false;
-                }
-            }
-        }
-        if !cleared {
-            spinner.finish_and_clear();
-        }
-        success
+        dispatch_standard(args, renderer, &domain, &record_types, &spinner).await
     }
 }
+
+// ---------------------------------------------------------------------------
+// Dispatch functions (one per query mode)
+// ---------------------------------------------------------------------------
+
+async fn dispatch_axfr(
+    args: &Args,
+    renderer: &dyn Render,
+    domain: &str,
+    spinner: &ProgressBar,
+) -> bool {
+    let server = match &args.server {
+        None => return bail(spinner, &"--axfr requires -s <server>"),
+        Some(s) => {
+            let addr_str = parse_server_addr(s);
+            match addr_str.parse::<std::net::SocketAddr>() {
+                Ok(a) => a,
+                Err(e) => return bail(spinner, &format!("invalid --server address '{s}': {e}")),
+            }
+        }
+    };
+    spinner.set_message(format!("Fetching zone {} via AXFR from {}...", domain, server));
+    match resolver::zone_transfer::axfr(domain, server, args.timeout).await {
+        Ok(result) => {
+            spinner.finish_and_clear();
+            print!("{}", renderer.render_records(&result));
+            true
+        }
+        Err(e) => bail(spinner, &e),
+    }
+}
+
+async fn dispatch_compare(
+    args: &Args,
+    renderer: &dyn Render,
+    domain: &str,
+    primary_type: RecordType,
+    spinner: &ProgressBar,
+) -> bool {
+    if args.compare.len() == 1 {
+        dispatch_compare_two(args, renderer, domain, primary_type, spinner).await
+    } else {
+        dispatch_compare_nway(args, renderer, domain, primary_type, spinner).await
+    }
+}
+
+async fn dispatch_compare_two(
+    args: &Args,
+    renderer: &dyn Render,
+    domain: &str,
+    primary_type: RecordType,
+    spinner: &ProgressBar,
+) -> bool {
+    let compare_addr = &args.compare[0];
+    spinner.set_message(format!("Comparing {} against {}...", domain, compare_addr));
+
+    let opts_left = match build_query_opts(args, domain, primary_type).await {
+        Ok(o) => o,
+        Err(e) => return bail(spinner, &e),
+    };
+
+    let compare_addr_str = parse_server_addr(compare_addr);
+    let compare_sock = match compare_addr_str.parse::<std::net::SocketAddr>() {
+        Ok(a) => a,
+        Err(e) => {
+            return bail(
+                spinner,
+                &format!("invalid --compare address '{compare_addr}': {e}"),
+            )
+        }
+    };
+    let opts_right = QueryOptions {
+        domain: domain.to_string(),
+        record_type: primary_type,
+        server: Some(compare_sock),
+        transport: None,
+        validate_dnssec: args.dnssec,
+        force_tcp: false,
+        no_recurse: args.no_recurse,
+        timeout_secs: args.timeout,
+        ipv4_only: args.ipv4_only,
+        ipv6_only: args.ipv6_only,
+    };
+
+    let (left_res, right_res) = tokio::join!(
+        resolver::standard::query(&opts_left),
+        resolver::standard::query(&opts_right),
+    );
+    spinner.finish_and_clear();
+
+    match (left_res, right_res) {
+        (Ok(left), Ok(right)) => {
+            let cmp = resolver::DnsComparison {
+                domain: domain.to_string(),
+                record_type: primary_type.to_string(),
+                left,
+                right,
+            };
+            print!("{}", renderer.render_compare(&cmp));
+            true
+        }
+        (Err(e1), Err(e2)) => {
+            eprintln!("Error (left): {e1}");
+            eprintln!("Error (right): {e2}");
+            false
+        }
+        (Err(e), _) | (_, Err(e)) => {
+            eprintln!("Error: {e}");
+            false
+        }
+    }
+}
+
+async fn dispatch_compare_nway(
+    args: &Args,
+    renderer: &dyn Render,
+    domain: &str,
+    primary_type: RecordType,
+    spinner: &ProgressBar,
+) -> bool {
+    let compare_addrs = args.compare.iter().map(|a| a.as_str()).collect::<Vec<_>>();
+    spinner.set_message(format!(
+        "Querying {} across {} servers...",
+        domain,
+        compare_addrs.len() + 1
+    ));
+
+    let opts_primary = match build_query_opts(args, domain, primary_type).await {
+        Ok(o) => o,
+        Err(e) => return bail(spinner, &e),
+    };
+
+    let mut all_opts = vec![opts_primary];
+    for addr in &args.compare {
+        let addr_str = parse_server_addr(addr);
+        let sock = match addr_str.parse::<std::net::SocketAddr>() {
+            Ok(a) => a,
+            Err(e) => return bail(spinner, &format!("invalid --compare address '{addr}': {e}")),
+        };
+        all_opts.push(QueryOptions {
+            domain: domain.to_string(),
+            record_type: primary_type,
+            server: Some(sock),
+            transport: None,
+            validate_dnssec: args.dnssec,
+            force_tcp: false,
+            no_recurse: args.no_recurse,
+            timeout_secs: args.timeout,
+            ipv4_only: args.ipv4_only,
+            ipv6_only: args.ipv6_only,
+        });
+    }
+
+    let results = join_all(all_opts.iter().map(|o| resolver::standard::query(o))).await;
+    spinner.finish_and_clear();
+
+    // Warn on per-server errors but continue with servers that succeeded
+    let mut query_results = Vec::new();
+    for (i, result) in results.into_iter().enumerate() {
+        match result {
+            Ok(r) => query_results.push(r),
+            Err(e) => eprintln!("Warning: server {i} failed: {e}"),
+        }
+    }
+    if query_results.is_empty() {
+        eprintln!("Error: all servers failed");
+        return false;
+    }
+
+    let multi = resolver::DnsMultiQuery {
+        domain: domain.to_string(),
+        record_type: primary_type.to_string(),
+        results: query_results,
+    };
+    print!("{}", renderer.render_multi(&multi));
+    true
+}
+
+async fn dispatch_trace(
+    renderer: &dyn Render,
+    domain: &str,
+    primary_type: RecordType,
+    resolver_ip: Option<std::net::IpAddr>,
+    spinner: &ProgressBar,
+) -> bool {
+    spinner.set_message(format!("Tracing resolution path for {}...", domain));
+    match resolver::iterative::trace(domain, primary_type, resolver_ip).await {
+        Ok(trace) => {
+            spinner.finish_and_clear();
+            print!("{}", renderer.render_trace(&trace));
+            true
+        }
+        Err(e) => bail(spinner, &e),
+    }
+}
+
+async fn dispatch_dnssec(
+    args: &Args,
+    renderer: &dyn Render,
+    domain: &str,
+    primary_type: RecordType,
+    resolver_ip: Option<std::net::IpAddr>,
+    spinner: &ProgressBar,
+) -> bool {
+    spinner.set_message(format!("Validating DNSSEC chain for {}...", domain));
+    match dnssec::build_chain(domain, primary_type, resolver_ip, args.verbose).await {
+        Ok(chain) => {
+            spinner.finish_and_clear();
+            print!("{}", renderer.render_dnssec(&chain));
+            true
+        }
+        Err(e) => bail(spinner, &e),
+    }
+}
+
+/// Standard query mode — supports multiple record types queried concurrently.
+///
+/// The transport config (DoH/DoT/DoQ) is built once and shared across all
+/// record types to avoid redundant async setup work.
+async fn dispatch_standard(
+    args: &Args,
+    renderer: &dyn Render,
+    domain: &str,
+    record_types: &[RecordType],
+    spinner: &ProgressBar,
+) -> bool {
+    spinner.set_message(format!("Querying {}...", domain));
+
+    // Build the base opts once (expensive for DoH/DoT/DoQ transport setup).
+    // Clone per additional record type — ResolverConfig: Clone, so this is cheap.
+    let base_opts = match build_query_opts(args, domain, record_types[0]).await {
+        Ok(o) => o,
+        Err(e) => return bail(spinner, &e),
+    };
+
+    let all_opts: Vec<QueryOptions> = record_types
+        .iter()
+        .map(|&rtype| QueryOptions {
+            record_type: rtype,
+            ..base_opts.clone()
+        })
+        .collect();
+
+    // All record types queried concurrently; join_all preserves insertion order.
+    let results = join_all(all_opts.iter().map(|o| resolver::standard::query(o))).await;
+    spinner.finish_and_clear();
+
+    let mut success = true;
+    for result in results {
+        match result {
+            Ok(r) => print!("{}", renderer.render_records(&r)),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                success = false;
+            }
+        }
+    }
+    success
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 fn make_spinner() -> ProgressBar {
     let pb = ProgressBar::new_spinner();
@@ -416,7 +497,7 @@ async fn build_query_opts(
     args: &Args,
     domain: &str,
     record_type: RecordType,
-) -> error::Result<resolver::QueryOptions> {
+) -> error::Result<QueryOptions> {
     use std::net::SocketAddr;
 
     let transport = if let Some(url) = &args.doh {
@@ -452,7 +533,7 @@ async fn build_query_opts(
         None
     };
 
-    Ok(resolver::QueryOptions {
+    Ok(QueryOptions {
         domain: domain.to_string(),
         record_type,
         server,

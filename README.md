@@ -9,13 +9,13 @@
 
 **shohei** is a next-generation DNS diagnostic CLI. Where `dig` shows raw records, shohei visualizes the complete picture: the **DNSSEC chain of trust** from root to answer, the iterative resolution path hop-by-hop, and modern transports (DoH / DoT) — all rendered as color-coded trees in your terminal.
 
-- **DNSSEC chain tree** — see every DS, DNSKEY, and trust step from `.` to your domain; add `-v` for key tags and algorithm names
+- **DNSSEC chain tree** — see every DS, DNSKEY, and trust step from `.` to your domain; per-zone validation runs in parallel; add `-v` for key tags and algorithm names
 - **Iterative resolution trace** — watch queries travel from root servers to TLD to authoritative NS
 - **Authority + Additional sections** — see NS referrals and glue records when querying authoritative servers directly
 - **N-way server comparison** — diff any number of resolvers simultaneously with `--compare`
 - **DoH, DoT, and DoQ** — DNS-over-HTTPS, DNS-over-TLS, and DNS-over-QUIC built in
 - **Zone transfer (AXFR)** — dump an entire zone from an authoritative server with `--axfr`
-- **Multiple record types** — `--type a --type aaaa --type mx` in a single invocation
+- **Multiple record types** — `--type a --type aaaa --type mx` queries all types concurrently in a single invocation
 - **Reverse DNS** — `-x 1.2.3.4` resolves PTR records for IPv4 and IPv6
 - **Stdin and file batch mode** — pipe a list of domains or use `-f domains.txt`
 - **Human-readable TTL** — `300` displayed as `5m`, `3600` as `1h`
