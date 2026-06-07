@@ -3,11 +3,11 @@
 [![Crates.io](https://img.shields.io/crates/v/shohei.svg)](https://crates.io/crates/shohei)
 [![CI](https://github.com/kent-tokyo/shohei/actions/workflows/ci.yml/badge.svg)](https://github.com/kent-tokyo/shohei/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![MSRV](https://img.shields.io/badge/rust-1.75%2B-blue.svg)](https://www.rust-lang.org)
+[![MSRV](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://www.rust-lang.org)
 
 [日本語](README_ja.md) | [中文](README_zh.md)
 
-**shohei** is a Rust library for comprehensive infrastructure reachability diagnostics. It validates the complete **trust chain** from DNS through DNSSEC to TLS certificates and HTTP connectivity—designed for automation, AI agents, and embedded use in other tools. Built on hickory-dns with structured output (JSON, serde types) and an optional CLI for manual inspection.
+**shohei** — Rust library for infrastructure diagnostics: **DNS**, **DNSSEC**, **TLS certificates**, **email security**, **DNS propagation**, and **DANE/TLSA** validation. MCP-integrated for AI agent automation. Built on hickory-dns with structured async APIs and a CLI for manual inspection.
 
 - **DNSSEC chain tree** — see every DS, DNSKEY, and trust step from `.` to your domain; per-zone validation runs in parallel; add `-v` for key tags and algorithm names
 - **Iterative resolution trace** — watch queries travel from root servers to TLD to authoritative NS

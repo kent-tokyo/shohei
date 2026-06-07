@@ -3,13 +3,13 @@ name = "shohei"
 version = "0.5.0"
 edition = "2024"
 rust-version = "1.85"
-description = "Next-generation DNS diagnostic CLI: visualize DNSSEC chain-of-trust, DoH/DoT/DoQ, and iterative resolution paths in the terminal"
+description = "Infrastructure diagnostics library: DNS, DNSSEC, TLS certificate inspection, email security, DNS propagation, and MCP-integrated AI agent support"
 license = "MIT"
 repository = "https://github.com/kent-tokyo/shohei"
 documentation = "https://docs.rs/shohei"
 readme = "README.md"
-keywords = ["dns", "dnssec", "diagnostic", "doh", "dot"]
-categories = ["command-line-utilities", "network-programming"]
+keywords = ["dns", "dnssec", "tls", "library", "mcp", "agent", "async", "certificate"]
+categories = ["command-line-utilities", "network-programming", "api-bindings", "development-tools"]
 authors = ["kent-tokyo <kent-tokyo@users.noreply.github.com>"]
 exclude = [".github", "tests/fixtures"]
 

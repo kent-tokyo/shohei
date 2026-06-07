@@ -3,11 +3,11 @@
 [![Crates.io](https://img.shields.io/crates/v/shohei.svg)](https://crates.io/crates/shohei)
 [![CI](https://github.com/kent-tokyo/shohei/actions/workflows/ci.yml/badge.svg)](https://github.com/kent-tokyo/shohei/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![MSRV](https://img.shields.io/badge/rust-1.75%2B-blue.svg)](https://www.rust-lang.org)
+[![MSRV](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://www.rust-lang.org)
 
 [English](README.md) | [中文](README_zh.md)
 
-**shohei** は次世代のDNS診断CLIツールです。単なる `dig` の代替にとどまらず、ルートから最終回答までの **DNSSEC 信頼の連鎖（Chain of Trust）**、ホップごとの反復解決パス、そして **DoH / DoT** によるモダントランスポートをカラーツリーとしてターミナルに表示します。
+**shohei** — インフラ診断ライブラリ：**DNS**、**DNSSEC**、**TLS証明書**、**メール セキュリティ**、**DNS伝播**、**DANE/TLSA** を検証。MCP統合で AI エージェント自動化に対応。hickory-dns 上に構築された構造化 async API と、手動検査用 CLI を搭載。
 
 - **DNSSEC チェーンツリー** — `.` から対象ドメインまで DS・DNSKEY の各ステップを可視化（ゾーンを並列で検証）；`-v` でキータグ・アルゴリズム名も表示
 - **反復解決トレース** — ルートサーバー → TLD → 権威NSへのクエリ経路をステップ表示

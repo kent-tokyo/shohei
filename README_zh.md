@@ -3,11 +3,11 @@
 [![Crates.io](https://img.shields.io/crates/v/shohei.svg)](https://crates.io/crates/shohei)
 [![CI](https://github.com/kent-tokyo/shohei/actions/workflows/ci.yml/badge.svg)](https://github.com/kent-tokyo/shohei/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![MSRV](https://img.shields.io/badge/rust-1.75%2B-blue.svg)](https://www.rust-lang.org)
+[![MSRV](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://www.rust-lang.org)
 
 [English](README.md) | [日本語](README_ja.md)
 
-**shohei** 是下一代 DNS 诊断命令行工具。它不仅仅是 `dig` 的替代品，还能将从根到答案的完整 **DNSSEC 信任链（Chain of Trust）**、逐跳迭代解析路径以及 **DoH / DoT** 现代传输协议以彩色树状结构直接渲染在终端中。
+**shohei** — 基础设施诊断库：**DNS**、**DNSSEC**、**TLS 证书**、**电子邮件安全**、**DNS 传播**、**DANE/TLSA** 验证。MCP 集成支持 AI 代理自动化。基于 hickory-dns 构建，提供结构化异步 API 和手动检查 CLI。
 
 - **DNSSEC 信任链树** — 可视化从 `.` 到目标域名每个 DS、DNSKEY 步骤（各区域并发验证）；`-v` 显示密钥标签和算法名称
 - **迭代解析追踪** — 展示从根服务器 → TLD → 权威 NS 的完整查询路径
