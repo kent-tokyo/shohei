@@ -14,10 +14,12 @@ pub use crate::dnssec::chain::{DnssecChain, DnssecStep, DnssecStepType};
 pub mod propagation;
 pub mod email;
 pub mod bench;
+pub mod tls;
 
 pub use propagation::{check_propagation, check_propagation_global};
 pub use email::check_email_security;
 pub use bench::benchmark_latency;
+pub use tls::{check_tls_chain, TlsCheckRequest, TlsCheckResult, CertInfo, DaneTlsaResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

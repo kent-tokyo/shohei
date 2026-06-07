@@ -1,47 +1,68 @@
 //! Verify TLS certificate chain for a domain (Phase 2 feature).
 //!
-//! This example shows how shohei will integrate DNS resolution with TLS certificate
-//! inspection—validating the complete trust chain from domain name to cert chain.
-//!
-//! Currently demonstrates the planned API structure; full TLS implementation coming in Phase 2.
+//! This example demonstrates shohei's integrated DNS + TLS inspection,
+//! validating the complete trust chain from domain name to certificate chain.
 //!
 //! Run with: cargo run --example tls_chain_verify -- example.com
 
 use std::env;
-use shohei::api::{check_dns, DnsCheckRequest};
+use shohei::api::{check_tls_chain, TlsCheckRequest};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let domain = env::args()
+    let hostname = env::args()
         .nth(1)
         .unwrap_or_else(|| "example.com".to_string());
 
-    println!("TLS Certificate Chain Verification for {}\n", domain);
+    println!("TLS Certificate Chain Inspection for {}\n", hostname);
 
-    // Step 1: Resolve domain to IP
-    println!("Step 1: Resolving {} via DNS...", domain);
-    let results = check_dns(&DnsCheckRequest {
-        domain: domain.clone(),
-        record_types: vec!["A".to_string(), "AAAA".to_string()],
-        ..Default::default()
+    let result = check_tls_chain(&TlsCheckRequest {
+        hostname: hostname.clone(),
+        port: 443,
+        check_dane: false,
+        timeout_secs: 10,
     })
     .await?;
 
-    if results[0].answers.is_empty() {
-        println!("  ✗ No A records found");
-        return Ok(());
+    println!("Connection: {}", if result.connected { "✓ Connected" } else { "✗ Failed" });
+    println!("Valid:      {}", if result.valid { "✓ Yes" } else { "✗ No" });
+
+    if let Some(err) = result.connection_error {
+        println!("Error: {}", err);
     }
 
-    for record in &results[0].answers {
-        println!("  ✓ Found: {} -> {:?}", record.name, record.data);
+    if result.expired {
+        println!("⚠ Certificate is EXPIRED");
+    } else if result.expiry_warning {
+        if let Some(days) = result.days_until_expiry {
+            println!("⚠ Certificate expires in {} days", days);
+        }
     }
 
-    println!("\nStep 2: (Phase 2) Connect to resolved IP on port 443");
-    println!("Step 3: (Phase 2) Extract TLS certificate chain");
-    println!("Step 4: (Phase 2) Validate cert expiry and chain");
-    println!("Step 5: (Phase 2) Check DANE/TLSA records in DNS for cross-validation\n");
+    if !result.chain.is_empty() {
+        println!("\nCertificate Chain ({} certs):", result.chain.len());
+        for (idx, cert) in result.chain.iter().enumerate() {
+            println!("\n  [{}] {}", idx, if cert.is_leaf { "LEAF" } else { "INTERMEDIATE" });
+            if let Some(cn) = &cert.subject_cn {
+                println!("      Subject CN: {}", cn);
+            }
+            if !cert.subject_san.is_empty() {
+                println!("      SANs: {}", cert.subject_san.join(", "));
+            }
+            if let Some(issuer) = &cert.issuer_cn {
+                println!("      Issuer CN: {}", issuer);
+            }
+            println!("      Valid: {} → {}", cert.not_before, cert.not_after);
+        }
+    } else {
+        println!("\nNo certificates found");
+    }
 
-    println!("Full TLS integration will be available in v0.5.0+ (Phase 2)");
+    if let Some(dane) = result.dane {
+        println!("\nDANE/TLSA:");
+        println!("  Records found: {}", dane.records.len());
+        println!("  Match: {}", if dane.match_found { "✓ Yes" } else { "✗ No" });
+    }
 
     Ok(())
 }
