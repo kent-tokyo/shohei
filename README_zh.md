@@ -70,14 +70,6 @@
 > dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC 验证解析器; drill = 基于 ldns
 
 
-## 演示
-
-### 迭代解析追踪
-
-### 监控模式
-
-### 交互式 TUI
-
 ## 安装
 
 ```bash

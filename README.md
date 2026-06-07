@@ -71,14 +71,6 @@ Most infrastructure tools are CLI-only. **shohei is built for AI agents:**
 > dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC-validating resolver; drill = ldns-based
 
 
-## Demo
-
-### Iterative Resolution Trace
-
-### Watch Mode
-
-### Interactive TUI
-
 ## Installation
 
 ### As a library (Rust projects)

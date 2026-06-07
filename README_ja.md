@@ -70,14 +70,6 @@
 > dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC 検証リゾルバ; drill = ldns ベース
 
 
-## デモ
-
-### 反復解決トレース
-
-### ウォッチモード
-
-### インタラクティブ TUI
-
 ## インストール
 
 ```bash
