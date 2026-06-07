@@ -7,26 +7,43 @@
 
 [English](README.md) | [中文](README_zh.md)
 
-**shohei** — インフラ診断ライブラリ：**DNS**、**DNSSEC**、**TLS証明書**、**メール セキュリティ**、**DNS伝播**、**DANE/TLSA** を検証。MCP統合で AI エージェント自動化に対応。hickory-dns 上に構築された構造化 async API と、手動検査用 CLI を搭載。
+**shohei** — Rust インフラ診断ライブラリ × **Claude MCP サーバー**。DNS・TLS・メールセキュリティ・DNS伝播を自動検査。Claude に「example.com の TLS 証明書をチェック」と依頼すれば、自動で診断。DNSSEC チェーン検証・DANE/TLSA・モダンプロトコル搭載。Rust プロジェクトへの組込みも、AI エージェント連携も対応。
 
+- **Claude MCP サーバー** — Claude Desktop から shohei の全機能を呼び出し可能。「example.com の TLS 証明書をチェック」と聞けば自動診断
+- **TLS 証明書検査** — DANE/TLSA 検証（RFC 6698 完全対応）、証明書チェーン分析、有効期限警告、発行者チェーン確認
+- **メールセキュリティスコアリング** — MX/SPF/DKIM/DMARC 検証、0～100 の準拠度スコア
+- **DNS 伝播確認** — 6 大グローバルリゾルバー（Google・Cloudflare・Quad9 他）での一貫性確認
+- **遅延ベンチマーク** — System・DoH・DoT・DoQ 複数ラウンドでの応答時間計測
 - **DNSSEC チェーンツリー** — `.` から対象ドメインまで DS・DNSKEY の各ステップを可視化（ゾーンを並列で検証）；`-v` でキータグ・アルゴリズム名も表示
-- **反復解決トレース** — ルートサーバー → TLD → 権威NSへのクエリ経路をステップ表示
-- **Authority + Additional セクション** — 権威サーバーへの直接クエリで NS 委任とグルーレコードを表示
+- **反復解決トレース** — ルートサーバー → TLD → 権威 NS へのクエリ経路をステップ表示
 - **N-way サーバー比較** — `--compare` を複数回指定して何台でも同時比較
 - **DoH / DoT / DoQ 対応** — DNS-over-HTTPS・DNS-over-TLS・DNS-over-QUIC をビルトインサポート
 - **ゾーン転送（AXFR）** — `--axfr` で権威サーバーからゾーン全体を取得
 - **複数レコードタイプ** — `--type a --type aaaa --type mx` で全タイプを並列で一括取得
 - **逆引き DNS** — `-x 1.2.3.4` で IPv4/IPv6 の PTR レコードをすぐ解決
-- **stdin・ファイルバッチモード** — ドメイン一覧をパイプするか `-f domains.txt` で一括クエリ
-- **TTL 人間向け表示** — `300` を `5m`、`3600` を `1h` と表示
 - **JSON 出力** — スクリプト・自動化に対応したパイプフレンドリーな出力
 - **ウォッチモード** — `--watch` で定期的に自動更新
-- **短縮出力** — `--short` でデータ値のみを1行ずつ表示（シェルスクリプト向け）
 - **インタラクティブ TUI** — レコード・DNSSEC チェーン・トレースを1画面で閲覧 (`--features tui`)
 
 ## なぜ shohei？
 
-DNS ツールは大きく3つに分類されます。生のテキスト出力に留まるクラシック系（`dig`・`drill`・`delv`）、カラフルな表示とモダントランスポートを追加した新世代系（`dog`・`doggo`・`q`）、そしてその両方を兼ね備えた上で、他のどのツールにもない **DNSSEC 信頼の連鎖のビジュアル可視化** と **注釈付き反復解決トレース** を提供する shohei です。
+### AI-First インフラ診断
+
+ほとんどのインフラツールは CLI オンリー。**shohei は AI エージェント向けに設計されています：**
+
+- **MCP サーバー対応**: Claude・ChatGPT・カスタム AI エージェントからコード不要で全機能を呼び出し可能
+- **Claude Desktop 統合**: Claude に「example.com の TLS 証明書をチェック」と依頼 → 完全なチェーン分析を自動返答
+- **構造化非同期 API**: すべての関数が Serde シリアライズ可能な型を返却（`DnsCheckResult`, `TlsCheckResult`, `EmailSecurityResult`） — AI エージェント向けに最適
+- **CLI 不要・Python 不要**: 純粋な Rust ライブラリ + MCP サーバー；単一チェックから自動監視まで対応
+
+### 開発者向け機能
+
+- **ライブラリファースト設計**: Rust プロジェクト・CI/CD パイプライン・自動化フレームワークへの組込み
+- **信頼チェーン検証**: DNS → DNSSEC → TLS → DANE/TLSA を一度に検証する唯一のオープンソースライブラリ
+- **モダンプロトコル**: DoH・DoT・DoQ・DNSSEC・DANE/TLSA すべて搭載
+- **自動化向け**: 並列クエリ・バッチ処理・複数リゾルバー同時チェック・プログラマティック API
+
+**他ツール（`dig`・`dog`・`drill`）との比較**: shohei は再利用可能 — テスト・監視・CI/CD・**あるいは Claude へ渡して自動診断** に対応。
 
 | 機能 | shohei | dig | dog | doggo | q | delv | drill |
 |------|:------:|:---:|:---:|:-----:|:-:|:----:|:-----:|
@@ -293,6 +310,49 @@ shohei google.com --tui
 | `⚠ INSECURE` | ゾーンは未署名だが、親にDSレコードなし（想定通り） |
 | `✗ BOGUS` | 検証失敗 — 署名の不一致またはチェーンの破損 |
 | `? INDETERMINATE` | 検証未要求、または結果不明 |
+
+## MCP サーバー & Claude 統合
+
+### ✅ v0.5.1+ で実装完了
+
+**MCP（Model Context Protocol）サーバー** により、Claude Desktop と他の AI エージェントが shohei 診断を直接呼び出し可能です：
+
+```bash
+# 1. shohei をインストール
+cargo install shohei
+
+# 2. Claude Desktop 設定ファイルに登録：
+# ~/.config/Claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "shohei": {
+      "command": "/path/to/shohei-mcp"
+    }
+  }
+}
+
+# 3. Claude Desktop を再起動
+# 4. Claude に依頼：「example.com の TLS 証明書をチェック」
+```
+
+**Claude が使用可能な5つのツール：**
+1. **check_dns** — DNS レコード検索（A、AAAA、MX、TXT、CNAME、NS など）
+2. **check_tls_chain** — TLS 証明書検査 + DANE/TLSA 検証
+3. **check_email_security** — SPF、DKIM、DMARC、MX レコード検証
+4. **check_propagation_global** — 6 大グローバルリゾルバーでの DNS 一貫性確認
+5. **benchmark_latency** — System・DoH・DoT・DoQ 複数ラウンドでの遅延計測
+
+**例：** Claude がドメインを自動診断：
+> 「example.com のメール設定が正しいか、TLS 証明書チェーンを確認して」
+> → Claude が check_email_security + check_tls_chain を呼び出し → 完全な分析結果を返答
+
+![Claude Desktop で shohei MCP を使用](images/use_mcp_shohei_01.png)
+
+### その他の統合
+
+- **Rust ライブラリ**: プロジェクトで `use shohei;` — 構造化非同期 API
+- **CLI**: 手動検査：`shohei example.com --dnssec --trace`
+- **JSON 出力**: スクリプト・自動化：`shohei example.com --output json`
 
 ## 使用クレート
 

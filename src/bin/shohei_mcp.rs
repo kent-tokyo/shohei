@@ -16,6 +16,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reader = stdin.lock();
     let mut lines = reader.lines();
 
+    eprintln!("[shohei-mcp] Server started");
+
     // List of available tools
     let tools = vec![
         json!({
@@ -81,16 +83,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Main loop
     while let Some(Ok(line)) = lines.next() {
+        eprintln!("[shohei-mcp] Received: {}", line);
+
         let req: Value = match serde_json::from_str(&line) {
             Ok(v) => v,
-            Err(_) => continue,
+            Err(e) => {
+                eprintln!("[shohei-mcp] Parse error: {}", e);
+                continue;
+            }
         };
 
         let id = req.get("id").cloned();
         let method = req.get("method").and_then(|m| m.as_str());
         let params = req.get("params").cloned().unwrap_or(Value::Object(Default::default()));
 
+        // Bug fix: Notifications (no id) must never receive a response
+        if id.is_none() {
+            eprintln!("[shohei-mcp] Notification received, no response sent");
+            continue;
+        }
+
+        eprintln!("[shohei-mcp] Method: {:?}", method);
+
         let result = match method {
+            Some("initialize") => {
+                json!({
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": { "tools": {} },
+                    "serverInfo": {
+                        "name": "shohei-mcp",
+                        "version": "0.5.1"
+                    }
+                })
+            }
             Some("tools/list") => {
                 json!({
                     "tools": tools
@@ -195,15 +220,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => json!({"error": {"code": -32601, "message": "Method not found"}}),
         };
 
-        let response = json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": result
-        });
+        let response = if let Some(id_val) = &id {
+            json!({
+                "jsonrpc": "2.0",
+                "id": id_val,
+                "result": result
+            })
+        } else {
+            result
+        };
 
+        eprintln!("[shohei-mcp] Sending response: {}", response.to_string());
         writeln!(stdout, "{}", response.to_string())?;
         stdout.flush()?;
     }
+
+    eprintln!("[shohei-mcp] Exiting main loop");
 
     Ok(())
 }

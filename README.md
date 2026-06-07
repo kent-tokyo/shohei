@@ -7,35 +7,44 @@
 
 [日本語](README_ja.md) | [中文](README_zh.md)
 
-**shohei** — Rust library for infrastructure diagnostics: **DNS**, **DNSSEC**, **TLS certificates**, **email security**, **DNS propagation**, and **DANE/TLSA** validation. MCP-integrated for AI agent automation. Built on hickory-dns with structured async APIs and a CLI for manual inspection.
+**shohei** — Rust infrastructure diagnostics library with **MCP server for Claude**. Automate DNS, TLS, email security, and DNS propagation checks via AI agents. DNSSEC chain validation, DANE/TLSA, and modern protocols built in. **Use in Rust projects or hand to Claude for autonomous diagnosis.**
 
+- **MCP server for Claude** — Call shohei diagnostics from Claude Desktop; ask "Check example.com's TLS certificate" and get full chain analysis
+- **TLS certificate inspection** — DANE/TLSA validation (RFC 6698), certificate chain analysis, expiry warnings, issuer chain verification
+- **Email security scoring** — MX records, SPF, DKIM, DMARC validation with 0–100 compliance score
+- **DNS propagation checker** — Verify domain consistency across 6 global resolvers (Google, Cloudflare, Quad9, OpenDNS, 1.1.1.1, 8.8.8.8)
+- **Latency benchmarking** — Multi-transport timing: System, DoH, DoT, DoQ across multiple rounds
 - **DNSSEC chain tree** — see every DS, DNSKEY, and trust step from `.` to your domain; per-zone validation runs in parallel; add `-v` for key tags and algorithm names
 - **Iterative resolution trace** — watch queries travel from root servers to TLD to authoritative NS
-- **Authority + Additional sections** — see NS referrals and glue records when querying authoritative servers directly
 - **N-way server comparison** — diff any number of resolvers simultaneously with `--compare`
 - **DoH, DoT, and DoQ** — DNS-over-HTTPS, DNS-over-TLS, and DNS-over-QUIC built in
 - **Zone transfer (AXFR)** — dump an entire zone from an authoritative server with `--axfr`
 - **Multiple record types** — `--type a --type aaaa --type mx` queries all types concurrently in a single invocation
 - **Reverse DNS** — `-x 1.2.3.4` resolves PTR records for IPv4 and IPv6
 - **Stdin and file batch mode** — pipe a list of domains or use `-f domains.txt`
-- **Human-readable TTL** — `300` displayed as `5m`, `3600` as `1h`
 - **JSON output** — pipe-friendly for scripting and automation
 - **Watch mode** — auto-refresh at a set interval with `--watch`
-- **Short output** — data values only, one per line, with `--short`
 - **Interactive TUI** — browse records, DNSSEC chain, and trace in a single terminal window (`--features tui`)
 
 ## Why shohei?
 
-Most DNS tools are CLI-only and manual. shohei is different:
+### AI-First Infrastructure Diagnostics
 
-- **Library-first design**: Import into your Rust projects, CI/CD pipelines, or automation
-- **Structured output**: JSON + serde types for agents and automation (not just colored tables)
-- **Trust chain validation**: The only open-source library that validates DNS → DNSSEC → TLS → HTTP in one call
-- **Built for agents**: MCP server integration lets Claude and other AI agents run automated infrastructure diagnostics
+Most infrastructure tools are CLI-only. **shohei is built for AI agents:**
+
+- **MCP Server Ready**: Expose all diagnostics to Claude, ChatGPT, and custom AI agents without writing integration code
+- **Claude Desktop Integration**: Ask Claude "Check example.com's TLS certificate" → get automated diagnosis with full chain analysis
+- **Structured Async APIs**: Every function returns serializable types (`DnsCheckResult`, `TlsCheckResult`, `EmailSecurityResult`) — perfect for agents
+- **No CLI, No Python**: Pure Rust library + MCP server; scales from single checks to automated monitoring
+
+### Developer-Friendly
+
+- **Library-first design**: Import into Rust projects, CI/CD pipelines, or automation frameworks
+- **Trust chain validation**: The only open-source library that validates DNS → DNSSEC → TLS → DANE/TLSA in one call
 - **Modern protocols**: DoH, DoT, DoQ, DNSSEC, DANE/TLSA all built in
 - **Automation-friendly**: Concurrent queries, batching, multi-resolver checks, and programmatic APIs
 
-Compared to CLI-only alternatives (`dog`, `drill`, `dig`), shohei is composable—use it in tests, monitoring, CI/CD, or hand it to agents for automated diagnosis.
+**Compared to alternatives** (`dig`, `dog`, `drill`): shohei is composable—use it in tests, monitoring, CI/CD, **or hand it to Claude for autonomous diagnosis.**
 
 | Feature | shohei | dig | dog | doggo | q | delv | drill |
 |---------|:------:|:---:|:---:|:-----:|:-:|:----:|:-----:|
@@ -345,18 +354,52 @@ shohei google.com --tui
 | `✗ BOGUS` | Validation failed — signature mismatch or broken chain |
 | `? INDETERMINATE` | DNSSEC not requested, or result unclear |
 
-## Integrations & AI Agents
+## MCP Server & Claude Integration
 
-### Current (v0.4.0+)
+### ✅ Live Now (v0.5.1+)
 
-- **Library**: Rust projects via `use shohei;`
-- **CLI**: Manual diagnosis via terminal
-- **JSON output**: Scripting and tooling
+**MCP (Model Context Protocol) Server** lets Claude Desktop and other AI agents call shohei diagnostics directly:
 
-### Planned (v0.5.0+)
+```bash
+# 1. Install shohei
+cargo install shohei
 
-- **MCP Server**: AI agents (Claude, etc.) can call shohei diagnostics
-- **GitHub Actions**: Automated DNS/TLS checks in CI/CD workflows
+# 2. Register MCP server in Claude Desktop config:
+# ~/.config/Claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "shohei": {
+      "command": "/path/to/shohei-mcp"
+    }
+  }
+}
+
+# 3. Restart Claude Desktop
+# 4. Ask Claude: "Check example.com's TLS certificate"
+```
+
+**Five Tools Available to Claude:**
+1. **check_dns** — Query DNS records (A, AAAA, MX, TXT, CNAME, NS, etc.)
+2. **check_tls_chain** — Inspect TLS certificates + DANE/TLSA validation
+3. **check_email_security** — Validate SPF, DKIM, DMARC, MX records
+4. **check_propagation_global** — Verify DNS consistency across 6 global resolvers
+5. **benchmark_latency** — Measure DNS latency across System, DoH, DoT, DoQ
+
+**Example:** Claude diagnoses a domain autonomously:
+> "Check if example.com's mail configuration is correct, and verify its TLS certificate chain"
+> → Claude calls check_email_security + check_tls_chain → returns full analysis
+
+![MCP shohei in Claude Desktop](images/use_mcp_shohei_01.png)
+
+### Other Integrations
+
+- **Rust Library**: `use shohei;` in your projects — structured async APIs
+- **CLI**: Manual inspection: `shohei example.com --dnssec --trace`
+- **JSON output**: Scripting and tooling: `shohei example.com --output json`
+
+### Future (v0.6.0+)
+
+- **GitHub Actions**: Automated DNS/TLS checks in CI/CD
 - **Terraform Module**: Infrastructure validation
 - **Ansible Module**: Playbook integration
 

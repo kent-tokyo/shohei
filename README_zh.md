@@ -7,26 +7,43 @@
 
 [English](README.md) | [日本語](README_ja.md)
 
-**shohei** — 基础设施诊断库：**DNS**、**DNSSEC**、**TLS 证书**、**电子邮件安全**、**DNS 传播**、**DANE/TLSA** 验证。MCP 集成支持 AI 代理自动化。基于 hickory-dns 构建，提供结构化异步 API 和手动检查 CLI。
+**shohei** — Rust 基础设施诊断库 × **Claude MCP 服务器**。DNS、TLS、邮件安全、DNS 传播自动检查。告诉 Claude「检查 example.com 的 TLS 证书」，自动诊断。支持 DNSSEC 链验证、DANE/TLSA、现代协议。可集成到 Rust 项目，也可与 AI 代理协作。
 
+- **Claude MCP 服务器** — 从 Claude Desktop 调用 shohei 全部功能。告诉 Claude「检查 example.com 的 TLS 证书」即可自动诊断
+- **TLS 证书检查** — DANE/TLSA 验证（RFC 6698 全部 6 种组合）、证书链分析、过期警告、签发者链验证
+- **邮件安全评分** — MX/SPF/DKIM/DMARC 验证，0～100 合规度评分
+- **DNS 传播检查** — 6 大全球解析器（Google、Cloudflare、Quad9 等）一致性确认
+- **延迟基准测试** — System、DoH、DoT、DoQ 多轮次响应时间测量
 - **DNSSEC 信任链树** — 可视化从 `.` 到目标域名每个 DS、DNSKEY 步骤（各区域并发验证）；`-v` 显示密钥标签和算法名称
 - **迭代解析追踪** — 展示从根服务器 → TLD → 权威 NS 的完整查询路径
-- **Authority + Additional 区段** — 直接查询权威服务器时显示 NS 委派和胶水记录
 - **N 路服务器对比** — 多次指定 `--compare` 可同时对比任意数量的解析器
 - **DoH / DoT / DoQ 支持** — 内置 DNS-over-HTTPS、DNS-over-TLS 和 DNS-over-QUIC
 - **区域传输（AXFR）** — 使用 `--axfr` 从权威服务器获取完整区域数据
 - **多记录类型** — `--type a --type aaaa --type mx` 并发查询多种类型
 - **反向 DNS** — `-x 1.2.3.4` 快速解析 IPv4/IPv6 的 PTR 记录
-- **stdin 与文件批量模式** — 通过管道传入域名列表，或使用 `-f domains.txt`
-- **TTL 人性化显示** — `300` 显示为 `5m`，`3600` 显示为 `1h`
 - **JSON 输出** — 适用于脚本和自动化的管道友好输出
 - **监控模式** — 使用 `--watch` 定期自动刷新
-- **精简输出** — 使用 `--short` 每行仅输出数据值（适用于脚本）
 - **交互式 TUI** — 在单个终端窗口中浏览记录、DNSSEC 链和追踪结果（`--features tui`）
 
 ## 为什么选择 shohei？
 
-DNS 工具大致分为三类：输出原始文本的经典工具（`dig`、`drill`、`delv`）；增加彩色显示和现代传输协议的新一代工具（`dog`、`doggo`、`q`）；以及 shohei —— 兼具上述所有能力，并在业界首创终端原生的 **DNSSEC 信任链可视化** 与 **带注释的迭代解析追踪**。
+### AI-First 基础设施诊断
+
+大多数基础设施工具仅限 CLI。**shohei 为 AI 代理而生：**
+
+- **MCP 服务器就绪**: 无需代码即可从 Claude、ChatGPT 和自定义 AI 代理调用全部功能
+- **Claude Desktop 集成**: 告诉 Claude「检查 example.com 的 TLS 证书」→ 自动诊断返回完整链分析
+- **结构化异步 API**: 所有函数返回可 Serde 序列化的类型（`DnsCheckResult`、`TlsCheckResult`、`EmailSecurityResult`）— 为 AI 代理优化
+- **无 CLI、无 Python**: 纯 Rust 库 + MCP 服务器；从单次检查到自动监控任意规模
+
+### 开发者友好
+
+- **库优先设计**: 集成到 Rust 项目、CI/CD 管道或自动化框架
+- **信任链验证**: 唯一能在一次调用中验证 DNS → DNSSEC → TLS → DANE/TLSA 的开源库
+- **现代协议**: DoH、DoT、DoQ、DNSSEC、DANE/TLSA 全部内置
+- **自动化友好**: 并发查询、批处理、多解析器同时检查、编程式 API
+
+**与其他工具对比**（`dig`、`dog`、`drill`）：shohei 可组合 — 用于测试、监控、CI/CD，**或交给 Claude 进行自动诊断**。
 
 | 功能 | shohei | dig | dog | doggo | q | delv | drill |
 |------|:------:|:---:|:---:|:-----:|:-:|:----:|:-----:|
@@ -292,6 +309,49 @@ shohei google.com --tui
 | `⚠ INSECURE` | 区域未签名，但父区域无 DS 记录（预期行为） |
 | `✗ BOGUS` | 验证失败 — 签名不匹配或信任链断裂 |
 | `? INDETERMINATE` | 未请求验证或结果不明确 |
+
+## MCP 服务器 & Claude 集成
+
+### ✅ v0.5.1+ 已完成实现
+
+**MCP（Model Context Protocol）服务器** 让 Claude Desktop 和其他 AI 代理能直接调用 shohei 诊断：
+
+```bash
+# 1. 安装 shohei
+cargo install shohei
+
+# 2. 注册 MCP 服务器到 Claude Desktop 配置：
+# ~/.config/Claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "shohei": {
+      "command": "/path/to/shohei-mcp"
+    }
+  }
+}
+
+# 3. 重启 Claude Desktop
+# 4. 问 Claude：「检查 example.com 的 TLS 证书」
+```
+
+**提供给 Claude 的 5 个工具：**
+1. **check_dns** — DNS 记录查询（A、AAAA、MX、TXT、CNAME、NS 等）
+2. **check_tls_chain** — TLS 证书检查 + DANE/TLSA 验证
+3. **check_email_security** — SPF、DKIM、DMARC、MX 记录验证
+4. **check_propagation_global** — 跨 6 大全球解析器的 DNS 一致性检查
+5. **benchmark_latency** — System、DoH、DoT、DoQ 多轮次延迟测量
+
+**示例：** Claude 自动诊断域名：
+> 「检查 example.com 的邮件配置是否正确，验证其 TLS 证书链」
+> → Claude 调用 check_email_security + check_tls_chain → 返回完整分析
+
+![Claude Desktop 中使用 shohei MCP](images/use_mcp_shohei_01.png)
+
+### 其他集成方式
+
+- **Rust 库**: 在项目中 `use shohei;` — 结构化异步 API
+- **CLI**: 手动诊断：`shohei example.com --dnssec --trace`
+- **JSON 输出**: 脚本和自动化：`shohei example.com --output json`
 
 ## 使用的 Crate
 
