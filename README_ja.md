@@ -52,18 +52,18 @@ DNS ツールは大きく3つに分類されます。生のテキスト出力に
 
 > dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC 検証リゾルバ; drill = ldns ベース
 
-![DNSSEC 信頼の連鎖](images/demo_dnssec.svg)
+![DNSSEC 信頼の連鎖](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_dnssec.svg)
 
 ## デモ
 
 ### 反復解決トレース
-![反復解決トレース デモ](images/demo-trace.gif)
+![反復解決トレース デモ](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo-trace.gif)
 
 ### ウォッチモード
-![ウォッチモード デモ](images/demo-watch.gif)
+![ウォッチモード デモ](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo-watch.gif)
 
 ### インタラクティブ TUI
-![TUI デモ](images/demo-tui.gif)
+![TUI デモ](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo-tui.gif)
 
 ## インストール
 
@@ -93,9 +93,9 @@ shohei gmail.com  --type MX    # メール交換レコード
 shohei google.com --type a --type aaaa --type mx
 ```
 
-![DNS レコードクエリ](images/demo_basic.svg)
+![DNS レコードクエリ](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_basic.svg)
 
-![MX レコード](images/demo_mx.svg)
+![MX レコード](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_mx.svg)
 
 ```bash
 # セキュリティ / DNSSEC 関連レコードタイプ
@@ -104,7 +104,7 @@ shohei github.com --type sshfp     # SSH フィンガープリント
 shohei _443._tcp.example.com --type tlsa  # DANE TLSA
 ```
 
-![CAA レコード](images/demo_caa.svg)
+![CAA レコード](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_caa.svg)
 
 ### 逆引き DNS
 
@@ -127,7 +127,7 @@ shohei cloudflare.com --dnssec
 shohei cloudflare.com --dnssec --verbose
 ```
 
-![DNSSEC 信頼の連鎖](images/demo_dnssec.svg)
+![DNSSEC 信頼の連鎖](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_dnssec.svg)
 
 ### 反復解決トレース
 
@@ -137,7 +137,7 @@ shohei cloudflare.com --dnssec --verbose
 shohei google.com --trace
 ```
 
-![反復解決トレース](images/demo_trace.svg)
+![反復解決トレース](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_trace.svg)
 
 ### モダントランスポート
 
@@ -167,7 +167,7 @@ shohei google.com -s 192.5.6.30 --no-recurse
 shohei example.com -s 199.43.135.53 --no-recurse --type ns
 ```
 
-![Authority・Additional セクション](images/demo_authority.svg)
+![Authority・Additional セクション](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_authority.svg)
 
 ### TCP 強制
 
@@ -185,7 +185,7 @@ shohei example.com -s 8.8.8.8 --tcp
 shohei gmail.com --type MX --short
 ```
 
-![短縮出力](images/demo_short.svg)
+![短縮出力](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_short.svg)
 
 ### サーバー比較
 
@@ -202,9 +202,9 @@ shohei google.com --server 8.8.8.8 --compare 1.1.1.1
 shohei google.com --server 8.8.8.8 --compare 1.1.1.1 --compare 9.9.9.9
 ```
 
-![比較 — 一致](images/demo_compare_match.svg)
+![比較 — 一致](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_compare_match.svg)
 
-![比較 — 差分あり](images/demo_compare_diff.svg)
+![比較 — 差分あり](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_compare_diff.svg)
 
 ### ゾーン転送（AXFR）
 
@@ -214,7 +214,7 @@ shohei google.com --server 8.8.8.8 --compare 1.1.1.1 --compare 9.9.9.9
 shohei zonetransfer.me --axfr -s 81.4.108.41
 ```
 
-![AXFR ゾーン転送](images/demo_axfr.svg)
+![AXFR ゾーン転送](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_axfr.svg)
 
 ### バッチ / stdin モード
 
