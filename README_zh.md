@@ -52,18 +52,14 @@ DNS 工具大致分为三类：输出原始文本的经典工具（`dig`、`dril
 
 > dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC 验证解析器; drill = 基于 ldns
 
-![DNSSEC 信任链](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_dnssec.svg)
 
 ## 演示
 
 ### 迭代解析追踪
-![迭代解析追踪演示](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo-trace.gif)
 
 ### 监控模式
-![监控模式演示](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo-watch.gif)
 
 ### 交互式 TUI
-![TUI 演示](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo-tui.gif)
 
 ## 安装
 
@@ -93,9 +89,7 @@ shohei gmail.com  --type MX    # 邮件交换记录
 shohei google.com --type a --type aaaa --type mx
 ```
 
-![DNS 记录查询](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_basic.svg)
 
-![MX 记录](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_mx.svg)
 
 ```bash
 # 安全 / DNSSEC 相关记录类型
@@ -104,7 +98,6 @@ shohei github.com --type sshfp     # SSH 指纹
 shohei _443._tcp.example.com --type tlsa  # DANE TLSA
 ```
 
-![CAA 记录](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_caa.svg)
 
 ### 反向 DNS
 
@@ -126,7 +119,6 @@ shohei cloudflare.com --dnssec
 shohei cloudflare.com --dnssec --verbose
 ```
 
-![DNSSEC 信任链](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_dnssec.svg)
 
 ### 迭代解析追踪
 
@@ -136,7 +128,6 @@ shohei cloudflare.com --dnssec --verbose
 shohei google.com --trace
 ```
 
-![迭代解析追踪](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_trace.svg)
 
 ### 现代传输协议
 
@@ -166,7 +157,6 @@ shohei google.com -s 192.5.6.30 --no-recurse
 shohei example.com -s 199.43.135.53 --no-recurse --type ns
 ```
 
-![Authority 和 Additional 区段](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_authority.svg)
 
 ### 强制 TCP
 
@@ -184,7 +174,6 @@ shohei example.com -s 8.8.8.8 --tcp
 shohei gmail.com --type MX --short
 ```
 
-![精简输出](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_short.svg)
 
 ### 服务器对比
 
@@ -201,9 +190,7 @@ shohei google.com --server 8.8.8.8 --compare 1.1.1.1
 shohei google.com --server 8.8.8.8 --compare 1.1.1.1 --compare 9.9.9.9
 ```
 
-![对比 — 结果一致](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_compare_match.svg)
 
-![对比 — 存在差异](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_compare_diff.svg)
 
 ### 区域传输（AXFR）
 
@@ -213,7 +200,6 @@ shohei google.com --server 8.8.8.8 --compare 1.1.1.1 --compare 9.9.9.9
 shohei zonetransfer.me --axfr -s 81.4.108.41
 ```
 
-![AXFR 区域传输](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_axfr.svg)
 
 ### 批量 / stdin 模式
 

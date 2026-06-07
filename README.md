@@ -61,18 +61,14 @@ Compared to CLI-only alternatives (`dog`, `drill`, `dig`), shohei is composable�
 
 > dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC-validating resolver; drill = ldns-based
 
-![DNSSEC chain of trust](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_dnssec.svg)
 
 ## Demo
 
 ### Iterative Resolution Trace
-![Iterative trace demo](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo-trace.gif)
 
 ### Watch Mode
-![Watch mode demo](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo-watch.gif)
 
 ### Interactive TUI
-![TUI demo](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo-tui.gif)
 
 ## Installation
 
@@ -144,9 +140,7 @@ shohei gmail.com  --type MX    # Mail exchangers
 shohei google.com --type a --type aaaa --type mx
 ```
 
-![DNS record query](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_basic.svg)
 
-![MX records](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_mx.svg)
 
 ```bash
 # Security / DNSSEC-related record types
@@ -155,7 +149,6 @@ shohei github.com --type sshfp     # SSH fingerprints
 shohei _443._tcp.example.com --type tlsa  # DANE TLSA
 ```
 
-![CAA records](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_caa.svg)
 
 ### Reverse DNS
 
@@ -178,7 +171,6 @@ shohei cloudflare.com --dnssec
 shohei cloudflare.com --dnssec --verbose
 ```
 
-![DNSSEC chain of trust](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_dnssec.svg)
 
 ### Iterative resolution trace
 
@@ -188,7 +180,6 @@ Step through the full resolution path — root servers → TLD nameservers → a
 shohei google.com --trace
 ```
 
-![Iterative resolution trace](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_trace.svg)
 
 ### Modern transports
 
@@ -218,7 +209,6 @@ shohei google.com -s 192.5.6.30 --no-recurse
 shohei example.com -s 199.43.135.53 --no-recurse --type ns
 ```
 
-![Authority and Additional sections](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_authority.svg)
 
 ### Force TCP
 
@@ -236,7 +226,6 @@ Strip all decoration and return just the record data — one value per line. Ide
 shohei gmail.com --type MX --short
 ```
 
-![Short output](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_short.svg)
 
 ### Compare resolvers
 
@@ -253,9 +242,7 @@ shohei google.com --server 8.8.8.8 --compare 1.1.1.1
 shohei google.com --server 8.8.8.8 --compare 1.1.1.1 --compare 9.9.9.9
 ```
 
-![Compare — matching](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_compare_match.svg)
 
-![Compare — diverging](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_compare_diff.svg)
 
 ### Zone transfer (AXFR)
 
@@ -265,7 +252,6 @@ Fetch the complete zone from an authoritative server. Requires `-s` to specify t
 shohei zonetransfer.me --axfr -s 81.4.108.41
 ```
 
-![AXFR zone transfer](https://raw.githubusercontent.com/kent-tokyo/shohei/main/images/demo_axfr.svg)
 
 ### Batch / stdin mode
 
