@@ -7,7 +7,7 @@
 
 [日本語](README_ja.md) | [中文](README_zh.md)
 
-**shohei** is a next-generation DNS diagnostic CLI. Where `dig` shows raw records, shohei visualizes the complete picture: the **DNSSEC chain of trust** from root to answer, the iterative resolution path hop-by-hop, and modern transports (DoH / DoT) — all rendered as color-coded trees in your terminal.
+**shohei** is a Rust library for comprehensive infrastructure reachability diagnostics. It validates the complete **trust chain** from DNS through DNSSEC to TLS certificates and HTTP connectivity—designed for automation, AI agents, and embedded use in other tools. Built on hickory-dns with structured output (JSON, serde types) and an optional CLI for manual inspection.
 
 - **DNSSEC chain tree** — see every DS, DNSKEY, and trust step from `.` to your domain; per-zone validation runs in parallel; add `-v` for key tags and algorithm names
 - **Iterative resolution trace** — watch queries travel from root servers to TLD to authoritative NS
@@ -26,7 +26,16 @@
 
 ## Why shohei?
 
-DNS tooling splits into three camps: classic tools (`dig`, `drill`, `delv`) that show raw output with no visual layer; modern alternatives (`dog`, `doggo`, `q`) that add colors and modern transports but skip deep diagnostics; and shohei, which combines both and adds the only terminal-native **DNSSEC chain-of-trust visualization** and **annotated iterative trace** in the space.
+Most DNS tools are CLI-only and manual. shohei is different:
+
+- **Library-first design**: Import into your Rust projects, CI/CD pipelines, or automation
+- **Structured output**: JSON + serde types for agents and automation (not just colored tables)
+- **Trust chain validation**: The only open-source library that validates DNS → DNSSEC → TLS → HTTP in one call
+- **Built for agents**: MCP server integration lets Claude and other AI agents run automated infrastructure diagnostics
+- **Modern protocols**: DoH, DoT, DoQ, DNSSEC, DANE/TLSA all built in
+- **Automation-friendly**: Concurrent queries, batching, multi-resolver checks, and programmatic APIs
+
+Compared to CLI-only alternatives (`dog`, `drill`, `dig`), shohei is composable—use it in tests, monitoring, CI/CD, or hand it to agents for automated diagnosis.
 
 | Feature | shohei | dig | dog | doggo | q | delv | drill |
 |---------|:------:|:---:|:---:|:-----:|:-:|:----:|:-----:|
@@ -67,9 +76,36 @@ DNS tooling splits into three camps: classic tools (`dig`, `drill`, `delv`) that
 
 ## Installation
 
+### As a library (Rust projects)
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+shohei = "0.4"
+```
+
+Then import and use:
+
+```rust
+use shohei::resolver::standard::query;
+
+#[tokio::main]
+async fn main() {
+    let result = query("example.com", "A").await;
+    println!("{:?}", result);
+}
+```
+
+For full API documentation: `cargo doc --open` or [docs.rs/shohei](https://docs.rs/shohei).
+
+### As a CLI (manual diagnosis)
+
 ```bash
 cargo install shohei
 ```
+
+Or download a pre-built binary from the [releases page](https://github.com/kent-tokyo/shohei/releases).
 
 For the interactive TUI mode:
 
@@ -77,9 +113,24 @@ For the interactive TUI mode:
 cargo install shohei --features tui
 ```
 
-Or download a pre-built binary from the [releases page](https://github.com/kent-tokyo/shohei/releases).
+## Library Examples
 
-## Usage
+shohei is designed to be imported and composed in Rust projects. See the `examples/` directory:
+
+- **[propagation_check.rs](examples/propagation_check.rs)** — Check if a domain is propagated globally
+- **[tls_chain_verify.rs](examples/tls_chain_verify.rs)** — Validate TLS certificate chains (Phase 2)
+- **[email_security.rs](examples/email_security.rs)** — Check email security records (Phase 1)
+
+Run examples:
+```bash
+cargo run --example propagation_check -- example.com
+cargo run --example tls_chain_verify -- example.com
+cargo run --example email_security -- example.com
+```
+
+## CLI Usage
+
+The CLI is a convenient wrapper around the library for manual inspection and testing.
 
 ### DNS record query
 
@@ -307,6 +358,23 @@ shohei google.com --tui
 | `⚠ INSECURE` | Zone unsigned, but parent has no DS delegation (expected) |
 | `✗ BOGUS` | Validation failed — signature mismatch or broken chain |
 | `? INDETERMINATE` | DNSSEC not requested, or result unclear |
+
+## Integrations & AI Agents
+
+### Current (v0.4.0+)
+
+- **Library**: Rust projects via `use shohei;`
+- **CLI**: Manual diagnosis via terminal
+- **JSON output**: Scripting and tooling
+
+### Planned (v0.5.0+)
+
+- **MCP Server**: AI agents (Claude, etc.) can call shohei diagnostics
+- **GitHub Actions**: Automated DNS/TLS checks in CI/CD workflows
+- **Terraform Module**: Infrastructure validation
+- **Ansible Module**: Playbook integration
+
+See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for full details.
 
 ## Built with
 
