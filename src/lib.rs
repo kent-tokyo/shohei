@@ -31,7 +31,7 @@
 //! - [`cli`] — Command-line interface (internal)
 //! - [`display`] — Output formatting for terminal display (internal)
 
-pub mod api;
+pub mod api;  // Now a module directory with submodules
 pub mod cli;
 pub mod display;
 pub mod dnssec;
