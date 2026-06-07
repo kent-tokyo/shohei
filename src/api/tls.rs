@@ -329,17 +329,8 @@ async fn check_tlsa_records(
                 ));
 
                 // Check if this TLSA matches our leaf cert
-                if *selector == 1 {
-                    // SubjectPublicKeyInfo
-                    if check_tlsa_match(leaf_cert, matching_type, cert_data) {
-                        match_found = true;
-                    }
-                } else if *selector == 0 {
-                    // Full cert
-                    let leaf_hex = hex::encode(leaf_cert.as_ref());
-                    if *matching_type == 0 && leaf_hex == *cert_data {
-                        match_found = true;
-                    }
+                if check_tlsa_match(leaf_cert, selector, matching_type, cert_data) {
+                    match_found = true;
                 }
             }
         }
@@ -351,12 +342,40 @@ async fn check_tlsa_records(
     })
 }
 
-fn check_tlsa_match(cert_der: &CertificateDer<'_>, matching_type: &u8, expected: &str) -> bool {
+fn check_tlsa_match(cert_der: &CertificateDer<'_>, selector: &u8, matching_type: &u8, expected: &str) -> bool {
+    use sha2::{Digest, Sha256, Sha512};
+
+    // Step 1: Extract the data to hash based on selector
+    // selector 0: full certificate DER
+    // selector 1: SubjectPublicKeyInfo DER
+    let data = match selector {
+        0 => cert_der.as_ref().to_vec(),
+        1 => {
+            // Extract SPKI from certificate
+            if let Ok((_, cert)) = X509Certificate::from_der(cert_der.as_ref()) {
+                cert.public_key().raw.to_vec()
+            } else {
+                return false;
+            }
+        }
+        _ => return false,
+    };
+
+    // Step 2: Hash or compare based on matching_type
     match matching_type {
         0 => {
-            // Exact match
-            let cert_hex = hex::encode(cert_der.as_ref());
-            cert_hex == *expected
+            // Exact match - compare raw bytes as hex
+            hex::encode(&data) == *expected
+        }
+        1 => {
+            // SHA-256 match
+            let digest = Sha256::digest(&data);
+            hex::encode(digest) == *expected
+        }
+        2 => {
+            // SHA-512 match
+            let digest = Sha512::digest(&data);
+            hex::encode(digest) == *expected
         }
         _ => false,
     }
