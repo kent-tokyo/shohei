@@ -2,7 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 use std::net::{SocketAddr, IpAddr};
+use std::sync::Arc;
 use rustls::pki_types::{CertificateDer, ServerName};
+use tokio::net::TcpStream;
+use tokio::time::{timeout, Duration};
+use tokio_rustls::TlsConnector;
 use x509_parser::prelude::*;
 
 use crate::error::{Result, ShoheError};
@@ -105,13 +109,50 @@ async fn resolve_hostname_to_ip(hostname: &str, timeout_secs: u64) -> Result<IpA
 async fn connect_and_capture_certs(
     ip: IpAddr,
     port: u16,
-    _hostname: &str,
-    _timeout_secs: u64,
+    hostname: &str,
+    timeout_secs: u64,
 ) -> Result<Vec<CertificateDer<'static>>> {
-    // Placeholder: stub implementation that returns empty cert list
-    // Full implementation would use openssl or rustls to extract certs from TLS connection
-    let _addr = SocketAddr::new(ip, port);
-    Ok(vec![])
+    let addr = SocketAddr::new(ip, port);
+
+    let config = rustls::ClientConfig::builder_with_provider(
+        Arc::new(rustls::crypto::ring::default_provider()),
+    )
+    .with_safe_default_protocol_versions()
+    .map_err(|e| ShoheError::Transport(e.to_string()))?
+    .dangerous()
+    .with_custom_certificate_verifier(Arc::new(SkipVerification))
+    .with_no_client_auth();
+
+    let connector = TlsConnector::from(Arc::new(config));
+
+    let server_name = ServerName::try_from(hostname.to_string())
+        .map_err(|_| ShoheError::Parse(format!("Invalid hostname: {}", hostname)))?;
+
+    let tcp = timeout(
+        Duration::from_secs(timeout_secs),
+        TcpStream::connect(addr),
+    )
+    .await
+    .map_err(|_| ShoheError::Transport(format!("TCP timeout: {}", addr)))?
+    .map_err(|e| ShoheError::Transport(format!("TCP connect failed: {}", e)))?;
+
+    let tls_stream = timeout(
+        Duration::from_secs(timeout_secs),
+        connector.connect(server_name, tcp),
+    )
+    .await
+    .map_err(|_| ShoheError::Transport("TLS handshake timeout".into()))?
+    .map_err(|e| ShoheError::Transport(format!("TLS handshake failed: {}", e)))?;
+
+    let (_, conn) = tls_stream.get_ref();
+    let certs = conn
+        .peer_certificates()
+        .unwrap_or(&[])
+        .iter()
+        .cloned()
+        .collect();
+
+    Ok(certs)
 }
 
 // Minimal cert verifier that accepts everything
