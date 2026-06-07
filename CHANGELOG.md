@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-07
+
+### Added
+- **Library-first API redesign** — Pure async functions (`check_dns`, `check_tls_chain`, `check_email_security`, `check_propagation`, `benchmark_latency`) with serializable request/response types for AI agent consumption
+- **TLS certificate chain inspection** — `check_tls_chain()` captures leaf + intermediate certificates via TLS handshake; parses CN, SANs, issuer, validity dates with x509-parser
+- **Full DANE/TLSA RFC 6698 matching** — Support all 6 selector/matching_type combinations (selector 0/1 × matching_type 0/1/2); extracts SubjectPublicKeyInfo DER via `cert.public_key().raw`; SHA256/SHA512 hash validation with sha2 crate
+- **Email security validator** — `check_email_security()` checks MX records, SPF, DKIM (4 common selectors), and DMARC; computes security score (0-100)
+- **DNS propagation checker** — `check_propagation()` queries domain across custom resolver list; `check_propagation_global()` convenience function tests against 6 global resolvers (Google, Cloudflare, Quad9, OpenDNS, CleanBrowsing, Comodo)
+- **Multi-protocol latency benchmarking** — `benchmark_latency()` measures DNS query latency across System/DoH/DoT/DoQ transports; reports min/max/avg/success_rate per round
+- **MCP server (shohei-mcp)** — Expose all library APIs as Model Context Protocol tools for Claude and other AI agents; implements JSON-RPC 2.0 over stdio; 5 tools: check_dns, check_tls_chain, check_email_security, check_propagation_global, benchmark_latency
+
+### Changed
+- **Transport abstraction** — Added `Transport` enum (System, Server, Doh, Dot, Doq) with serialization support for JSON-RPC/AI integration
+- **API module restructure** — `src/api/` now a directory with `mod.rs` (core), `tls.rs`, `propagation.rs`, `email.rs`, `bench.rs` for scalability
+- **Documentation** — Updated lib.rs and module docstrings to emphasize library-first usage; CLI is now a thin demo wrapper
+
+### Dependencies
+- **New**: `x509-parser` 0.16 (cert field parsing), `sha2` 0.10 (TLSA hash matching), `hex` 0.4 (hex encoding), `rmcp` 1.7 (MCP server framework)
+- **Promoted to direct**: `rustls` 0.23 (was transitive), `tokio-rustls` 0.26 (was transitive)
+
 ## [0.4.0] - 2026-05-26
 
 ### Performance

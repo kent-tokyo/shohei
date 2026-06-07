@@ -7,6 +7,26 @@
 
 ## [未リリース]
 
+## [0.5.0] - 2026-06-07
+
+### 追加機能
+- **ライブラリファースト API リデザイン** — 純 async 関数（`check_dns`、`check_tls_chain`、`check_email_security`、`check_propagation`、`benchmark_latency`）と serializable な request/response 型で AI エージェント消費を実現
+- **TLS 証明書チェーン検査** — `check_tls_chain()` が TLS ハンドシェイク経由で leaf + 中間証明書をキャプチャ；x509-parser で CN・SAN・issuer・有効期限を解析
+- **RFC 6698 完全 DANE/TLSA マッチング** — 6 通りの selector/matching_type 組み合わせ全サポート（selector 0/1 × matching_type 0/1/2）；SubjectPublicKeyInfo DER を `cert.public_key().raw` で抽出；sha2 crate で SHA256/SHA512 ハッシュ検証
+- **メール セキュリティ検証** — `check_email_security()` で MX レコード・SPF・DKIM（4 つの標準セレクタ）・DMARC を検査；セキュリティスコア（0～100）を算出
+- **DNS 伝播チェッカー** — `check_propagation()` がカスタム resolver リスト全体でドメインを照会；`check_propagation_global()` 便利関数は 6 個のグローバル resolver（Google・Cloudflare・Quad9・OpenDNS・CleanBrowsing・Comodo）をテスト
+- **マルチプロトコル レイテンシ ベンチマーク** — `benchmark_latency()` が System/DoH/DoT/DoQ トランスポート間で DNS クエリレイテンシを測定；ラウンドごとに min/max/avg/success_rate をレポート
+- **MCP サーバー（shohei-mcp）** — 全 library API を Claude 他 AI エージェント向け Model Context Protocol ツールとして公開；JSON-RPC 2.0 over stdio 実装；5 ツール: check_dns・check_tls_chain・check_email_security・check_propagation_global・benchmark_latency
+
+### 変更
+- **Transport 抽象化** — `Transport` enum（System・Server・Doh・Dot・Doq）と JSON-RPC/AI 統合向け serialization サポート
+- **API モジュール再構成** — `src/api/` が directory に；`mod.rs`（コア）・`tls.rs`・`propagation.rs`・`email.rs`・`bench.rs` で拡張性確保
+- **ドキュメント** — lib.rs とモジュール docstring をライブラリファースト利用を強調するよう更新；CLI は thin demo wrapper に
+
+### 依存関係
+- **新規**: `x509-parser` 0.16（cert フィールド解析）、`sha2` 0.10（TLSA ハッシュマッチング）、`hex` 0.4（16 進エンコーディング）、`rmcp` 1.7（MCP サーバーフレームワーク）
+- **直接昇格**: `rustls` 0.23（従来は transitive）、`tokio-rustls` 0.26（従来は transitive）
+
 ## [0.4.0] - 2026-05-26
 
 ### パフォーマンス
