@@ -34,6 +34,9 @@ pub mod ipinfo;
 pub mod tlsvuln;
 pub mod tls_rpt;
 pub mod ipv6;
+pub mod rpki;
+pub mod dns_amplification;
+pub mod wildcard_dns;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
@@ -58,6 +61,9 @@ pub use ipinfo::{check_ip_info, IpInfoCheckRequest, IpInfoCheckResult};
 pub use tlsvuln::{check_tls_vulns, TlsVulnCheckRequest, TlsVulnCheckResult};
 pub use tls_rpt::{check_tls_rpt, TlsRptRequest, TlsRptResult};
 pub use ipv6::{check_ipv6, Ipv6CheckRequest, Ipv6CheckResult};
+pub use rpki::{check_rpki, RpkiCheckRequest, RpkiCheckResult};
+pub use dns_amplification::{check_dns_amplification, DnsAmplificationRequest, DnsAmplificationResult};
+pub use wildcard_dns::{check_wildcard_dns, WildcardDnsRequest, WildcardDnsResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
