@@ -37,6 +37,9 @@ pub mod ipv6;
 pub mod rpki;
 pub mod dns_amplification;
 pub mod wildcard_dns;
+pub mod cipher_suites;
+pub mod arc;
+pub mod traceroute;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
@@ -64,6 +67,9 @@ pub use ipv6::{check_ipv6, Ipv6CheckRequest, Ipv6CheckResult};
 pub use rpki::{check_rpki, RpkiCheckRequest, RpkiCheckResult};
 pub use dns_amplification::{check_dns_amplification, DnsAmplificationRequest, DnsAmplificationResult};
 pub use wildcard_dns::{check_wildcard_dns, WildcardDnsRequest, WildcardDnsResult};
+pub use cipher_suites::{check_cipher_suites, CipherSuitesRequest, CipherSuitesResult};
+pub use arc::{check_arc, ArcCheckRequest, ArcCheckResult};
+pub use traceroute::{check_traceroute, TracerouteRequest, TracerouteResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
