@@ -30,6 +30,7 @@ pub mod rdns;
 pub mod dnsbl;
 pub mod cdn;
 pub mod delegation;
+pub mod ipinfo;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
@@ -50,6 +51,7 @@ pub use rdns::{check_rdns, RdnsCheckRequest, RdnsCheckResult};
 pub use dnsbl::{check_dnsbl, DnsblCheckRequest, DnsblCheckResult, DnsblServiceResult};
 pub use cdn::{detect_cdn, CdnDetectRequest, CdnDetectResult};
 pub use delegation::{check_delegation, DelegationCheckRequest, DelegationCheckResult, DelegationNsResult};
+pub use ipinfo::{check_ip_info, IpInfoCheckRequest, IpInfoCheckResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

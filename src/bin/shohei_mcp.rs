@@ -214,6 +214,12 @@ struct CheckDelegationParams {
     domain: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckIpInfoParams {
+    /// IP address to check (IPv4 or IPv6)
+    ip: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -685,6 +691,21 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_delegation(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check IP information (ASN, geolocation, organization)")]
+    async fn check_ip_info(
+        &self,
+        Parameters(CheckIpInfoParams { ip }): Parameters<CheckIpInfoParams>,
+    ) -> String {
+        let req = IpInfoCheckRequest {
+            ip,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_ip_info(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
