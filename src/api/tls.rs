@@ -329,15 +329,13 @@ fn get_expiry_info(cert_der: &CertificateDer<'_>) -> Result<(i64, bool, bool)> {
 fn extract_ocsp_url(cert_der: &CertificateDer<'_>) -> Option<String> {
     match X509Certificate::from_der(cert_der.as_ref()) {
         Ok((_, cert)) => {
-            // Try to extract OCSP URL from AIA extension (OID: 1.3.6.1.5.5.7.1.1)
-            // x509_parser exposes this via ParsedExtension
+            // Check for AIA extension (OID: 1.3.6.1.5.5.7.1.1) which contains OCSP responder URL
             for ext in cert.extensions() {
-                // Check if this is the AIA extension
                 let oid_str = format!("{}", ext.oid);
                 if oid_str == "1.3.6.1.5.5.7.1.1" {
-                    // AIA extension found, but x509_parser's stable API is limited
-                    // Return indicator that OCSP capability is present
-                    return Some("OCSP responder available".to_string());
+                    // AIA extension detected - OCSP responder is configured
+                    // Full URL extraction deferred to v0.9.5 (OCSP request implementation)
+                    return Some("OCSP responder configured".to_string());
                 }
             }
             None
