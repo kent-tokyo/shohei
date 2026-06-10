@@ -7,19 +7,20 @@
 
 [日本語](README_ja.md) | [中文](README_zh.md)
 
-**shohei** v1.0.0 — **Rust infrastructure diagnostics library with MCP server for Claude**. Automate DNS, TLS, email security, domain health, IP reputation, CDN detection, and DNS delegation checks via AI agents. DNSSEC chain validation, DANE/TLSA, and modern protocols built in. **Use in Rust projects or hand to Claude for autonomous diagnosis.**
+**shohei** v1.5.0+ — **Rust infrastructure diagnostics library with MCP server for Claude**. Automate DNS, TLS, email security, domain health, IP reputation, CDN detection, and DNS delegation checks via AI agents. DNSSEC chain validation, DANE/TLSA, modern protocols, IPv6 dual-stack, and security headers built in. **Use in Rust projects or hand to Claude for autonomous diagnosis.**
 
-### Core Diagnostics (v1.0)
+### Core Diagnostics (v1.0+)
 
-- **MCP server for Claude** — 26 diagnostic tools; ask "Check example.com's TLS certificate, DNSBL status, and CDN provider" for autonomous analysis
-- **TLS certificate inspection** — DANE/TLSA validation (RFC 6698), chain analysis, OCSP responder detection, IPv6 support, expiry warnings
-- **Email security scoring** — MX records, SPF, DKIM, DMARC validation with 0–100 compliance score + issue linting (lookup count, SPF all qualifiers, DMARC enforcement)
+- **MCP server for Claude** — 40+ diagnostic tools; ask "Check example.com's TLS certificate, DNSBL status, IPv6 support, and security headers" for autonomous analysis
+- **TLS certificate inspection** — DANE/TLSA validation (RFC 6698), chain analysis, OCSP responder detection, IPv6 support, OCSP stapling detection, TLS version probing (1.0–1.3), cipher suite enumeration
+- **Email security scoring** — MX records, SPF, DKIM, DMARC, BIMI, MTA-STS, TLS-RPT validation with 0–100 compliance score + issue linting
 - **IP reputation** — DNSBL checks against Spamhaus, Barracuda, SORBS; reverse DNS (PTR) + forward-confirmed reverse DNS (FCrDNS)
 - **CDN/WAF detection** — Identify Cloudflare, AWS CloudFront, Fastly, Akamai, Vercel, Netlify, Imperva via HTTP headers
 - **DNS delegation audit** — SOA serial consistency check, lame delegation detection across authoritative NS
 - **Domain health report** — Composite scoring across MX, SPF, DMARC, TLS, DNSSEC
+- **Security headers audit** — CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy with risk scoring
 
-### DNS & Network (v1.0)
+### DNS & Network (v1.0+)
 
 - **DNS propagation checker** — Verify domain consistency across 6 global resolvers (Google, Cloudflare, Quad9, OpenDNS, 1.1.1.1, 8.8.8.8)
 - **DNSSEC chain tree** — see every DS, DNSKEY, and trust step from `.` to your domain; per-zone validation runs in parallel; add `-v` for key tags and algorithm names
@@ -27,7 +28,11 @@
 - **Latency benchmarking** — Multi-transport timing: System, DoH, DoT, DoQ across multiple rounds
 - **Reverse DNS** — PTR lookups for IPv4/IPv6 with FCrDNS validation
 - **Subdomain enumeration** — Check common subdomains (www, mail, api, staging, dev, etc.) with DNS resolution + HTTP status + TLS validity
-- **Port reachability** — TCP connectivity test for common ports (SSH/22, HTTP/80, HTTPS/443, SMTP/25, MySQL/3306, etc.)
+- **Port reachability** — TCP connectivity test for 15 common ports (SSH/22, HTTP/80, HTTPS/443, SMTP/25, MySQL/3306, etc.) with banner grab
+- **IPv6 dual-stack checker** — Verify AAAA records, IPv6 TCP/TLS/HTTP reachability, dual-stack completeness
+- **DNS amplification potential** — Measure UDP query/response size ratio, DDoS attack risk assessment
+- **Wildcard DNS detection** — Probe random subdomains to detect misconfigured `*.domain` records
+- **Traceroute / hop analysis** — Multi-platform hop-by-hop latency measurement (Linux/macOS/Windows)
 
 ### Advanced Features
 
@@ -39,6 +44,10 @@
 - **JSON output** — pipe-friendly for scripting and automation
 - **Watch mode** — auto-refresh at a set interval with `--watch`
 - **Interactive TUI** — browse records, DNSSEC chain, and trace in a single terminal window (`--features tui`)
+- **HTTP protocol detection** — Automatically detect HTTP/1.1, HTTP/2 version in responses
+- **RPKI/ROA validation** — BGP origin authorization checks via Cloudflare API
+- **ARC authentication** — Email chain authentication record validation (DNS-level)
+- **TLS-RPT checking** — SMTP TLS Reporting Policy record discovery and parsing
 
 ## Why shohei?
 

@@ -7,23 +7,24 @@
 
 [English](README.md) | [日本語](README_ja.md)
 
-**shohei** — Rust 基础设施诊断库 × **Claude MCP 服务器**。DNS、TLS、邮件安全、DNS 传播自动检查。告诉 Claude「检查 example.com 的 TLS 证书」，自动诊断。支持 DNSSEC 链验证、DANE/TLSA、现代协议。可集成到 Rust 项目，也可与 AI 代理协作。
+**shohei** v1.5.0+ — Rust 基础设施诊断库 × **Claude MCP 服务器**。DNS、TLS、邮件安全、DNS 传播、IPv6 双栈、安全头自动检查。告诉 Claude「检查 example.com 的 TLS 证书、IPv6 支持、安全头」，自动诊断。支持 DNSSEC 链验证、DANE/TLSA、现代协议。可集成到 Rust 项目，也可与 AI 代理协作。
 
-- **Claude MCP 服务器** — 从 Claude Desktop 调用 shohei 全部功能。告诉 Claude「检查 example.com 的 TLS 证书」即可自动诊断
-- **TLS 证书检查** — DANE/TLSA 验证（RFC 6698 全部 6 种组合）、证书链分析、过期警告、签发者链验证
-- **邮件安全评分** — MX/SPF/DKIM/DMARC 验证，0～100 合规度评分
+- **Claude MCP 服务器** — 从 Claude Desktop 调用 40+ 诊断工具。告诉 Claude「检查 example.com 的安全性」即可自动诊断 TLS、邮件、DNS、IPv6、RPKI
+- **TLS 证书检查** — DANE/TLSA 验证（RFC 6698 全部 6 种组合）、证书链分析、OCSP 响应钉扎检测、TLS 版本检测（1.0～1.3）、暗号套件枚举
+- **邮件安全评分** — MX/SPF/DKIM/DMARC/BIMI/MTA-STS/TLS-RPT 验证，0～100 合规度评分
+- **安全头审计** — CSP、HSTS、X-Frame-Options、X-Content-Type-Options、Referrer-Policy、Permissions-Policy 检查和风险评估
 - **DNS 传播检查** — 6 大全球解析器（Google、Cloudflare、Quad9 等）一致性确认
 - **延迟基准测试** — System、DoH、DoT、DoQ 多轮次响应时间测量
 - **DNSSEC 信任链树** — 可视化从 `.` 到目标域名每个 DS、DNSKEY 步骤（各区域并发验证）；`-v` 显示密钥标签和算法名称
-- **迭代解析追踪** — 展示从根服务器 → TLD → 权威 NS 的完整查询路径
+- **IPv6 双栈验证** — AAAA 记录确认、IPv6 TCP/TLS/HTTP 连通性检查、双栈完整性判定
 - **N 路服务器对比** — 多次指定 `--compare` 可同时对比任意数量的解析器
 - **DoH / DoT / DoQ 支持** — 内置 DNS-over-HTTPS、DNS-over-TLS 和 DNS-over-QUIC
 - **区域传输（AXFR）** — 使用 `--axfr` 从权威服务器获取完整区域数据
-- **多记录类型** — `--type a --type aaaa --type mx` 并发查询多种类型
-- **反向 DNS** — `-x 1.2.3.4` 快速解析 IPv4/IPv6 的 PTR 记录
-- **JSON 输出** — 适用于脚本和自动化的管道友好输出
-- **监控模式** — 使用 `--watch` 定期自动刷新
-- **交互式 TUI** — 在单个终端窗口中浏览记录、DNSSEC 链和追踪结果（`--features tui`）
+- **端口扫描** — 15 个常用端口（SSH/22、HTTP/80、HTTPS/443、MySQL/3306 等）的 TCP 连接 + 横幅抓取
+- **RPKI/ROA 验证** — BGP 起源授权检查，防劫持耐力评估
+- **DNS 放大系数计测** — UDP 查询/响应大小比计测，DDoS 踏脚石风险评估
+- **通配符 DNS 检测** — `*.domain` 误配置检测
+- **跟踪路由/跳转分析** — 多平台支持的跳跳延迟测量
 
 ## 为什么选择 shohei？
 

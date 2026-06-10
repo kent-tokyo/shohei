@@ -7,23 +7,24 @@
 
 [English](README.md) | [中文](README_zh.md)
 
-**shohei** — Rust インフラ診断ライブラリ × **Claude MCP サーバー**。DNS・TLS・メールセキュリティ・DNS伝播を自動検査。Claude に「example.com の TLS 証明書をチェック」と依頼すれば、自動で診断。DNSSEC チェーン検証・DANE/TLSA・モダンプロトコル搭載。Rust プロジェクトへの組込みも、AI エージェント連携も対応。
+**shohei** v1.5.0+ — Rust インフラ診断ライブラリ × **Claude MCP サーバー**。DNS・TLS・メールセキュリティ・DNS伝播・IPv6 デュアルスタック・セキュリティヘッダを自動検査。Claude に「example.com の TLS 証明書・IPv6 対応状況・セキュリティヘッダをチェック」と依頼すれば、自動で診断。DNSSEC チェーン検証・DANE/TLSA・モダンプロトコル搭載。Rust プロジェクトへの組込みも、AI エージェント連携も対応。
 
-- **Claude MCP サーバー** — Claude Desktop から shohei の全機能を呼び出し可能。「example.com の TLS 証明書をチェック」と聞けば自動診断
-- **TLS 証明書検査** — DANE/TLSA 検証（RFC 6698 完全対応）、証明書チェーン分析、有効期限警告、発行者チェーン確認
-- **メールセキュリティスコアリング** — MX/SPF/DKIM/DMARC 検証、0～100 の準拠度スコア
+- **Claude MCP サーバー** — Claude Desktop から 40+ の診断ツールを呼び出し可能。「example.com のセキュリティをチェック」と聞けば TLS・メール・DNS・IPv6・RPKI を自動診断
+- **TLS 証明書検査** — DANE/TLSA 検証（RFC 6698 完全対応）、証明書チェーン分析、有効期限警告、OCSP ステープリング検出、TLS バージョン検出（1.0～1.3）、暗号スイート列挙
+- **メールセキュリティスコアリング** — MX/SPF/DKIM/DMARC/BIMI/MTA-STS/TLS-RPT 検証、0～100 の準拠度スコア
 - **DNS 伝播確認** — 6 大グローバルリゾルバー（Google・Cloudflare・Quad9 他）での一貫性確認
 - **遅延ベンチマーク** — System・DoH・DoT・DoQ 複数ラウンドでの応答時間計測
 - **DNSSEC チェーンツリー** — `.` から対象ドメインまで DS・DNSKEY の各ステップを可視化（ゾーンを並列で検証）；`-v` でキータグ・アルゴリズム名も表示
-- **反復解決トレース** — ルートサーバー → TLD → 権威 NS へのクエリ経路をステップ表示
+- **セキュリティヘッダ監査** — CSP・HSTS・X-Frame-Options・X-Content-Type-Options・Referrer-Policy・Permissions-Policy をチェック、リスク評価
+- **IPv6 デュアルスタック検証** — AAAA レコード確認、IPv6 TCP/TLS/HTTP 疎通確認、デュアルスタック完全性判定
 - **N-way サーバー比較** — `--compare` を複数回指定して何台でも同時比較
 - **DoH / DoT / DoQ 対応** — DNS-over-HTTPS・DNS-over-TLS・DNS-over-QUIC をビルトインサポート
 - **ゾーン転送（AXFR）** — `--axfr` で権威サーバーからゾーン全体を取得
-- **複数レコードタイプ** — `--type a --type aaaa --type mx` で全タイプを並列で一括取得
-- **逆引き DNS** — `-x 1.2.3.4` で IPv4/IPv6 の PTR レコードをすぐ解決
-- **JSON 出力** — スクリプト・自動化に対応したパイプフレンドリーな出力
-- **ウォッチモード** — `--watch` で定期的に自動更新
-- **インタラクティブ TUI** — レコード・DNSSEC チェーン・トレースを1画面で閲覧 (`--features tui`)
+- **ポートスキャン** — 15 個の一般的なポート（SSH/22、HTTP/80、HTTPS/443、MySQL/3306 等）への TCP 接続 + バナーグラブ
+- **RPKI/ROA 検証** — BGP オリジン認可チェック、ハイジャック耐性評価
+- **DNS 増幅係数計測** — UDP クエリ/レスポンスサイズ比計測、DDoS 踏み台リスク評価
+- **ワイルドカード DNS 検出** — `*.domain` の誤設定検出
+- **Traceroute / ホップ分析** — マルチプラットフォーム対応のホップバイホップ遅延測定
 
 ## なぜ shohei？
 
