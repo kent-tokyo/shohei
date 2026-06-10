@@ -238,6 +238,15 @@ struct CheckTlsRptParams {
     dnssec: Option<bool>,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckIpv6Params {
+    /// Domain to check
+    domain: String,
+    /// Port to check (default 443)
+    #[serde(default)]
+    port: Option<u16>,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -756,6 +765,22 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_tls_rpt(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check IPv6 dual-stack support (DNS AAAA, TCP, TLS, HTTP)")]
+    async fn check_ipv6(
+        &self,
+        Parameters(CheckIpv6Params { domain, port }): Parameters<CheckIpv6Params>,
+    ) -> String {
+        let req = Ipv6CheckRequest {
+            domain,
+            port: port.unwrap_or(443),
+            timeout_secs: 10,
+        };
+        match shohei::api::check_ipv6(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

@@ -33,6 +33,7 @@ pub mod delegation;
 pub mod ipinfo;
 pub mod tlsvuln;
 pub mod tls_rpt;
+pub mod ipv6;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
@@ -56,6 +57,7 @@ pub use delegation::{check_delegation, DelegationCheckRequest, DelegationCheckRe
 pub use ipinfo::{check_ip_info, IpInfoCheckRequest, IpInfoCheckResult};
 pub use tlsvuln::{check_tls_vulns, TlsVulnCheckRequest, TlsVulnCheckResult};
 pub use tls_rpt::{check_tls_rpt, TlsRptRequest, TlsRptResult};
+pub use ipv6::{check_ipv6, Ipv6CheckRequest, Ipv6CheckResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
