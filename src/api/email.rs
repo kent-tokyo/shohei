@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::error::Result;
 use crate::api::{check_dns, DnsCheckRequest};
 use crate::resolver::RecordData;
+use tokio::net::TcpStream;
+use tokio::time::{timeout, Duration};
 
 /// Check email security configuration for a domain.
 pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSecurityResult> {
@@ -123,6 +125,35 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
     }
     score = score.min(100);
 
+    // Check MX reachability
+    let mut mx_reachability = Vec::new();
+    for mx in &mx_records {
+        let dns_resolves = match check_dns(&DnsCheckRequest {
+            domain: mx.exchange.clone(),
+            record_types: vec!["A".to_string(), "AAAA".to_string()],
+            timeout_secs: req.timeout_secs,
+            ..Default::default()
+        })
+        .await
+        {
+            Ok(results) => !results.is_empty() && !results[0].answers.is_empty(),
+            Err(_) => false,
+        };
+
+        // Test TCP port 25
+        let tcp_port_25_open = if dns_resolves {
+            check_mx_port_25(&mx.exchange, req.timeout_secs).await
+        } else {
+            false
+        };
+
+        mx_reachability.push(MxReachability {
+            exchange: mx.exchange.clone(),
+            dns_resolves,
+            tcp_port_25_open,
+        });
+    }
+
     Ok(EmailSecurityResult {
         domain: req.domain.clone(),
         mx: MxCheckResult { records: mx_records, valid: mx_valid },
@@ -147,6 +178,7 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
             aspf: dmarc_aspf,
         },
         dkim: dkim_results,
+        mx_reachability: if mx_reachability.is_empty() { None } else { Some(mx_reachability) },
         score,
     })
 }
@@ -247,6 +279,8 @@ pub struct EmailSecurityResult {
     pub spf: SpfCheckResult,
     pub dmarc: DmarcCheckResult,
     pub dkim: Vec<DkimCheckResult>,
+    #[serde(default)]
+    pub mx_reachability: Option<Vec<MxReachability>>,
     pub score: u8,
 }
 
@@ -260,6 +294,13 @@ pub struct MxCheckResult {
 pub struct MxEntry {
     pub priority: u16,
     pub exchange: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MxReachability {
+    pub exchange: String,
+    pub dns_resolves: bool,
+    pub tcp_port_25_open: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -298,4 +339,12 @@ pub struct DkimCheckResult {
     pub selector: String,
     pub present: bool,
     pub raw: Option<String>,
+}
+
+async fn check_mx_port_25(hostname: &str, timeout_secs: u64) -> bool {
+    let addr = format!("{}:25", hostname);
+    match timeout(Duration::from_secs(timeout_secs), TcpStream::connect(&addr)).await {
+        Ok(Ok(_)) => true,
+        _ => false,
+    }
 }
