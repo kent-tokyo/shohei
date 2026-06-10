@@ -220,6 +220,15 @@ struct CheckIpInfoParams {
     ip: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckTlsVulnsParams {
+    /// Hostname to check
+    hostname: String,
+    /// Port (default 443)
+    #[serde(default)]
+    port: Option<u16>,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -706,6 +715,22 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_ip_info(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check TLS protocol vulnerabilities (TLS 1.0/1.1/1.2/1.3 support, forward secrecy)")]
+    async fn check_tls_vulns(
+        &self,
+        Parameters(CheckTlsVulnsParams { hostname, port }): Parameters<CheckTlsVulnsParams>,
+    ) -> String {
+        let req = TlsVulnCheckRequest {
+            hostname,
+            port: port.unwrap_or(443),
+            timeout_secs: 10,
+        };
+        match shohei::api::check_tls_vulns(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

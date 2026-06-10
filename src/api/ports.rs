@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::Result;
 use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
+use tokio::io::AsyncReadExt;
 
 /// Check port reachability and detect common services.
 pub async fn check_ports(req: &PortCheckRequest) -> Result<PortCheckResult> {
@@ -52,12 +53,14 @@ async fn check_port_status(host: &str, port: u16, timeout_secs: u64) -> PortStat
     )
     .await
     {
-        Ok(Ok(_)) => {
+        Ok(Ok(mut stream)) => {
             let service = guess_service(port);
+            let banner = grab_banner(&mut stream, timeout_secs).await;
             PortStatus {
                 port,
                 status: "open".to_string(),
                 service,
+                banner,
             }
         }
         Ok(Err(_)) => {
@@ -65,6 +68,7 @@ async fn check_port_status(host: &str, port: u16, timeout_secs: u64) -> PortStat
                 port,
                 status: "closed".to_string(),
                 service: None,
+                banner: None,
             }
         }
         Err(_) => {
@@ -72,8 +76,29 @@ async fn check_port_status(host: &str, port: u16, timeout_secs: u64) -> PortStat
                 port,
                 status: "filtered".to_string(),  // Timeout = likely filtered by firewall
                 service: None,
+                banner: None,
             }
         }
+    }
+}
+
+async fn grab_banner(stream: &mut TcpStream, timeout_secs: u64) -> Option<String> {
+    let mut buf = vec![0u8; 512];
+    match timeout(
+        Duration::from_secs(timeout_secs),
+        stream.read(&mut buf),
+    )
+    .await
+    {
+        Ok(Ok(n)) if n > 0 => {
+            String::from_utf8_lossy(&buf[..n])
+                .trim()
+                .to_string()
+                .lines()
+                .next()
+                .map(|s| s.to_string())
+        }
+        _ => None,
     }
 }
 
@@ -123,4 +148,6 @@ pub struct PortStatus {
     pub status: String,  // "open", "closed", "filtered"
     #[serde(default)]
     pub service: Option<String>,
+    #[serde(default)]
+    pub banner: Option<String>,
 }
