@@ -173,8 +173,8 @@ impl ShoheiServer {
             ..Default::default()
         };
         match shohei::api::check_dns(&req).await {
-            Ok(results) => format!("{:#?}", results),
-            Err(e) => format!("Error: {}", e),
+            Ok(results) => serde_json::to_string_pretty(&results).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -189,8 +189,8 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_http(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -210,8 +210,8 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_tls_chain(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -231,15 +231,8 @@ impl ShoheiServer {
             ],
         };
         match shohei::api::check_email_security(&req).await {
-            Ok(result) => format!(
-                "Score: {}/100, MX: {}, SPF: {}, DMARC: {}, DKIM: {}",
-                result.score,
-                result.mx.valid,
-                result.spf.valid,
-                result.dmarc.valid,
-                result.dkim.iter().filter(|d| d.present).count()
-            ),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -253,8 +246,8 @@ impl ShoheiServer {
             timeout_secs: 5,
         };
         match shohei::api::check_mta_sts(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -270,8 +263,8 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_ocsp(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -284,7 +277,7 @@ impl ShoheiServer {
             "smtp" => StartTlsProtocol::Smtp,
             "imap" => StartTlsProtocol::Imap,
             "pop3" => StartTlsProtocol::Pop3,
-            _ => return format!("Error: unknown protocol {}", protocol),
+            _ => return format!("{{\"error\": \"unknown protocol {}\"}}", protocol),
         };
 
         let req = StartTlsCheckRequest {
@@ -294,8 +287,8 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_starttls(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -309,8 +302,8 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_domain_health(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -325,8 +318,8 @@ impl ShoheiServer {
             timeout_secs: 5,
         };
         match shohei::api::check_caa(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -340,8 +333,8 @@ impl ShoheiServer {
             timeout_secs: 5,
         };
         match shohei::api::check_bimi(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -356,8 +349,8 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_ct(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -382,8 +375,8 @@ impl ShoheiServer {
             timeout_secs: 5,
         };
         match shohei::api::check_propagation(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -405,7 +398,7 @@ impl ShoheiServer {
                 });
             }
         } else {
-            return "Error: resolvers parameter required (comma-separated IP addresses)".to_string();
+            return "{\"error\": \"resolvers parameter required (comma-separated IP addresses)\"}".to_string();
         }
 
         let req = PropagationRequest {
@@ -415,8 +408,8 @@ impl ShoheiServer {
             timeout_secs: 5,
         };
         match shohei::api::check_propagation(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -434,8 +427,8 @@ impl ShoheiServer {
             verbose,
         };
         match shohei::api::check_dnssec(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -447,8 +440,8 @@ impl ShoheiServer {
         >,
     ) -> String {
         match shohei::api::trace_resolution(&domain, &record_type).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 
@@ -504,8 +497,8 @@ impl ShoheiServer {
             timeout_secs: 5,
         };
         match shohei::api::benchmark_latency(&req).await {
-            Ok(result) => format!("{:#?}", result),
-            Err(e) => format!("Error: {}", e),
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
     }
 }
