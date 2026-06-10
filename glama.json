@@ -1,0 +1,54 @@
+{
+  "name": "shohei",
+  "description": "Rust infrastructure diagnostics MCP server for AI agents. Automate DNS checks, TLS certificate chain inspection, email security validation, global DNS propagation checks, and DNS latency benchmarking.",
+  "repository": "https://github.com/kent-tokyo/shohei",
+  "license": "MIT",
+  "homepage": "https://github.com/kent-tokyo/shohei",
+  "documentation": "https://docs.rs/shohei",
+  "categories": [
+    "Networking & Infrastructure",
+    "Security"
+  ],
+  "keywords": [
+    "dns",
+    "dnssec",
+    "tls",
+    "dane",
+    "email-security",
+    "infrastructure-diagnostics",
+    "mcp",
+    "rust"
+  ],
+  "mcp": {
+    "command": "shohei-mcp",
+    "args": [],
+    "transport": "stdio",
+    "environmentVariables": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  "tools": [
+    {
+      "name": "check_dns",
+      "description": "Query DNS records for a domain."
+    },
+    {
+      "name": "check_tls_chain",
+      "description": "Inspect a hostname's live TLS certificate chain and optionally check DANE/TLSA records."
+    },
+    {
+      "name": "check_email_security",
+      "description": "Check MX, SPF, DKIM, and DMARC records for a domain."
+    },
+    {
+      "name": "check_propagation_global",
+      "description": "Check DNS propagation consistency across global resolvers."
+    },
+    {
+      "name": "benchmark_latency",
+      "description": "Benchmark DNS lookup latency across supported transports."
+    }
+  ]
+}
