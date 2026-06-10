@@ -157,6 +157,12 @@ struct BenchmarkLatencyParams {
     transports: Option<String>,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckWhoisParams {
+    /// Domain to check
+    domain: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -497,6 +503,21 @@ impl ShoheiServer {
             timeout_secs: 5,
         };
         match shohei::api::benchmark_latency(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check domain registration details and expiration")]
+    async fn check_whois(
+        &self,
+        Parameters(CheckWhoisParams { domain }): Parameters<CheckWhoisParams>,
+    ) -> String {
+        let req = WhoisCheckRequest {
+            domain,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_whois(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

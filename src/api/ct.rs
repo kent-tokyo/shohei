@@ -6,9 +6,10 @@ use crate::api::tls::{check_tls_chain, TlsCheckRequest};
 
 /// Check Certificate Transparency logs for certificate inclusion.
 pub async fn check_ct(req: &CtCheckRequest) -> Result<CtCheckResult> {
-    let mut scts = Vec::new();
+    let scts = Vec::new();
     let mut log_entries = Vec::new();
-    let mut unexpected_certs = Vec::new();
+    let unexpected_certs = Vec::new();
+    let mut scts = scts;
 
     // Step 1: Get certificate via TLS
     let tls_req = TlsCheckRequest {
@@ -20,7 +21,7 @@ pub async fn check_ct(req: &CtCheckRequest) -> Result<CtCheckResult> {
 
     if let Ok(tls_result) = check_tls_chain(&tls_req).await {
         if !tls_result.chain.is_empty() {
-            let leaf_cert = &tls_result.chain[0];
+            let _leaf_cert = &tls_result.chain[0];
 
             // Step 2: Query crt.sh for certificate transparency
             match query_crt_sh(&req.hostname).await {

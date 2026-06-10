@@ -23,6 +23,7 @@ pub mod health;
 pub mod caa;
 pub mod bimi;
 pub mod ct;
+pub mod whois;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
@@ -36,6 +37,7 @@ pub use health::{check_domain_health, DomainHealthRequest, DomainHealthReport, H
 pub use caa::{check_caa, CaaCheckRequest, CaaCheckResult, CaaRecord};
 pub use bimi::{check_bimi, BimiCheckRequest, BimiCheckResult};
 pub use ct::{check_ct, CtCheckRequest, CtCheckResult, ScTInfo, CtLogEntry};
+pub use whois::{check_whois, WhoisCheckRequest, WhoisCheckResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
