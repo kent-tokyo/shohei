@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-10
+
+### Added
+- **MCP tools expansion** — Exposed 3 previously-private library functions as new MCP tools:
+  - `check_dnssec` — Full DNSSEC chain-of-trust validation with configurable resolver
+  - `trace_resolution` — Iterative resolution trace from root to authoritative nameserver
+  - `check_propagation` — Custom propagation check with user-supplied resolver list
+- **Enhanced propagation checking** — `check_propagation_global` now accepts `record_type` parameter to check AAAA, MX, TXT propagation (was hardcoded to A records)
+- **Improved latency benchmarking** — `benchmark_latency` MCP tool now respects user-supplied `transports` parameter (System/DoH/DoT/DoQ/IP); previously ignored
+
+### Fixed
+- **Email security details** — DKIM check results now populate `raw` field with actual TXT record value (was always `None`)
+- **Benchmark transport parameter** — `benchmark_latency` MCP tool was silently ignoring `transports` argument; now parses and uses custom transport list
+
 ## [0.5.0] - 2026-06-07
 
 ### Added

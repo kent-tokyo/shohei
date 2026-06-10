@@ -7,6 +7,20 @@
 
 ## [未リリース]
 
+## [0.6.0] - 2026-06-10
+
+### 追加機能
+- **MCP ツール拡張** — 従来非公開の library 関数 3 つを新 MCP ツールとして公開：
+  - `check_dnssec` — カスタマイズ可能な resolver による完全 DNSSEC チェーン検証
+  - `trace_resolution` — root から権威ネームサーバーまでの反復解決トレース
+  - `check_propagation` — ユーザー指定の resolver リストでカスタム伝播チェック
+- **伝播チェック強化** — `check_propagation_global` が `record_type` パラメータを受け入れ A・AAAA・MX・TXT 伝播確認可能に（従来は A レコード固定）
+- **レイテンシ ベンチマーク改善** — `benchmark_latency` MCP ツールがユーザー指定 `transports` パラメータを処理（System/DoH/DoT/DoQ/IP）；従来は無視されていた
+
+### 修正
+- **メール セキュリティ詳細化** — DKIM チェック結果の `raw` フィールドが実際の TXT レコード値を返すように修正（従来は常に `None`）
+- **ベンチマーク transport パラメータ** — `benchmark_latency` MCP ツールが `transports` 引数を完全に無視していた不具合を修正；カスタムトランスポートリストを解析・使用するように改善
+
 ## [0.5.0] - 2026-06-07
 
 ### 追加機能

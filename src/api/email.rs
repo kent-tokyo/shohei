@@ -82,16 +82,27 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
             timeout_secs: req.timeout_secs,
             ..Default::default()
         };
-        let present = check_dns(&dkim_req).await
-            .ok()
-            .map(|r| !r.is_empty() && !r[0].answers.is_empty())
-            .unwrap_or(false);
+        let (present, raw) = match check_dns(&dkim_req).await {
+            Ok(results) if !results.is_empty() && !results[0].answers.is_empty() => {
+                let mut txt_value = None;
+                for record in &results[0].answers {
+                    if let RecordData::Txt(texts) = &record.data {
+                        if let Some(text) = texts.first() {
+                            txt_value = Some(text.clone());
+                            break;
+                        }
+                    }
+                }
+                (true, txt_value)
+            }
+            _ => (false, None),
+        };
 
         if present { score += 6; } // 25/4 selectors
         dkim_results.push(DkimCheckResult {
             selector: selector.clone(),
             present,
-            raw: None,
+            raw,
         });
     }
     score = score.min(100);

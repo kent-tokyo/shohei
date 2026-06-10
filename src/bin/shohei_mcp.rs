@@ -40,15 +40,56 @@ struct CheckEmailSecurityParams {
 struct CheckPropagationGlobalParams {
     /// Domain to check
     domain: String,
+    /// Record type to check (default: A)
+    #[serde(default = "default_record_type")]
+    record_type: String,
+}
+
+fn default_record_type() -> String { "A".to_string() }
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckPropagationParams {
+    /// Domain to check
+    domain: String,
+    /// Record type to check
+    #[serde(default = "default_record_type")]
+    record_type: String,
+    /// Resolvers (comma-separated IP addresses, optional)
+    #[serde(default)]
+    resolvers: Option<String>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckDnssecParams {
+    /// Domain to check
+    domain: String,
+    /// Record type (default: A)
+    #[serde(default = "default_record_type")]
+    record_type: String,
+    /// Custom resolver IP (optional)
+    #[serde(default)]
+    resolver_ip: Option<String>,
+    /// Verbose output
+    #[serde(default)]
+    verbose: bool,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct TraceResolutionParams {
+    /// Domain to trace
+    domain: String,
+    /// Record type (default: A)
+    #[serde(default = "default_record_type")]
+    record_type: String,
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Clone)]
 struct BenchmarkLatencyParams {
     /// Domain to benchmark
     domain: String,
-    /// Transports to test (optional)
+    /// Transports to test (comma-separated: System, DoH, DoT, DoQ, or IP address) (optional)
     #[serde(default)]
-    transports: Option<Vec<String>>,
+    transports: Option<String>,
 }
 
 #[derive(Clone)]
@@ -124,16 +165,89 @@ impl ShoheiServer {
     #[tool(description = "Check DNS propagation across 6 global resolvers")]
     async fn check_propagation_global(
         &self,
-        Parameters(CheckPropagationGlobalParams { domain }): Parameters<
+        Parameters(CheckPropagationGlobalParams { domain, record_type }): Parameters<
             CheckPropagationGlobalParams,
         >,
     ) -> String {
-        match shohei::api::check_propagation_global(&domain).await {
-            Ok(result) => format!(
-                "Propagation check: consistent={}, resolvers={}",
-                result.consistent,
-                result.results.len()
-            ),
+        let req = PropagationRequest {
+            domain: domain.clone(),
+            record_type,
+            resolvers: vec![
+                PropagationResolver { name: "Google".to_string(), address: "8.8.8.8".to_string() },
+                PropagationResolver { name: "Cloudflare".to_string(), address: "1.1.1.1".to_string() },
+                PropagationResolver { name: "Quad9".to_string(), address: "9.9.9.9".to_string() },
+                PropagationResolver { name: "OpenDNS".to_string(), address: "208.67.222.222".to_string() },
+                PropagationResolver { name: "CleanBrowsing".to_string(), address: "185.228.168.168".to_string() },
+                PropagationResolver { name: "Comodo".to_string(), address: "8.26.56.26".to_string() },
+            ],
+            timeout_secs: 5,
+        };
+        match shohei::api::check_propagation(&req).await {
+            Ok(result) => format!("{:#?}", result),
+            Err(e) => format!("Error: {}", e),
+        }
+    }
+
+    #[tool(description = "Check DNS propagation across custom resolvers")]
+    async fn check_propagation(
+        &self,
+        Parameters(CheckPropagationParams { domain, record_type, resolvers }): Parameters<
+            CheckPropagationParams,
+        >,
+    ) -> String {
+        let mut resolver_list = Vec::new();
+        if let Some(resolver_str) = resolvers {
+            for (idx, addr) in resolver_str.split(',').enumerate() {
+                let addr = addr.trim().to_string();
+                resolver_list.push(PropagationResolver {
+                    name: format!("Resolver{}", idx + 1),
+                    address: addr,
+                });
+            }
+        } else {
+            return "Error: resolvers parameter required (comma-separated IP addresses)".to_string();
+        }
+
+        let req = PropagationRequest {
+            domain,
+            record_type,
+            resolvers: resolver_list,
+            timeout_secs: 5,
+        };
+        match shohei::api::check_propagation(&req).await {
+            Ok(result) => format!("{:#?}", result),
+            Err(e) => format!("Error: {}", e),
+        }
+    }
+
+    #[tool(description = "Validate DNSSEC chain of trust")]
+    async fn check_dnssec(
+        &self,
+        Parameters(CheckDnssecParams { domain, record_type, resolver_ip, verbose }): Parameters<
+            CheckDnssecParams,
+        >,
+    ) -> String {
+        let req = DnssecCheckRequest {
+            domain,
+            record_type,
+            resolver_ip,
+            verbose,
+        };
+        match shohei::api::check_dnssec(&req).await {
+            Ok(result) => format!("{:#?}", result),
+            Err(e) => format!("Error: {}", e),
+        }
+    }
+
+    #[tool(description = "Trace DNS resolution path from root to authoritative")]
+    async fn trace_resolution(
+        &self,
+        Parameters(TraceResolutionParams { domain, record_type }): Parameters<
+            TraceResolutionParams,
+        >,
+    ) -> String {
+        match shohei::api::trace_resolution(&domain, &record_type).await {
+            Ok(result) => format!("{:#?}", result),
             Err(e) => format!("Error: {}", e),
         }
     }
@@ -141,23 +255,51 @@ impl ShoheiServer {
     #[tool(description = "Benchmark DNS latency across transports")]
     async fn benchmark_latency(
         &self,
-        Parameters(BenchmarkLatencyParams { domain, transports: _ }): Parameters<
+        Parameters(BenchmarkLatencyParams { domain, transports }): Parameters<
             BenchmarkLatencyParams,
         >,
     ) -> String {
+        let mut bench_transports = vec![
+            BenchTransport {
+                transport: Transport::System,
+                label: "System".to_string(),
+            },
+            BenchTransport {
+                transport: Transport::Doh("https://1.1.1.1/dns-query".to_string()),
+                label: "DoH-Cloudflare".to_string(),
+            },
+        ];
+
+        if let Some(transport_str) = transports {
+            bench_transports.clear();
+            for (idx, t) in transport_str.split(',').enumerate() {
+                let t = t.trim();
+                let (transport, label) = match t.to_lowercase().as_str() {
+                    "system" => (Transport::System, "System".to_string()),
+                    "doh" | "doh-cloudflare" => (
+                        Transport::Doh("https://1.1.1.1/dns-query".to_string()),
+                        "DoH-Cloudflare".to_string(),
+                    ),
+                    "dot" | "dot-cloudflare" => (
+                        Transport::Dot("1.1.1.1:853".to_string()),
+                        "DoT-Cloudflare".to_string(),
+                    ),
+                    "doq" | "doq-cloudflare" => (
+                        Transport::Doq("1.1.1.1:853".to_string()),
+                        "DoQ-Cloudflare".to_string(),
+                    ),
+                    addr => {
+                        (Transport::Server(addr.to_string()), format!("Server{}", idx + 1))
+                    }
+                };
+                bench_transports.push(BenchTransport { transport, label });
+            }
+        }
+
         let req = LatencyBenchRequest {
             domain,
             record_type: "A".to_string(),
-            transports: vec![
-                BenchTransport {
-                    transport: Transport::System,
-                    label: "System".to_string(),
-                },
-                BenchTransport {
-                    transport: Transport::Doh("https://1.1.1.1/dns-query".to_string()),
-                    label: "DoH-Cloudflare".to_string(),
-                },
-            ],
+            transports: bench_transports,
             rounds: 3,
             timeout_secs: 5,
         };
