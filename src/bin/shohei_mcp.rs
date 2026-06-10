@@ -37,6 +37,12 @@ struct CheckEmailSecurityParams {
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckMtaStsParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
 struct CheckPropagationGlobalParams {
     /// Domain to check
     domain: String,
@@ -162,6 +168,21 @@ impl ShoheiServer {
         }
     }
 
+    #[tool(description = "Check MTA-STS policy for SMTP TLS enforcement")]
+    async fn check_mta_sts(
+        &self,
+        Parameters(CheckMtaStsParams { domain }): Parameters<CheckMtaStsParams>,
+    ) -> String {
+        let req = MtaStsRequest {
+            domain,
+            timeout_secs: 5,
+        };
+        match shohei::api::check_mta_sts(&req).await {
+            Ok(result) => format!("{:#?}", result),
+            Err(e) => format!("Error: {}", e),
+        }
+    }
+
     #[tool(description = "Check DNS propagation across 6 global resolvers")]
     async fn check_propagation_global(
         &self,
@@ -173,12 +194,12 @@ impl ShoheiServer {
             domain: domain.clone(),
             record_type,
             resolvers: vec![
-                PropagationResolver { name: "Google".to_string(), address: "8.8.8.8".to_string() },
-                PropagationResolver { name: "Cloudflare".to_string(), address: "1.1.1.1".to_string() },
-                PropagationResolver { name: "Quad9".to_string(), address: "9.9.9.9".to_string() },
-                PropagationResolver { name: "OpenDNS".to_string(), address: "208.67.222.222".to_string() },
-                PropagationResolver { name: "CleanBrowsing".to_string(), address: "185.228.168.168".to_string() },
-                PropagationResolver { name: "Comodo".to_string(), address: "8.26.56.26".to_string() },
+                PropagationResolver { name: "Google".to_string(), address: "8.8.8.8".to_string(), region: None },
+                PropagationResolver { name: "Cloudflare".to_string(), address: "1.1.1.1".to_string(), region: None },
+                PropagationResolver { name: "Quad9".to_string(), address: "9.9.9.9".to_string(), region: None },
+                PropagationResolver { name: "OpenDNS".to_string(), address: "208.67.222.222".to_string(), region: None },
+                PropagationResolver { name: "CleanBrowsing".to_string(), address: "185.228.168.168".to_string(), region: None },
+                PropagationResolver { name: "Comodo".to_string(), address: "8.26.56.26".to_string(), region: None },
             ],
             timeout_secs: 5,
         };
@@ -202,6 +223,7 @@ impl ShoheiServer {
                 resolver_list.push(PropagationResolver {
                     name: format!("Resolver{}", idx + 1),
                     address: addr,
+                    region: None,
                 });
             }
         } else {

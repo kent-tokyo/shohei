@@ -34,13 +34,31 @@ pub async fn benchmark_latency(req: &LatencyBenchRequest) -> Result<LatencyBench
             0.0
         };
 
-        let (min_ms, max_ms, avg_ms) = if !valid_samples.is_empty() {
+        let (min_ms, max_ms, avg_ms, stddev_ms, p95_ms, p99_ms) = if !valid_samples.is_empty() {
             let min = *valid_samples.iter().min().unwrap_or(&0);
             let max = *valid_samples.iter().max().unwrap_or(&0);
             let avg = valid_samples.iter().sum::<u64>() as f64 / valid_samples.len() as f64;
-            (Some(min), Some(max), Some(avg))
+
+            // Calculate stddev
+            let variance = valid_samples.iter()
+                .map(|x| {
+                    let diff = *x as f64 - avg;
+                    diff * diff
+                })
+                .sum::<f64>() / valid_samples.len() as f64;
+            let stddev = variance.sqrt();
+
+            // Calculate percentiles
+            let mut sorted = valid_samples.clone();
+            sorted.sort_unstable();
+            let p95_idx = ((sorted.len() as f64 * 0.95).ceil() as usize).min(sorted.len() - 1);
+            let p99_idx = ((sorted.len() as f64 * 0.99).ceil() as usize).min(sorted.len() - 1);
+            let p95 = sorted.get(p95_idx).copied();
+            let p99 = sorted.get(p99_idx).copied();
+
+            (Some(min), Some(max), Some(avg), Some(stddev), p95, p99)
         } else {
-            (None, None, None)
+            (None, None, None, None, None, None)
         };
 
         results.push(TransportLatency {
@@ -50,6 +68,9 @@ pub async fn benchmark_latency(req: &LatencyBenchRequest) -> Result<LatencyBench
             min_ms,
             max_ms,
             avg_ms,
+            stddev_ms,
+            p95_ms,
+            p99_ms,
             success_rate,
         });
     }
@@ -96,5 +117,8 @@ pub struct TransportLatency {
     pub min_ms: Option<u64>,
     pub max_ms: Option<u64>,
     pub avg_ms: Option<f64>,
+    pub stddev_ms: Option<f64>,  // NEW: standard deviation
+    pub p95_ms: Option<u64>,      // NEW: 95th percentile
+    pub p99_ms: Option<u64>,      // NEW: 99th percentile
     pub success_rate: f64,
 }

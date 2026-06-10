@@ -68,6 +68,22 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
     let dmarc_policy = parse_dmarc_policy(&dmarc_raw);
     let dmarc_valid = dmarc_policy.is_some();
 
+    // Parse SPF details
+    let (spf_mechanisms, spf_lookup_count, spf_has_all) = if let Some(ref spf) = spf_raw {
+        let (mechs, count, has_all) = parse_spf_record(spf);
+        (Some(mechs), Some(count), Some(has_all))
+    } else {
+        (None, None, None)
+    };
+
+    // Parse DMARC details
+    let (dmarc_rua, dmarc_ruf, dmarc_pct, dmarc_sp, dmarc_adkim, dmarc_aspf) = if let Some(ref dmarc) = dmarc_raw {
+        let (rua, ruf, pct, sp, adkim, aspf) = parse_dmarc_record(dmarc);
+        (Some(rua), Some(ruf), pct, sp, adkim, aspf)
+    } else {
+        (None, None, None, None, None, None)
+    };
+
     let mut score: u8 = 0;
     if mx_valid { score += 25; }
     if spf_valid { score += 25; }
@@ -110,8 +126,26 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
     Ok(EmailSecurityResult {
         domain: req.domain.clone(),
         mx: MxCheckResult { records: mx_records, valid: mx_valid },
-        spf: SpfCheckResult { raw: spf_raw, valid: spf_valid, issues: vec![] },
-        dmarc: DmarcCheckResult { raw: dmarc_raw, policy: dmarc_policy, valid: dmarc_valid, issues: vec![] },
+        spf: SpfCheckResult {
+            raw: spf_raw,
+            valid: spf_valid,
+            issues: vec![],
+            mechanisms: spf_mechanisms,
+            lookup_count: spf_lookup_count,
+            has_all: spf_has_all,
+        },
+        dmarc: DmarcCheckResult {
+            raw: dmarc_raw,
+            policy: dmarc_policy,
+            valid: dmarc_valid,
+            issues: vec![],
+            rua: dmarc_rua,
+            ruf: dmarc_ruf,
+            pct: dmarc_pct,
+            sp: dmarc_sp,
+            adkim: dmarc_adkim,
+            aspf: dmarc_aspf,
+        },
         dkim: dkim_results,
         score,
     })
@@ -129,6 +163,69 @@ fn parse_dmarc_policy(raw: &Option<String>) -> Option<DmarcPolicy> {
             None
         }
     })
+}
+
+fn parse_spf_record(spf: &str) -> (Vec<String>, usize, bool) {
+    let mut mechanisms = Vec::new();
+    let mut lookup_count = 0;
+    let mut has_all = false;
+
+    for part in spf.split_whitespace() {
+        if part.starts_with("+all") || part.starts_with("~all") || part.starts_with("-all") || part.starts_with("?all") {
+            has_all = true;
+        }
+
+        if part.starts_with("ip4:") || part.starts_with("ip6:") || part.starts_with("include:")
+            || part.starts_with("a:") || part.starts_with("mx:") || part.starts_with("ptr:")
+            || part.starts_with("exists:") || part.starts_with("all") {
+            mechanisms.push(part.to_string());
+            if part.starts_with("include:") || part.starts_with("a:") || part.starts_with("mx:")
+                || part.starts_with("ptr:") || part.starts_with("exists:") {
+                lookup_count += 1;
+            }
+        }
+    }
+
+    (mechanisms, lookup_count, has_all)
+}
+
+fn parse_dmarc_record(dmarc: &str) -> (Vec<String>, Vec<String>, Option<u8>, Option<DmarcPolicy>, Option<String>, Option<String>) {
+    let mut rua = Vec::new();
+    let mut ruf = Vec::new();
+    let mut pct = None;
+    let mut sp = None;
+    let mut adkim = None;
+    let mut aspf = None;
+
+    for part in dmarc.split(';') {
+        let part = part.trim();
+        if let Some(uri_part) = part.strip_prefix("rua=") {
+            for uri in uri_part.split(',') {
+                rua.push(uri.trim().to_string());
+            }
+        } else if let Some(uri_part) = part.strip_prefix("ruf=") {
+            for uri in uri_part.split(',') {
+                ruf.push(uri.trim().to_string());
+            }
+        } else if let Some(pct_str) = part.strip_prefix("pct=") {
+            if let Ok(p) = pct_str.trim().parse::<u8>() {
+                pct = Some(p);
+            }
+        } else if let Some(sp_str) = part.strip_prefix("sp=") {
+            sp = match sp_str.trim() {
+                "reject" => Some(DmarcPolicy::Reject),
+                "quarantine" => Some(DmarcPolicy::Quarantine),
+                "none" => Some(DmarcPolicy::None),
+                _ => None,
+            };
+        } else if let Some(adkim_str) = part.strip_prefix("adkim=") {
+            adkim = Some(adkim_str.trim().to_string());
+        } else if let Some(aspf_str) = part.strip_prefix("aspf=") {
+            aspf = Some(aspf_str.trim().to_string());
+        }
+    }
+
+    (rua, ruf, pct, sp, adkim, aspf)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -170,6 +267,9 @@ pub struct SpfCheckResult {
     pub raw: Option<String>,
     pub valid: bool,
     pub issues: Vec<String>,
+    pub mechanisms: Option<Vec<String>>,  // NEW: extracted mechanisms (ip4, ip6, include, etc.)
+    pub lookup_count: Option<usize>,       // NEW: DNS lookup count (RFC 4408 limit = 10)
+    pub has_all: Option<bool>,             // NEW: has +all (accept-all) qualifier
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -178,6 +278,12 @@ pub struct DmarcCheckResult {
     pub policy: Option<DmarcPolicy>,
     pub valid: bool,
     pub issues: Vec<String>,
+    pub rua: Option<Vec<String>>,          // NEW: aggregate report URIs
+    pub ruf: Option<Vec<String>>,          // NEW: forensic report URIs
+    pub pct: Option<u8>,                   // NEW: percent of messages subject to policy (0-100)
+    pub sp: Option<DmarcPolicy>,           // NEW: subdomain policy
+    pub adkim: Option<String>,             // NEW: DKIM alignment (relaxed/strict)
+    pub aspf: Option<String>,              // NEW: SPF alignment (relaxed/strict)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
