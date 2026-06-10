@@ -168,7 +168,7 @@ fn parse_date(date_str: &str) -> Option<DateTime<Utc>> {
             // Try basic format without timezone
             chrono::NaiveDateTime::parse_from_str(date_str, "%Y-%m-%dT%H:%M:%S")
                 .ok()
-                .map(|ndt| DateTime::<Utc>::from_utc(ndt, Utc))
+                .map(|ndt| ndt.and_utc())
         })
 }
 
