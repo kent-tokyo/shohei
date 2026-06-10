@@ -71,6 +71,10 @@ pub async fn check_tls_chain(req: &TlsCheckRequest) -> Result<TlsCheckResult> {
         expiry_warning,
         connection_error,
         dane,
+        tls_version: None,  // TODO: extract from rustls connection
+        cipher_suite: None,  // TODO: extract from rustls connection
+        ocsp_responder_url: None,  // TODO: extract from AIA extension
+        ipv6_supported: None,  // TODO: test IPv6 connectivity
     })
 }
 
@@ -409,6 +413,14 @@ pub struct TlsCheckResult {
     pub expiry_warning: bool,
     pub connection_error: Option<String>,
     pub dane: Option<DaneTlsaResult>,
+    #[serde(default)]
+    pub tls_version: Option<String>,  // NEW: TLS 1.2 / TLS 1.3
+    #[serde(default)]
+    pub cipher_suite: Option<String>,  // NEW: negotiated cipher suite
+    #[serde(default)]
+    pub ocsp_responder_url: Option<String>,  // NEW: from AIA extension
+    #[serde(default)]
+    pub ipv6_supported: Option<bool>,  // NEW: IPv6 connectivity
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

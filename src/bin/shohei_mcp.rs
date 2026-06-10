@@ -101,6 +101,27 @@ struct TraceResolutionParams {
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckOcspParams {
+    /// Hostname to check
+    hostname: String,
+    /// Port (default 443)
+    #[serde(default = "default_port")]
+    port: u16,
+}
+
+fn default_port() -> u16 { 443 }
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckStartTlsParams {
+    /// Hostname to check
+    hostname: String,
+    /// Port (25 for SMTP, 143 for IMAP, 110 for POP3)
+    port: u16,
+    /// Protocol (Smtp, Imap, Pop3)
+    protocol: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
 struct BenchmarkLatencyParams {
     /// Domain to benchmark
     domain: String,
@@ -205,6 +226,47 @@ impl ShoheiServer {
             timeout_secs: 5,
         };
         match shohei::api::check_mta_sts(&req).await {
+            Ok(result) => format!("{:#?}", result),
+            Err(e) => format!("Error: {}", e),
+        }
+    }
+
+    #[tool(description = "Check OCSP revocation status for a certificate")]
+    async fn check_ocsp(
+        &self,
+        Parameters(CheckOcspParams { hostname, port }): Parameters<CheckOcspParams>,
+    ) -> String {
+        let req = OcspCheckRequest {
+            hostname,
+            port,
+            ocsp_responder_url: None,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_ocsp(&req).await {
+            Ok(result) => format!("{:#?}", result),
+            Err(e) => format!("Error: {}", e),
+        }
+    }
+
+    #[tool(description = "Check STARTTLS capability for SMTP/IMAP/POP3")]
+    async fn check_starttls(
+        &self,
+        Parameters(CheckStartTlsParams { hostname, port, protocol }): Parameters<CheckStartTlsParams>,
+    ) -> String {
+        let proto = match protocol.to_lowercase().as_str() {
+            "smtp" => StartTlsProtocol::Smtp,
+            "imap" => StartTlsProtocol::Imap,
+            "pop3" => StartTlsProtocol::Pop3,
+            _ => return format!("Error: unknown protocol {}", protocol),
+        };
+
+        let req = StartTlsCheckRequest {
+            hostname,
+            port,
+            protocol: proto,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_starttls(&req).await {
             Ok(result) => format!("{:#?}", result),
             Err(e) => format!("Error: {}", e),
         }
