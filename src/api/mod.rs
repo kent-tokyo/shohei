@@ -32,6 +32,7 @@ pub mod cdn;
 pub mod delegation;
 pub mod ipinfo;
 pub mod tlsvuln;
+pub mod tls_rpt;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
@@ -54,6 +55,7 @@ pub use cdn::{detect_cdn, CdnDetectRequest, CdnDetectResult};
 pub use delegation::{check_delegation, DelegationCheckRequest, DelegationCheckResult, DelegationNsResult};
 pub use ipinfo::{check_ip_info, IpInfoCheckRequest, IpInfoCheckResult};
 pub use tlsvuln::{check_tls_vulns, TlsVulnCheckRequest, TlsVulnCheckResult};
+pub use tls_rpt::{check_tls_rpt, TlsRptRequest, TlsRptResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

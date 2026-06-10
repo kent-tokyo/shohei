@@ -40,6 +40,7 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
                 server_header: None,
                 tls_info: None,
                 security_headers: None,
+                http_version: None,
                 timing: Some(HttpTiming {
                     dns_ms: None,
                     connect_ms: None,
@@ -55,6 +56,7 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
     let status_code = Some(response.status().as_u16());
     let status_text = Some(response.status().canonical_reason().unwrap_or("").to_string());
     let final_url = response.url().to_string();
+    let http_version = Some(format!("{:?}", response.version()).replace("HTTP_", "HTTP/"));
 
     // Extract headers
     let mut headers = HashMap::new();
@@ -147,6 +149,7 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
         server_header,
         tls_info,
         security_headers: Some(security_headers),
+        http_version,
         timing: Some(HttpTiming {
             dns_ms: None, // DNS time is hard to measure with reqwest
             connect_ms: None, // Connection time is abstracted by reqwest
@@ -416,6 +419,8 @@ pub struct HttpCheckResult {
     pub tls_info: Option<HttpTlsInfo>,
     #[serde(default)]
     pub security_headers: Option<SecurityHeadersAudit>,
+    #[serde(default)]
+    pub http_version: Option<String>,
     #[serde(default)]
     pub timing: Option<HttpTiming>,
     pub error: Option<String>,

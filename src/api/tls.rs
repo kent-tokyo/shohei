@@ -85,6 +85,7 @@ pub async fn check_tls_chain(req: &TlsCheckRequest) -> Result<TlsCheckResult> {
         cipher_suite,
         ocsp_responder_url,
         ipv6_supported,
+        ocsp_stapling: None,  // TODO: detect via TLS extension in future
     })
 }
 
@@ -507,6 +508,8 @@ pub struct TlsCheckResult {
     pub ocsp_responder_url: Option<String>,  // NEW: from AIA extension
     #[serde(default)]
     pub ipv6_supported: Option<bool>,  // NEW: IPv6 connectivity
+    #[serde(default)]
+    pub ocsp_stapling: Option<bool>,  // NEW: server staples OCSP response
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

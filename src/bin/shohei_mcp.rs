@@ -229,6 +229,15 @@ struct CheckTlsVulnsParams {
     port: Option<u16>,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckTlsRptParams {
+    /// Domain to check
+    domain: String,
+    /// Validate DNSSEC (default: false)
+    #[serde(default)]
+    dnssec: Option<bool>,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -731,6 +740,22 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_tls_vulns(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check TLS-RPT (SMTP TLS Reporting Policy) record")]
+    async fn check_tls_rpt(
+        &self,
+        Parameters(CheckTlsRptParams { domain, dnssec }): Parameters<CheckTlsRptParams>,
+    ) -> String {
+        let req = TlsRptRequest {
+            domain,
+            dnssec: dnssec.unwrap_or(false),
+            timeout_secs: 10,
+        };
+        match shohei::api::check_tls_rpt(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
