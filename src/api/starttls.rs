@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use crate::error::{Result, ShoheError};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, AsyncBufReadExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
 
@@ -47,10 +47,13 @@ pub async fn check_starttls(req: &StartTlsCheckRequest) -> Result<StartTlsCheckR
     })
 }
 
-async fn check_smtp_starttls(mut stream: TcpStream, timeout_secs: u64) -> bool {
+async fn check_smtp_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
+    let (reader, mut writer) = stream.into_split();
+    let mut reader = BufReader::new(reader);
+    let mut line = String::new();
+
     // Read server greeting (220 ...)
-    let mut buf = vec![0; 1024];
-    if timeout(Duration::from_secs(timeout_secs), stream.read(&mut buf))
+    if timeout(Duration::from_secs(timeout_secs), reader.read_line(&mut line))
         .await
         .is_err()
     {
@@ -58,28 +61,37 @@ async fn check_smtp_starttls(mut stream: TcpStream, timeout_secs: u64) -> bool {
     }
 
     // Send EHLO command
-    if stream.write_all(b"EHLO test\r\n").await.is_err() {
+    if writer.write_all(b"EHLO test\r\n").await.is_err() {
         return false;
     }
 
     // Read EHLO response and check for STARTTLS
-    buf.clear();
-    buf.resize(2048, 0);
-    if timeout(Duration::from_secs(timeout_secs), stream.read(&mut buf))
-        .await
-        .is_err()
-    {
-        return false;
+    let mut response = String::new();
+    loop {
+        line.clear();
+        match timeout(Duration::from_secs(timeout_secs), reader.read_line(&mut line)).await {
+            Ok(Ok(0)) => break,
+            Ok(Ok(_)) => {
+                response.push_str(&line);
+                // SMTP: continue-line starts with space/dash, final line starts with status code followed by space
+                if line.len() > 4 && line.chars().nth(3) == Some(' ') {
+                    break;
+                }
+            }
+            _ => return false,
+        }
     }
 
-    let response = String::from_utf8_lossy(&buf);
     response.to_lowercase().contains("starttls")
 }
 
-async fn check_imap_starttls(mut stream: TcpStream, timeout_secs: u64) -> bool {
+async fn check_imap_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
+    let (reader, mut writer) = stream.into_split();
+    let mut reader = BufReader::new(reader);
+    let mut line = String::new();
+
     // Read server greeting (* OK [CAPABILITY ...])
-    let mut buf = vec![0; 1024];
-    if timeout(Duration::from_secs(timeout_secs), stream.read(&mut buf))
+    if timeout(Duration::from_secs(timeout_secs), reader.read_line(&mut line))
         .await
         .is_err()
     {
@@ -87,28 +99,37 @@ async fn check_imap_starttls(mut stream: TcpStream, timeout_secs: u64) -> bool {
     }
 
     // Send CAPABILITY command (IMAP requires tag prefix)
-    if stream.write_all(b"A001 CAPABILITY\r\n").await.is_err() {
+    if writer.write_all(b"A001 CAPABILITY\r\n").await.is_err() {
         return false;
     }
 
-    // Read CAPABILITY response
-    buf.clear();
-    buf.resize(2048, 0);
-    if timeout(Duration::from_secs(timeout_secs), stream.read(&mut buf))
-        .await
-        .is_err()
-    {
-        return false;
+    // Read CAPABILITY response until we get our tag response
+    let mut response = String::new();
+    loop {
+        line.clear();
+        match timeout(Duration::from_secs(timeout_secs), reader.read_line(&mut line)).await {
+            Ok(Ok(0)) => break,
+            Ok(Ok(_)) => {
+                response.push_str(&line);
+                // IMAP: response ends when we see our tag (A001) followed by status
+                if line.starts_with("A001 ") {
+                    break;
+                }
+            }
+            _ => return false,
+        }
     }
 
-    let response = String::from_utf8_lossy(&buf);
     response.to_uppercase().contains("STARTTLS")
 }
 
-async fn check_pop3_starttls(mut stream: TcpStream, timeout_secs: u64) -> bool {
+async fn check_pop3_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
+    let (reader, mut writer) = stream.into_split();
+    let mut reader = BufReader::new(reader);
+    let mut line = String::new();
+
     // Read server greeting (+OK ...)
-    let mut buf = vec![0; 1024];
-    if timeout(Duration::from_secs(timeout_secs), stream.read(&mut buf))
+    if timeout(Duration::from_secs(timeout_secs), reader.read_line(&mut line))
         .await
         .is_err()
     {
@@ -116,21 +137,27 @@ async fn check_pop3_starttls(mut stream: TcpStream, timeout_secs: u64) -> bool {
     }
 
     // Send CAPA command
-    if stream.write_all(b"CAPA\r\n").await.is_err() {
+    if writer.write_all(b"CAPA\r\n").await.is_err() {
         return false;
     }
 
-    // Read CAPA response
-    buf.clear();
-    buf.resize(2048, 0);
-    if timeout(Duration::from_secs(timeout_secs), stream.read(&mut buf))
-        .await
-        .is_err()
-    {
-        return false;
+    // Read CAPA response until we get end-of-list marker
+    let mut response = String::new();
+    loop {
+        line.clear();
+        match timeout(Duration::from_secs(timeout_secs), reader.read_line(&mut line)).await {
+            Ok(Ok(0)) => break,
+            Ok(Ok(_)) => {
+                response.push_str(&line);
+                // POP3: multi-line response ends with ".\r\n"
+                if line.trim() == "." {
+                    break;
+                }
+            }
+            _ => return false,
+        }
     }
 
-    let response = String::from_utf8_lossy(&buf);
     response.to_uppercase().contains("STLS")
 }
 
