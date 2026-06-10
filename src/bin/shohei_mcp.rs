@@ -196,6 +196,24 @@ struct CheckRdnsParams {
     ip: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckDnsblParams {
+    /// IP address to check against DNSBL services (IPv4 or IPv6)
+    ip: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DetectCdnParams {
+    /// URL to check for CDN/WAF headers
+    url: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckDelegationParams {
+    /// Domain to audit
+    domain: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -622,6 +640,51 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_rdns(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check IP reputation against DNSBL services")]
+    async fn check_dnsbl(
+        &self,
+        Parameters(CheckDnsblParams { ip }): Parameters<CheckDnsblParams>,
+    ) -> String {
+        let req = DnsblCheckRequest {
+            ip,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_dnsbl(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect CDN and WAF providers via HTTP headers")]
+    async fn detect_cdn(
+        &self,
+        Parameters(DetectCdnParams { url }): Parameters<DetectCdnParams>,
+    ) -> String {
+        let req = CdnDetectRequest {
+            url,
+            timeout_secs: 10,
+        };
+        match shohei::api::detect_cdn(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check DNS delegation consistency (SOA serials, NS reachability)")]
+    async fn check_delegation(
+        &self,
+        Parameters(CheckDelegationParams { domain }): Parameters<CheckDelegationParams>,
+    ) -> String {
+        let req = DelegationCheckRequest {
+            domain,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_delegation(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

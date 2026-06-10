@@ -27,6 +27,9 @@ pub mod whois;
 pub mod subdomain;
 pub mod ports;
 pub mod rdns;
+pub mod dnsbl;
+pub mod cdn;
+pub mod delegation;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
@@ -44,6 +47,9 @@ pub use whois::{check_whois, WhoisCheckRequest, WhoisCheckResult};
 pub use subdomain::{check_common_subdomains, SubdomainCheckRequest, SubdomainCheckResult, SubdomainStatus};
 pub use ports::{check_ports, PortCheckRequest, PortCheckResult, PortStatus};
 pub use rdns::{check_rdns, RdnsCheckRequest, RdnsCheckResult};
+pub use dnsbl::{check_dnsbl, DnsblCheckRequest, DnsblCheckResult, DnsblServiceResult};
+pub use cdn::{detect_cdn, CdnDetectRequest, CdnDetectResult};
+pub use delegation::{check_delegation, DelegationCheckRequest, DelegationCheckResult, DelegationNsResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

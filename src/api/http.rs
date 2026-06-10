@@ -74,9 +74,16 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
 
     let hsts_present = response.headers().contains_key("strict-transport-security");
 
-    // Redirect chain: track if URL changed
+    // Redirect chain: build from initial URL to final URL
     let redirect_chain = if final_url != req.url {
-        vec![req.url.clone(), final_url.clone()]
+        let mut chain = vec![req.url.clone(), final_url.clone()];
+
+        // Check for HTTPS -> HTTP downgrade (security issue)
+        if req.url.starts_with("https://") && final_url.starts_with("http://") {
+            chain.push("WARNING: HTTPS-to-HTTP downgrade detected".to_string());
+        }
+
+        chain
     } else {
         vec![]
     };
