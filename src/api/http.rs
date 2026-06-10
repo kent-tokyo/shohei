@@ -7,9 +7,12 @@ use crate::error::{Result, ShoheError};
 /// Check HTTP(S) connectivity and headers.
 pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
     use std::str::FromStr;
+    use std::time::Instant;
 
     let url = url::Url::from_str(&req.url)
         .map_err(|e| ShoheError::Parse(format!("invalid URL: {}", e)))?;
+
+    let total_start = Instant::now();
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
@@ -21,9 +24,11 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
         .build()
         .map_err(|e| ShoheError::Transport(format!("client creation failed: {}", e)))?;
 
+    let request_start = Instant::now();
     let response = match client.get(req.url.clone()).send().await {
         Ok(r) => r,
         Err(e) => {
+            let total_ms = total_start.elapsed().as_millis() as u64;
             return Ok(HttpCheckResult {
                 url: req.url.clone(),
                 status_code: None,
@@ -35,10 +40,17 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
                 server_header: None,
                 tls_info: None,
                 security_headers: None,
+                timing: Some(HttpTiming {
+                    dns_ms: None,
+                    connect_ms: None,
+                    ttfb_ms: None,
+                    total_ms,
+                }),
                 error: Some(e.to_string()),
             });
         }
     };
+    let ttfb_ms = request_start.elapsed().as_millis() as u64;
 
     let status_code = Some(response.status().as_u16());
     let status_text = Some(response.status().canonical_reason().unwrap_or("").to_string());
@@ -122,6 +134,8 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
     // Audit security headers
     let security_headers = audit_security_headers(&headers);
 
+    let total_ms = total_start.elapsed().as_millis() as u64;
+
     Ok(HttpCheckResult {
         url: req.url.clone(),
         status_code,
@@ -133,6 +147,12 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
         server_header,
         tls_info,
         security_headers: Some(security_headers),
+        timing: Some(HttpTiming {
+            dns_ms: None, // DNS time is hard to measure with reqwest
+            connect_ms: None, // Connection time is abstracted by reqwest
+            ttfb_ms: Some(ttfb_ms),
+            total_ms,
+        }),
         error: None,
     })
 }
@@ -396,7 +416,21 @@ pub struct HttpCheckResult {
     pub tls_info: Option<HttpTlsInfo>,
     #[serde(default)]
     pub security_headers: Option<SecurityHeadersAudit>,
+    #[serde(default)]
+    pub timing: Option<HttpTiming>,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HttpTiming {
+    /// DNS resolution time in milliseconds
+    pub dns_ms: Option<u64>,
+    /// TCP connection time in milliseconds (TLS included for HTTPS)
+    pub connect_ms: Option<u64>,
+    /// Time to first byte (TTFB) in milliseconds
+    pub ttfb_ms: Option<u64>,
+    /// Total request time in milliseconds
+    pub total_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
