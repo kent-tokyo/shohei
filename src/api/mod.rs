@@ -11,6 +11,7 @@ pub use crate::resolver::{DnsQueryResult, DnsQuery, DnsRecord, RecordData, Trust
 pub use crate::resolver::iterative::{ResolutionTrace, ResolutionStep, StepResponseType};
 pub use crate::dnssec::chain::{DnssecChain, DnssecStep, DnssecStepType};
 
+pub mod helpers;
 pub mod propagation;
 pub mod email;
 pub mod bench;

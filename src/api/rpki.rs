@@ -30,7 +30,7 @@ async fn check_rpki_validity(ip: &str) -> Result<RpkiCheckResult> {
     let client = Client::new();
 
     // First, get IP info from ipinfo.io to retrieve ASN
-    let ipinfo_url = format!("https://ipinfo.io/{}/json", ip);
+    let ipinfo_url = format!("https://ipinfo.io/{}/json", urlencoding::encode(ip));
     let ip_info_response = client
         .get(&ipinfo_url)
         .timeout(std::time::Duration::from_secs(10))
@@ -62,7 +62,7 @@ async fn check_rpki_validity(ip: &str) -> Result<RpkiCheckResult> {
     let rpki_url = if let Some(asn_num) = asn {
         format!(
             "https://rpki.cloudflare.com/api/v1/validity/AS{}/{}",
-            asn_num, prefix
+            asn_num, urlencoding::encode(&prefix)
         )
     } else {
         // Without ASN, we can't validate

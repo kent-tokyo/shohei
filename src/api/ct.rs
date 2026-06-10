@@ -70,7 +70,7 @@ pub async fn check_ct(req: &CtCheckRequest) -> Result<CtCheckResult> {
 async fn query_crt_sh(domain: &str) -> Result<Vec<std::collections::HashMap<String, String>>> {
     use std::collections::HashMap;
 
-    let url = format!("https://crt.sh/?q={}&output=json", domain);
+    let url = format!("https://crt.sh/?q={}&output=json", urlencoding::encode(domain));
     let client = reqwest::Client::new();
 
     match client.get(&url).timeout(std::time::Duration::from_secs(10)).send().await {

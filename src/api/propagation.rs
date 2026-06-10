@@ -59,6 +59,10 @@ pub async fn check_propagation(req: &PropagationRequest) -> Result<PropagationRe
     // Improved consistency check: normalize answers for comparison
     let consistent = if results.is_empty() {
         false
+    } else if !matches!(results[0].status, PropagationStatus::Live) {
+        false
+    } else if results[0].answers.is_empty() {
+        false
     } else {
         let first_answers_normalized: Vec<String> = results[0].answers.iter()
             .map(|a| a.to_lowercase())

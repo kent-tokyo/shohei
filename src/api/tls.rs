@@ -18,7 +18,7 @@ pub async fn check_tls_chain(req: &TlsCheckRequest) -> Result<TlsCheckResult> {
     let port = req.port;
 
     // Step 1: DNS resolve hostname to IP
-    let ip = resolve_hostname_to_ip(hostname_str, req.timeout_secs).await?;
+    let ip = crate::api::helpers::resolve_hostname_to_ip(hostname_str, req.timeout_secs).await?;
 
     // Step 2: TLS connect and capture certs
     let tls_result = connect_and_capture_certs(
@@ -87,38 +87,6 @@ pub async fn check_tls_chain(req: &TlsCheckRequest) -> Result<TlsCheckResult> {
         ipv6_supported,
         ocsp_stapling: None,  // TODO: detect via TLS extension in future
     })
-}
-
-async fn resolve_hostname_to_ip(hostname: &str, timeout_secs: u64) -> Result<IpAddr> {
-    let dns_req = DnsCheckRequest {
-        domain: hostname.to_string(),
-        record_types: vec!["A".to_string()],
-        timeout_secs,
-        ..Default::default()
-    };
-
-    let results = check_dns(&dns_req).await?;
-    if results.is_empty() || results[0].answers.is_empty() {
-        return Err(ShoheError::DnsResolution(format!(
-            "No DNS records for {}",
-            hostname
-        )));
-    }
-
-    // Extract first A record
-    use crate::resolver::RecordData;
-    for record in &results[0].answers {
-        if let RecordData::A(ip_str) = &record.data {
-            if let Ok(ip) = ip_str.parse::<std::net::Ipv4Addr>() {
-                return Ok(IpAddr::V4(ip));
-            }
-        }
-    }
-
-    Err(ShoheError::DnsResolution(format!(
-        "No A records found for {}",
-        hostname
-    )))
 }
 
 struct TlsConnectionInfo {
@@ -315,7 +283,7 @@ fn get_expiry_info(cert_der: &CertificateDer<'_>) -> Result<(i64, bool, bool)> {
     // Get current time manually since x509_parser's time doesn't expose Unix now
     let now_timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
+        .map_err(|_| crate::error::ShoheError::Transport("System time is before UNIX_EPOCH".to_string()))?
         .as_secs() as i64;
 
     let expiry_timestamp = expiry.unix_timestamp();

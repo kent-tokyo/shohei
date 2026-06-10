@@ -52,23 +52,27 @@ pub async fn check_mta_sts(req: &MtaStsRequest) -> Result<MtaStsResult> {
     })
 }
 
-async fn fetch_mta_sts_policy(url: &str, _timeout_secs: u64) -> Result<MtaStsPolicy> {
-    // Note: reqwest is already in Cargo.toml dependencies
-    // Create a simple HTTP client for fetching the policy
-    let response = std::process::Command::new("curl")
-        .arg("-s")
-        .arg("--max-time")
-        .arg("5")
-        .arg(url)
-        .output()
-        .map_err(|e| ShoheError::Transport(format!("curl failed: {}", e)))?;
+async fn fetch_mta_sts_policy(url: &str, timeout_secs: u64) -> Result<MtaStsPolicy> {
+    let client = reqwest::Client::new();
 
-    if !response.status.success() {
-        return Err(ShoheError::Transport(format!("HTTP fetch failed: status {:?}", response.status)));
+    let response = client
+        .get(url)
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .send()
+        .await
+        .map_err(|e| ShoheError::Transport(format!("HTTP fetch failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(ShoheError::Transport(format!(
+            "HTTP fetch failed: status {}",
+            response.status()
+        )));
     }
 
-    let body = String::from_utf8(response.stdout)
-        .map_err(|e| ShoheError::Transport(format!("invalid UTF-8: {}", e)))?;
+    let body = response
+        .text()
+        .await
+        .map_err(|e| ShoheError::Transport(format!("failed to read response: {}", e)))?;
 
     parse_mta_sts_policy(&body)
 }

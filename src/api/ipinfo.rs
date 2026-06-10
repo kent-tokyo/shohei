@@ -6,7 +6,7 @@ use crate::error::Result;
 /// Check IP information including ASN, geolocation, and organization.
 pub async fn check_ip_info(req: &IpInfoCheckRequest) -> Result<IpInfoCheckResult> {
     // Use ipinfo.io API (free, no API key required)
-    let url = format!("https://ipinfo.io/{}/json", req.ip);
+    let url = format!("https://ipinfo.io/{}/json", urlencoding::encode(&req.ip));
 
     let client = reqwest::Client::new();
     let response = client

@@ -93,6 +93,10 @@ pub async fn axfr(domain: &str, server: SocketAddr, timeout_secs: u64) -> Result
 
         // Verify transaction ID matches (S4)
         if message.metadata.id != query_id {
+            eprintln!(
+                "warning: AXFR response with mismatched ID {} (expected {})",
+                message.metadata.id, query_id
+            );
             continue;
         }
 

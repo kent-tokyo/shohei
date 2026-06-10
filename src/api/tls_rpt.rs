@@ -92,12 +92,18 @@ fn parse_tlsrpt_record(txt: &str) -> Result<TlsRptRecord> {
 
             if r.contains("mailto:") {
                 if let Some(email) = r.split("mailto:").nth(1) {
-                    rua_email = Some(email.split(',').next().unwrap_or("").to_string());
+                    let email_part = email.split(',').next().unwrap_or("").trim().to_string();
+                    if !email_part.is_empty() {
+                        rua_email = Some(email_part);
+                    }
                 }
             }
             if r.contains("https://") {
                 if let Some(url) = r.split("https://").nth(1) {
-                    rua_https = Some(format!("https://{}", url.split(',').next().unwrap_or("")));
+                    let url_part = url.split(',').next().unwrap_or("").trim().to_string();
+                    if !url_part.is_empty() {
+                        rua_https = Some(format!("https://{}", url_part));
+                    }
                 }
             }
         }

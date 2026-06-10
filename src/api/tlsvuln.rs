@@ -18,7 +18,7 @@ pub async fn check_tls_vulns(req: &TlsVulnCheckRequest) -> Result<TlsVulnCheckRe
     let port = req.port;
 
     // Resolve hostname to IP
-    let ip = resolve_hostname_to_ip(hostname_str, req.timeout_secs).await
+    let ip = crate::api::helpers::resolve_hostname_to_ip(hostname_str, req.timeout_secs).await
         .unwrap_or_else(|_| IpAddr::from([0, 0, 0, 0]));
 
     // Test each TLS version
@@ -40,28 +40,6 @@ pub async fn check_tls_vulns(req: &TlsVulnCheckRequest) -> Result<TlsVulnCheckRe
         forward_secrecy,
         error: None,
     })
-}
-
-async fn resolve_hostname_to_ip(hostname: &str, timeout_secs: u64) -> Result<IpAddr> {
-    let dns_req = DnsCheckRequest {
-        domain: hostname.to_string(),
-        record_types: vec!["A".to_string()],
-        timeout_secs,
-        ..Default::default()
-    };
-
-    let results = check_dns(&dns_req).await?;
-    for result in results {
-        for record in &result.answers {
-            if let RecordData::A(ip_str) = &record.data {
-                if let Ok(ip) = IpAddr::from_str(ip_str) {
-                    return Ok(ip);
-                }
-            }
-        }
-    }
-
-    Err(crate::error::ShoheError::Parse(format!("Could not resolve {}", hostname)))
 }
 
 async fn test_tls_version(
