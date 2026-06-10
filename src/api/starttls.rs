@@ -1,7 +1,7 @@
 //! STARTTLS capability checker for email protocols.
 
 use serde::{Deserialize, Serialize};
-use crate::error::{Result, ShoheError};
+use crate::error::Result;
 use tokio::io::{AsyncWriteExt, AsyncBufReadExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
@@ -37,12 +37,27 @@ pub async fn check_starttls(req: &StartTlsCheckRequest) -> Result<StartTlsCheckR
         StartTlsProtocol::Pop3 => check_pop3_starttls(stream, req.timeout_secs).await,
     };
 
+    // Step 3: If STARTTLS is supported, fetch TLS certificate chain via regular TLS check
+    let tls_chain = if starttls_supported {
+        match crate::api::check_tls_chain(&crate::api::TlsCheckRequest {
+            hostname: req.hostname.clone(),
+            port: req.port,
+            check_dane: false,
+            timeout_secs: req.timeout_secs,
+        }).await {
+            Ok(tls_result) => Some(tls_result),
+            Err(_) => None,
+        }
+    } else {
+        None
+    };
+
     Ok(StartTlsCheckResult {
         hostname: req.hostname.clone(),
         port: req.port,
         protocol: req.protocol.clone(),
         starttls_supported,
-        tls_chain: None,  // TODO: Upgrade to TLS and inspect certificate chain
+        tls_chain,
         error: None,
     })
 }
