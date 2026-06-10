@@ -24,6 +24,7 @@ pub async fn check_starttls(req: &StartTlsCheckRequest) -> Result<StartTlsCheckR
                 port: req.port,
                 protocol: req.protocol.clone(),
                 starttls_supported: false,
+                tls_chain: None,
                 error: Some("TCP connection timeout".to_string()),
             });
         }
@@ -41,6 +42,7 @@ pub async fn check_starttls(req: &StartTlsCheckRequest) -> Result<StartTlsCheckR
         port: req.port,
         protocol: req.protocol.clone(),
         starttls_supported,
+        tls_chain: None,  // TODO: Upgrade to TLS and inspect certificate chain
         error: None,
     })
 }
@@ -149,6 +151,8 @@ pub struct StartTlsCheckResult {
     pub port: u16,
     pub protocol: StartTlsProtocol,
     pub starttls_supported: bool,
+    #[serde(default)]
+    pub tls_chain: Option<crate::api::tls::TlsCheckResult>,  // TODO: Full TLS inspection after STARTTLS upgrade
     pub error: Option<String>,
 }
 

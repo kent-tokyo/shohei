@@ -41,6 +41,7 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
 
     let status_code = Some(response.status().as_u16());
     let status_text = Some(response.status().canonical_reason().unwrap_or("").to_string());
+    let final_url = response.url().to_string();
 
     // Extract headers
     let mut headers = HashMap::new();
@@ -72,17 +73,40 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
 
     let hsts_present = response.headers().contains_key("strict-transport-security");
 
-    // Try to get redirect chain from url history
-    let redirect_chain = vec![]; // simplified: would need history tracking
+    // Redirect chain: track if URL changed
+    let redirect_chain = if final_url != req.url {
+        vec![req.url.clone(), final_url.clone()]
+    } else {
+        vec![]
+    };
 
     // Extract TLS info if HTTPS
     let tls_info = if url.scheme() == "https" {
-        Some(HttpTlsInfo {
-            protocol_version: Some("unknown".to_string()), // would need rustls integration
-            cipher_suite: None,
-            cert_valid: true, // reqwest validates by default
-            days_until_expiry: None,
-        })
+        if let Some(host) = url.host_str() {
+            match crate::api::check_tls_chain(&crate::api::TlsCheckRequest {
+                hostname: host.to_string(),
+                port: url.port().unwrap_or(443),
+                check_dane: false,
+                timeout_secs: req.timeout_secs,
+            })
+            .await
+            {
+                Ok(tls_result) => Some(HttpTlsInfo {
+                    protocol_version: tls_result.tls_version,
+                    cipher_suite: tls_result.cipher_suite,
+                    cert_valid: tls_result.valid,
+                    days_until_expiry: tls_result.days_until_expiry.map(|d| d as i32),
+                }),
+                Err(_) => Some(HttpTlsInfo {
+                    protocol_version: None,
+                    cipher_suite: None,
+                    cert_valid: false,
+                    days_until_expiry: None,
+                }),
+            }
+        } else {
+            None
+        }
     } else {
         None
     };

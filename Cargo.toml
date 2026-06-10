@@ -1,6 +1,6 @@
 [package]
 name = "shohei"
-version = "0.6.5"
+version = "0.6.6"
 edition = "2024"
 rust-version = "1.85"
 description = "Infrastructure diagnostics library: DNS, DNSSEC, TLS certificate inspection, email security, DNS propagation, and MCP-integrated AI agent support"
