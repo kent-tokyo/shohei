@@ -16,6 +16,9 @@ struct CheckDnsParams {
     /// Record types (A, AAAA, MX, TXT, etc)
     #[serde(default)]
     record_types: Option<Vec<String>>,
+    /// Transport to use: System, DoH, DoT, DoQ, or server IP (default: System)
+    #[serde(default)]
+    transport: Option<String>,
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Clone)]
@@ -45,6 +48,9 @@ struct CheckTlsChainParams {
 struct CheckEmailSecurityParams {
     /// Domain to check
     domain: String,
+    /// Custom DKIM selectors to check (default: ["default", "google", "selector1", "selector2"])
+    #[serde(default)]
+    dkim_selectors: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Clone)]
@@ -155,6 +161,12 @@ struct BenchmarkLatencyParams {
     /// Transports to test (comma-separated: System, DoH, DoT, DoQ, or IP address) (optional)
     #[serde(default)]
     transports: Option<String>,
+    /// Record type to query (default: "A")
+    #[serde(default)]
+    record_type: Option<String>,
+    /// Number of rounds to run (default: 3)
+    #[serde(default)]
+    rounds: Option<u32>,
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Clone)]
@@ -186,11 +198,20 @@ impl ShoheiServer {
     #[tool(description = "Check DNS records for a domain")]
     async fn check_dns(
         &self,
-        Parameters(CheckDnsParams { domain, record_types }): Parameters<CheckDnsParams>,
+        Parameters(CheckDnsParams { domain, record_types, transport }): Parameters<CheckDnsParams>,
     ) -> String {
+        let transport_enum = match transport.as_deref() {
+            Some("doh") | Some("doh-cloudflare") => Transport::Doh("https://1.1.1.1/dns-query".to_string()),
+            Some("dot") | Some("dot-cloudflare") => Transport::Dot("1.1.1.1:853".to_string()),
+            Some("doq") | Some("doq-cloudflare") => Transport::Doq("1.1.1.1:853".to_string()),
+            Some(addr) => Transport::Server(addr.to_string()),
+            None => Transport::System,
+        };
+
         let req = DnsCheckRequest {
             domain,
             record_types: record_types.unwrap_or_else(|| vec!["A".to_string()]),
+            transport: transport_enum,
             ..Default::default()
         };
         match shohei::api::check_dns(&req).await {
@@ -239,17 +260,17 @@ impl ShoheiServer {
     #[tool(description = "Check email security (MX, SPF, DKIM, DMARC)")]
     async fn check_email_security(
         &self,
-        Parameters(CheckEmailSecurityParams { domain }): Parameters<CheckEmailSecurityParams>,
+        Parameters(CheckEmailSecurityParams { domain, dkim_selectors }): Parameters<CheckEmailSecurityParams>,
     ) -> String {
         let req = EmailSecurityRequest {
             domain,
             timeout_secs: 5,
-            dkim_selectors: vec![
+            dkim_selectors: dkim_selectors.unwrap_or_else(|| vec![
                 "default".to_string(),
                 "google".to_string(),
                 "selector1".to_string(),
                 "selector2".to_string(),
-            ],
+            ]),
         };
         match shohei::api::check_email_security(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
@@ -478,7 +499,7 @@ impl ShoheiServer {
     #[tool(description = "Benchmark DNS latency across transports")]
     async fn benchmark_latency(
         &self,
-        Parameters(BenchmarkLatencyParams { domain, transports }): Parameters<
+        Parameters(BenchmarkLatencyParams { domain, transports, record_type, rounds }): Parameters<
             BenchmarkLatencyParams,
         >,
     ) -> String {
@@ -521,9 +542,9 @@ impl ShoheiServer {
 
         let req = LatencyBenchRequest {
             domain,
-            record_type: "A".to_string(),
+            record_type: record_type.unwrap_or_else(|| "A".to_string()),
             transports: bench_transports,
-            rounds: 3,
+            rounds: rounds.unwrap_or(3),
             timeout_secs: 5,
         };
         match shohei::api::benchmark_latency(&req).await {
