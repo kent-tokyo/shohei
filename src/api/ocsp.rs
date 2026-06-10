@@ -1,10 +1,8 @@
 //! OCSP revocation status checker.
 
 use serde::{Deserialize, Serialize};
-use crate::error::{Result, ShoheError};
+use crate::error::Result;
 use crate::api::tls::{check_tls_chain, TlsCheckRequest};
-use x509_parser::prelude::*;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Check OCSP revocation status for a certificate.
 pub async fn check_ocsp(req: &OcspCheckRequest) -> Result<OcspCheckResult> {
