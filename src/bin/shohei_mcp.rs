@@ -122,6 +122,33 @@ struct CheckStartTlsParams {
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckDomainHealthParams {
+    /// Domain to assess
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckCaaParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckBimiParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckCtParams {
+    /// Hostname to check
+    hostname: String,
+    /// Port (default 443)
+    #[serde(default = "default_port")]
+    port: u16,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
 struct BenchmarkLatencyParams {
     /// Domain to benchmark
     domain: String,
@@ -267,6 +294,68 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_starttls(&req).await {
+            Ok(result) => format!("{:#?}", result),
+            Err(e) => format!("Error: {}", e),
+        }
+    }
+
+    #[tool(description = "Comprehensive domain health assessment")]
+    async fn check_domain_health(
+        &self,
+        Parameters(CheckDomainHealthParams { domain }): Parameters<CheckDomainHealthParams>,
+    ) -> String {
+        let req = DomainHealthRequest {
+            domain,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_domain_health(&req).await {
+            Ok(result) => format!("{:#?}", result),
+            Err(e) => format!("Error: {}", e),
+        }
+    }
+
+    #[tool(description = "Check CAA records for certificate issuance authorization")]
+    async fn check_caa(
+        &self,
+        Parameters(CheckCaaParams { domain }): Parameters<CheckCaaParams>,
+    ) -> String {
+        let req = CaaCheckRequest {
+            domain,
+            issued_by_ca: None,
+            timeout_secs: 5,
+        };
+        match shohei::api::check_caa(&req).await {
+            Ok(result) => format!("{:#?}", result),
+            Err(e) => format!("Error: {}", e),
+        }
+    }
+
+    #[tool(description = "Check BIMI configuration for brand protection")]
+    async fn check_bimi(
+        &self,
+        Parameters(CheckBimiParams { domain }): Parameters<CheckBimiParams>,
+    ) -> String {
+        let req = BimiCheckRequest {
+            domain,
+            timeout_secs: 5,
+        };
+        match shohei::api::check_bimi(&req).await {
+            Ok(result) => format!("{:#?}", result),
+            Err(e) => format!("Error: {}", e),
+        }
+    }
+
+    #[tool(description = "Check Certificate Transparency logs")]
+    async fn check_ct(
+        &self,
+        Parameters(CheckCtParams { hostname, port }): Parameters<CheckCtParams>,
+    ) -> String {
+        let req = CtCheckRequest {
+            hostname,
+            port,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_ct(&req).await {
             Ok(result) => format!("{:#?}", result),
             Err(e) => format!("Error: {}", e),
         }

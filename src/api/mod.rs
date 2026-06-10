@@ -19,6 +19,10 @@ pub mod mta_sts;
 pub mod http;
 pub mod ocsp;
 pub mod starttls;
+pub mod health;
+pub mod caa;
+pub mod bimi;
+pub mod ct;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
@@ -28,6 +32,10 @@ pub use mta_sts::{check_mta_sts, MtaStsRequest, MtaStsResult, MtaStsPolicy, MtaS
 pub use http::{check_http, HttpCheckRequest, HttpCheckResult, HttpTlsInfo};
 pub use ocsp::{check_ocsp, OcspCheckRequest, OcspCheckResult, OcspStatus, RevokedInfo};
 pub use starttls::{check_starttls, StartTlsCheckRequest, StartTlsCheckResult, StartTlsProtocol};
+pub use health::{check_domain_health, DomainHealthRequest, DomainHealthReport, HealthComponent, HealthStatus};
+pub use caa::{check_caa, CaaCheckRequest, CaaCheckResult, CaaRecord};
+pub use bimi::{check_bimi, BimiCheckRequest, BimiCheckResult};
+pub use ct::{check_ct, CtCheckRequest, CtCheckResult, ScTInfo, CtLogEntry};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
