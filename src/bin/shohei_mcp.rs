@@ -190,6 +190,12 @@ struct CheckPortsParams {
     ports: Option<String>,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckRdnsParams {
+    /// IP address to check (IPv4 or IPv6)
+    ip: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -601,6 +607,21 @@ impl ShoheiServer {
             timeout_secs: 5,
         };
         match shohei::api::check_ports(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check reverse DNS and forward-confirmed reverse DNS (FCrDNS)")]
+    async fn check_rdns(
+        &self,
+        Parameters(CheckRdnsParams { ip }): Parameters<CheckRdnsParams>,
+    ) -> String {
+        let req = RdnsCheckRequest {
+            ip,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_rdns(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

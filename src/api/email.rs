@@ -68,7 +68,7 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
     let mx_valid = !mx_records.is_empty();
     let spf_valid = spf_raw.is_some();
     let dmarc_policy = parse_dmarc_policy(&dmarc_raw);
-    let dmarc_valid = dmarc_policy.is_some();
+    let dmarc_valid = dmarc_policy.is_some() && dmarc_policy != Some(DmarcPolicy::None);
 
     // Parse SPF details
     let (spf_mechanisms, spf_lookup_count, spf_has_all) = if let Some(ref spf) = spf_raw {
@@ -93,6 +93,7 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
 
     // Check DKIM selectors
     let mut dkim_results = Vec::new();
+    let mut dkim_present_count = 0;
     for selector in &req.dkim_selectors {
         let dkim_req = DnsCheckRequest {
             domain: format!("{}._domainkey.{}", selector, req.domain),
@@ -116,12 +117,17 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
             _ => (false, None),
         };
 
-        if present { score += 6; } // 25/4 selectors
+        if present { dkim_present_count += 1; }
         dkim_results.push(DkimCheckResult {
             selector: selector.clone(),
             present,
             raw,
         });
+    }
+
+    // Award DKIM points proportionally
+    if dkim_present_count > 0 {
+        score = score.saturating_add((25 * dkim_present_count as u8) / (req.dkim_selectors.len() as u8));
     }
     score = score.min(100);
 
@@ -154,13 +160,44 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
         });
     }
 
+    // Build SPF issues
+    let mut spf_issues = Vec::new();
+    if spf_valid {
+        if let Some(count) = spf_lookup_count {
+            if count > 10 {
+                spf_issues.push(format!("SPF lookup count exceeds 10 limit ({} lookups)", count));
+            }
+        }
+        if let Some(raw_spf) = &spf_raw {
+            if raw_spf.contains("+all") {
+                spf_issues.push("SPF +all allows any sender (critical)".to_string());
+            } else if raw_spf.contains("~all") {
+                spf_issues.push("SPF ~all softfail is not enforced".to_string());
+            }
+        }
+    }
+
+    // Build DMARC issues
+    let mut dmarc_issues = Vec::new();
+    if dmarc_policy == Some(DmarcPolicy::None) {
+        dmarc_issues.push("DMARC p=none provides no protection".to_string());
+    }
+    if let Some(pct_val) = dmarc_pct {
+        if pct_val < 100 {
+            dmarc_issues.push(format!("DMARC pct={} applies to only {}% of messages", pct_val, pct_val));
+        }
+    }
+    if dmarc_policy.is_some() && dmarc_rua.is_none() {
+        dmarc_issues.push("No DMARC aggregate report URI configured".to_string());
+    }
+
     Ok(EmailSecurityResult {
         domain: req.domain.clone(),
         mx: MxCheckResult { records: mx_records, valid: mx_valid },
         spf: SpfCheckResult {
             raw: spf_raw,
             valid: spf_valid,
-            issues: vec![],
+            issues: spf_issues,
             mechanisms: spf_mechanisms,
             lookup_count: spf_lookup_count,
             has_all: spf_has_all,
@@ -169,7 +206,7 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
             raw: dmarc_raw,
             policy: dmarc_policy,
             valid: dmarc_valid,
-            issues: vec![],
+            issues: dmarc_issues,
             rua: dmarc_rua,
             ruf: dmarc_ruf,
             pct: dmarc_pct,
