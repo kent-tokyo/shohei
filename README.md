@@ -7,20 +7,34 @@
 
 [日本語](README_ja.md) | [中文](README_zh.md)
 
-**shohei** — Rust infrastructure diagnostics library with **MCP server for Claude**. Automate DNS, TLS, email security, and DNS propagation checks via AI agents. DNSSEC chain validation, DANE/TLSA, and modern protocols built in. **Use in Rust projects or hand to Claude for autonomous diagnosis.**
+**shohei** v1.0.0 — **Rust infrastructure diagnostics library with MCP server for Claude**. Automate DNS, TLS, email security, domain health, IP reputation, CDN detection, and DNS delegation checks via AI agents. DNSSEC chain validation, DANE/TLSA, and modern protocols built in. **Use in Rust projects or hand to Claude for autonomous diagnosis.**
 
-- **MCP server for Claude** — Call shohei diagnostics from Claude Desktop; ask "Check example.com's TLS certificate" and get full chain analysis
-- **TLS certificate inspection** — DANE/TLSA validation (RFC 6698), certificate chain analysis, expiry warnings, issuer chain verification
-- **Email security scoring** — MX records, SPF, DKIM, DMARC validation with 0–100 compliance score
+### Core Diagnostics (v1.0)
+
+- **MCP server for Claude** — 26 diagnostic tools; ask "Check example.com's TLS certificate, DNSBL status, and CDN provider" for autonomous analysis
+- **TLS certificate inspection** — DANE/TLSA validation (RFC 6698), chain analysis, OCSP responder detection, IPv6 support, expiry warnings
+- **Email security scoring** — MX records, SPF, DKIM, DMARC validation with 0–100 compliance score + issue linting (lookup count, SPF all qualifiers, DMARC enforcement)
+- **IP reputation** — DNSBL checks against Spamhaus, Barracuda, SORBS; reverse DNS (PTR) + forward-confirmed reverse DNS (FCrDNS)
+- **CDN/WAF detection** — Identify Cloudflare, AWS CloudFront, Fastly, Akamai, Vercel, Netlify, Imperva via HTTP headers
+- **DNS delegation audit** — SOA serial consistency check, lame delegation detection across authoritative NS
+- **Domain health report** — Composite scoring across MX, SPF, DMARC, TLS, DNSSEC
+
+### DNS & Network (v1.0)
+
 - **DNS propagation checker** — Verify domain consistency across 6 global resolvers (Google, Cloudflare, Quad9, OpenDNS, 1.1.1.1, 8.8.8.8)
-- **Latency benchmarking** — Multi-transport timing: System, DoH, DoT, DoQ across multiple rounds
 - **DNSSEC chain tree** — see every DS, DNSKEY, and trust step from `.` to your domain; per-zone validation runs in parallel; add `-v` for key tags and algorithm names
 - **Iterative resolution trace** — watch queries travel from root servers to TLD to authoritative NS
-- **N-way server comparison** — diff any number of resolvers simultaneously with `--compare`
+- **Latency benchmarking** — Multi-transport timing: System, DoH, DoT, DoQ across multiple rounds
+- **Reverse DNS** — PTR lookups for IPv4/IPv6 with FCrDNS validation
+- **Subdomain enumeration** — Check common subdomains (www, mail, api, staging, dev, etc.) with DNS resolution + HTTP status + TLS validity
+- **Port reachability** — TCP connectivity test for common ports (SSH/22, HTTP/80, HTTPS/443, SMTP/25, MySQL/3306, etc.)
+
+### Advanced Features
+
 - **DoH, DoT, and DoQ** — DNS-over-HTTPS, DNS-over-TLS, and DNS-over-QUIC built in
 - **Zone transfer (AXFR)** — dump an entire zone from an authoritative server with `--axfr`
+- **N-way server comparison** — diff any number of resolvers simultaneously with `--compare`
 - **Multiple record types** — `--type a --type aaaa --type mx` queries all types concurrently in a single invocation
-- **Reverse DNS** — `-x 1.2.3.4` resolves PTR records for IPv4 and IPv6
 - **Stdin and file batch mode** — pipe a list of domains or use `-f domains.txt`
 - **JSON output** — pipe-friendly for scripting and automation
 - **Watch mode** — auto-refresh at a set interval with `--watch`
@@ -79,7 +93,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-shohei = "0.4"
+shohei = "1.0"
 ```
 
 Then import and use:
