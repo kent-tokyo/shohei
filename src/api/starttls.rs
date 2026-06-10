@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use crate::error::{Result, ShoheError};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncWriteExt, AsyncBufReadExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
 

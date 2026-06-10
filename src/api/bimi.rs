@@ -151,7 +151,6 @@ fn parse_pem_cert(pem_str: &str) -> Result<Vec<u8>> {
 }
 
 fn base64_decode(data: &str) -> Result<Vec<u8>> {
-    use std::str::FromStr;
     // Simple base64 decode without external deps
     const TABLE: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -186,8 +185,8 @@ fn base64_decode(data: &str) -> Result<Vec<u8>> {
         }
 
         if bits >= 8 {
-            chunk <<= (24 - bits);
-            for _ in 0..(bits / 8) {
+            chunk <<= 24 - bits;
+            for _ in 0..bits / 8 {
                 result.push((chunk >> 16) as u8);
                 chunk <<= 8;
             }
