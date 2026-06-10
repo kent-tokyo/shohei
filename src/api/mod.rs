@@ -16,12 +16,14 @@ pub mod email;
 pub mod bench;
 pub mod tls;
 pub mod mta_sts;
+pub mod http;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
 pub use bench::{benchmark_latency, LatencyBenchRequest, BenchTransport, LatencyBenchResult};
 pub use tls::{check_tls_chain, TlsCheckRequest, TlsCheckResult, CertInfo, DaneTlsaResult};
 pub use mta_sts::{check_mta_sts, MtaStsRequest, MtaStsResult, MtaStsPolicy, MtaStsMode};
+pub use http::{check_http, HttpCheckRequest, HttpCheckResult, HttpTlsInfo};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

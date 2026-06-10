@@ -19,6 +19,17 @@ struct CheckDnsParams {
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckHttpParams {
+    /// URL to check (http:// or https://)
+    url: String,
+    /// Follow redirects (default: true)
+    #[serde(default = "default_true")]
+    follow_redirects: bool,
+}
+
+fn default_true() -> bool { true }
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
 struct CheckTlsChainParams {
     /// Hostname to inspect
     hostname: String,
@@ -115,6 +126,22 @@ impl ShoheiServer {
         };
         match shohei::api::check_dns(&req).await {
             Ok(results) => format!("{:#?}", results),
+            Err(e) => format!("Error: {}", e),
+        }
+    }
+
+    #[tool(description = "Check HTTP(S) endpoint reachability and headers")]
+    async fn check_http(
+        &self,
+        Parameters(CheckHttpParams { url, follow_redirects }): Parameters<CheckHttpParams>,
+    ) -> String {
+        let req = HttpCheckRequest {
+            url,
+            follow_redirects,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_http(&req).await {
+            Ok(result) => format!("{:#?}", result),
             Err(e) => format!("Error: {}", e),
         }
     }
