@@ -86,8 +86,8 @@ async fn check_imap_starttls(mut stream: TcpStream, timeout_secs: u64) -> bool {
         return false;
     }
 
-    // Send CAPABILITY command
-    if stream.write_all(b"CAPABILITY\r\n").await.is_err() {
+    // Send CAPABILITY command (IMAP requires tag prefix)
+    if stream.write_all(b"A001 CAPABILITY\r\n").await.is_err() {
         return false;
     }
 

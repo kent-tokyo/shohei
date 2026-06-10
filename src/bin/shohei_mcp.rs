@@ -163,6 +163,21 @@ struct CheckWhoisParams {
     domain: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckSubdomainsParams {
+    /// Domain to check for subdomains
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckPortsParams {
+    /// Host to check ports on
+    host: String,
+    /// Custom ports to check (comma-separated, optional)
+    #[serde(default)]
+    ports: Option<String>,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -386,26 +401,35 @@ impl ShoheiServer {
         }
     }
 
-    #[tool(description = "Check DNS propagation across custom resolvers")]
+    #[tool(description = "Check DNS propagation across custom resolvers (default: 6 global resolvers)")]
     async fn check_propagation(
         &self,
         Parameters(CheckPropagationParams { domain, record_type, resolvers }): Parameters<
             CheckPropagationParams,
         >,
     ) -> String {
-        let mut resolver_list = Vec::new();
-        if let Some(resolver_str) = resolvers {
+        let resolver_list = if let Some(resolver_str) = resolvers {
+            let mut list = Vec::new();
             for (idx, addr) in resolver_str.split(',').enumerate() {
                 let addr = addr.trim().to_string();
-                resolver_list.push(PropagationResolver {
+                list.push(PropagationResolver {
                     name: format!("Resolver{}", idx + 1),
                     address: addr,
                     region: None,
                 });
             }
+            list
         } else {
-            return "{\"error\": \"resolvers parameter required (comma-separated IP addresses)\"}".to_string();
-        }
+            // Default: 6 global resolvers (same as check_propagation_global)
+            vec![
+                PropagationResolver { name: "Google".to_string(), address: "8.8.8.8".to_string(), region: None },
+                PropagationResolver { name: "Cloudflare".to_string(), address: "1.1.1.1".to_string(), region: None },
+                PropagationResolver { name: "Quad9".to_string(), address: "9.9.9.9".to_string(), region: None },
+                PropagationResolver { name: "OpenDNS".to_string(), address: "208.67.222.222".to_string(), region: None },
+                PropagationResolver { name: "CleanBrowsing".to_string(), address: "185.228.168.168".to_string(), region: None },
+                PropagationResolver { name: "Comodo".to_string(), address: "8.26.56.26".to_string(), region: None },
+            ]
+        };
 
         let req = PropagationRequest {
             domain,
@@ -518,6 +542,44 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_whois(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check common subdomains for DNS/HTTP/TLS validity")]
+    async fn check_subdomains(
+        &self,
+        Parameters(CheckSubdomainsParams { domain }): Parameters<CheckSubdomainsParams>,
+    ) -> String {
+        let req = SubdomainCheckRequest {
+            domain,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_common_subdomains(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check port reachability and service detection")]
+    async fn check_ports(
+        &self,
+        Parameters(CheckPortsParams { host, ports }): Parameters<CheckPortsParams>,
+    ) -> String {
+        let port_list = ports.as_ref().and_then(|p| {
+            let parsed: Result<Vec<u16>, _> = p.split(',')
+                .map(|s| s.trim().parse::<u16>())
+                .collect();
+            parsed.ok()
+        });
+
+        let req = PortCheckRequest {
+            host,
+            ports: port_list,
+            timeout_secs: 5,
+        };
+        match shohei::api::check_ports(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

@@ -117,14 +117,12 @@ fn parse_rdap_response(domain: &str, rdap_data: &serde_json::Value) -> Result<Wh
         }
     }
 
-    // Check DNSSEC status from status array
-    if let Some(statuses) = rdap_data.get("status").and_then(|s| s.as_array()) {
-        for status in statuses {
-            if let Some(status_str) = status.as_str() {
-                if status_str.to_lowercase().contains("dnssec") {
-                    dnssec_signed = Some(!status_str.contains("no-dnssec"));
-                }
-            }
+    // Check DNSSEC status from secureDNS object (RFC 7480)
+    if let Some(secure_dns) = rdap_data.get("secureDNS").and_then(|s| s.as_object()) {
+        if let Some(zone_signed) = secure_dns.get("zoneSigned").and_then(|v| v.as_bool()) {
+            dnssec_signed = Some(zone_signed);
+        } else if let Some(delegation_signed) = secure_dns.get("delegationSigned").and_then(|v| v.as_bool()) {
+            dnssec_signed = Some(delegation_signed);
         }
     }
 

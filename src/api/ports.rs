@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use crate::error::Result;
-use std::net::SocketAddr;
 use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
 

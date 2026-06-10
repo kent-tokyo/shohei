@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use crate::error::Result;
 use crate::api::{check_dns, DnsCheckRequest};
+use futures_util::future::join_all;
 
 /// Check common subdomains for DNS/HTTP/TLS validity.
 pub async fn check_common_subdomains(req: &SubdomainCheckRequest) -> Result<SubdomainCheckResult> {
@@ -10,8 +11,6 @@ pub async fn check_common_subdomains(req: &SubdomainCheckRequest) -> Result<Subd
         "www", "mail", "ftp", "api", "cdn", "staging", "dev", "admin",
         "vpn", "test", "beta", "app", "mobile", "auth", "secure",
     ];
-
-    let mut results = Vec::new();
 
     // Parallel DNS resolution for all subdomains
     let tasks: Vec<_> = common_subdomains
@@ -26,9 +25,7 @@ pub async fn check_common_subdomains(req: &SubdomainCheckRequest) -> Result<Subd
         })
         .collect();
 
-    for task in tasks {
-        results.push(task.await);
-    }
+    let results = join_all(tasks).await;
 
     Ok(SubdomainCheckResult {
         domain: req.domain.clone(),
@@ -45,7 +42,10 @@ async fn check_subdomain(subdomain: &str, timeout_secs: u64) -> SubdomainStatus 
         ..Default::default()
     };
 
-    let dns_resolves = check_dns(&dns_req).await.is_ok();
+    let dns_resolves = match check_dns(&dns_req).await {
+        Ok(results) => !results.is_empty() && !results[0].answers.is_empty(),
+        Err(_) => false,
+    };
 
     // Step 2: HTTP status check (if DNS resolves)
     let http_status = if dns_resolves {
