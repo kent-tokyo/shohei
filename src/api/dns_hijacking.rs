@@ -3,6 +3,26 @@
 use serde::{Deserialize, Serialize};
 use crate::error::Result;
 
+/// Extract DNS answers from query results, with size limit.
+fn extract_dns_answers(result: &crate::api::DnsQueryResult, max_answers: usize) -> Vec<String> {
+    const MAX_ANSWERS_PER_RESOLVER: usize = 100;
+    let limit = std::cmp::min(max_answers, MAX_ANSWERS_PER_RESOLVER);
+    let mut answers = Vec::with_capacity(10);
+
+    for answer in result.answers.iter().take(limit) {
+        match &answer.data {
+            crate::resolver::RecordData::A(ip) => answers.push(ip.clone()),
+            crate::resolver::RecordData::Aaaa(ip) => answers.push(ip.clone()),
+            crate::resolver::RecordData::Cname(cname) => answers.push(cname.clone()),
+            crate::resolver::RecordData::Txt(txt) => {
+                answers.push(txt.join(" "));
+            }
+            _ => {}
+        }
+    }
+    answers
+}
+
 /// Request to check for DNS hijacking or poisoning.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DnsHijackingRequest {
@@ -15,6 +35,33 @@ pub struct DnsHijackingRequest {
 
 fn default_record_type() -> String { "A".to_string() }
 fn default_timeout() -> u64 { 10 }
+
+/// Risk level for DNS hijacking detection.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub enum DnsHijackingRiskLevel {
+    #[serde(rename = "none")]
+    None,
+    #[serde(rename = "no_data")]
+    NoData,
+    #[serde(rename = "no_authoritative_data")]
+    NoAuthoritativeData,
+    #[serde(rename = "confirmed_discrepancy")]
+    ConfirmedDiscrepancy,
+    #[serde(rename = "unable_to_verify")]
+    UnableToVerify,
+}
+
+impl ToString for DnsHijackingRiskLevel {
+    fn to_string(&self) -> String {
+        match self {
+            Self::None => "none".to_string(),
+            Self::NoData => "no_data".to_string(),
+            Self::NoAuthoritativeData => "no_authoritative_data".to_string(),
+            Self::ConfirmedDiscrepancy => "confirmed_discrepancy".to_string(),
+            Self::UnableToVerify => "unable_to_verify".to_string(),
+        }
+    }
+}
 
 /// Answer from a specific resolver.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,8 +80,16 @@ pub struct DnsHijackingResult {
     pub authoritative_answers: Vec<String>,
     pub resolver_answers: Vec<ResolverAnswer>,
     pub discrepancies: Vec<String>,
-    pub risk_level: String,  // "none" | "possible_hijacking" | "confirmed_discrepancy"
+    #[serde(serialize_with = "serialize_risk_level")]
+    pub risk_level: DnsHijackingRiskLevel,
     pub error: Option<String>,
+}
+
+fn serialize_risk_level<S>(level: &DnsHijackingRiskLevel, serializer: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&level.to_string())
 }
 
 /// Check for DNS hijacking by comparing authoritative vs public resolvers.
@@ -49,7 +104,7 @@ pub async fn check_dns_hijacking(req: &DnsHijackingRequest) -> Result<DnsHijacki
             authoritative_answers: vec![],
             resolver_answers: vec![],
             discrepancies: vec![format!("Invalid record type: {}", req.record_type)],
-            risk_level: "error".to_string(),
+            risk_level: DnsHijackingRiskLevel::UnableToVerify,
             error: Some(format!("Invalid record type: {}", req.record_type)),
         });
     }
@@ -72,7 +127,7 @@ pub async fn check_dns_hijacking(req: &DnsHijackingRequest) -> Result<DnsHijacki
                 authoritative_answers: vec![],
                 resolver_answers: vec![],
                 discrepancies: vec![format!("Failed to resolve NS records: {}", e)],
-                risk_level: "unknown".to_string(),
+                risk_level: DnsHijackingRiskLevel::UnableToVerify,
                 error: Some(format!("NS lookup failed: {}", e)),
             });
         }
@@ -105,7 +160,7 @@ pub async fn check_dns_hijacking(req: &DnsHijackingRequest) -> Result<DnsHijacki
             authoritative_answers: vec![],
             resolver_answers: vec![],
             discrepancies: vec!["Unable to resolve authoritative nameserver".to_string()],
-            risk_level: "unable_to_verify".to_string(),
+            risk_level: DnsHijackingRiskLevel::UnableToVerify,
             error: Some("No authoritative NS resolved".to_string()),
         });
     }
@@ -124,26 +179,16 @@ pub async fn check_dns_hijacking(req: &DnsHijackingRequest) -> Result<DnsHijacki
         if let Ok(mut results) = crate::api::check_dns(&auth_req).await {
             if !results.is_empty() {
                 auth_req_result = Some(results.remove(0));
-                break;
+                break;  // Successfully got result from this NS
             }
         }
     }
 
-    const MAX_ANSWERS_PER_RESOLVER: usize = 100;  // Prevent unbounded collection
-    let mut authoritative_answers = Vec::with_capacity(10);
-    if let Some(result) = &auth_req_result {
-        for answer in result.answers.iter().take(MAX_ANSWERS_PER_RESOLVER) {
-            match &answer.data {
-                crate::resolver::RecordData::A(ip) => authoritative_answers.push(ip.clone()),
-                crate::resolver::RecordData::Aaaa(ip) => authoritative_answers.push(ip.clone()),
-                crate::resolver::RecordData::Cname(cname) => authoritative_answers.push(cname.clone()),
-                crate::resolver::RecordData::Txt(txt) => {
-                    authoritative_answers.push(txt.join(" "));
-                }
-                _ => {}
-            }
-        }
-    }
+    let mut authoritative_answers = if let Some(result) = &auth_req_result {
+        extract_dns_answers(result, 100)
+    } else {
+        Vec::new()
+    };
     authoritative_answers.sort();
     authoritative_answers.dedup();
 
@@ -166,22 +211,11 @@ pub async fn check_dns_hijacking(req: &DnsHijackingRequest) -> Result<DnsHijacki
             ..Default::default()
         };
 
-        let mut answers = Vec::with_capacity(10);
-        if let Ok(results) = crate::api::check_dns(&pub_req).await {
-            for result in results {
-                for answer in result.answers.iter().take(MAX_ANSWERS_PER_RESOLVER - answers.len()) {
-                    match &answer.data {
-                        crate::resolver::RecordData::A(addr) => answers.push(addr.clone()),
-                        crate::resolver::RecordData::Aaaa(addr) => answers.push(addr.clone()),
-                        crate::resolver::RecordData::Cname(cname) => answers.push(cname.clone()),
-                        crate::resolver::RecordData::Txt(txt) => {
-                            answers.push(txt.join(" "));
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
+        let mut answers = if let Ok(results) = crate::api::check_dns(&pub_req).await {
+            results.first().map(|r| extract_dns_answers(r, 100)).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         answers.sort();
         answers.dedup();
 
@@ -199,13 +233,13 @@ pub async fn check_dns_hijacking(req: &DnsHijackingRequest) -> Result<DnsHijacki
 
     let is_consistent = discrepancies.is_empty();
     let risk_level = if is_consistent {
-        "none".to_string()
+        DnsHijackingRiskLevel::None
     } else if authoritative_answers.is_empty() && resolver_answers.iter().all(|r| r.answers.is_empty()) {
-        "no_data".to_string()  // Both auth and resolvers returned no data
+        DnsHijackingRiskLevel::NoData
     } else if authoritative_answers.is_empty() {
-        "no_authoritative_data".to_string()  // Auth returned nothing but resolvers have data
+        DnsHijackingRiskLevel::NoAuthoritativeData
     } else {
-        "confirmed_discrepancy".to_string()  // Actual inconsistency detected
+        DnsHijackingRiskLevel::ConfirmedDiscrepancy
     };
 
     Ok(DnsHijackingResult {

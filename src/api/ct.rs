@@ -53,13 +53,16 @@ pub async fn check_ct(req: &CtCheckRequest) -> Result<CtCheckResult> {
                             issuer_name: cert.get("issuer").cloned(),
                         });
 
-                        // Check if issuer is unexpected
+                        // Check if issuer is unexpected — case-insensitive match, avoid repeated case conversion
                         if let Some(issuer) = cert.get("issuer") {
-                            let is_expected = trusted_cas.iter()
-                                .any(|ca| issuer.to_lowercase().contains(&ca.to_lowercase()));
-                            if !is_expected && !issuer.is_empty() {
-                                let serial = cert.get("serial").cloned().unwrap_or_else(|| "unknown".to_string());
-                                unexpected_certs.push(format!("{} (issuer: {})", serial, issuer));
+                            if !issuer.is_empty() {
+                                let issuer_lower = issuer.to_lowercase();
+                                let is_expected = trusted_cas.iter()
+                                    .any(|ca| issuer_lower.contains(&ca.to_lowercase()));
+                                if !is_expected {
+                                    let serial = cert.get("serial").cloned().unwrap_or_else(|| "unknown".to_string());
+                                    unexpected_certs.push(format!("{} (issuer: {})", serial, issuer));
+                                }
                             }
                         }
                     }

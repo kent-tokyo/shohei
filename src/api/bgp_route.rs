@@ -28,23 +28,28 @@ pub struct BgpRouteResult {
     pub error: Option<String>,
 }
 
+/// Helper to create error result for BGP route checks.
+fn bgp_error_result(ip: &str, error: String) -> BgpRouteResult {
+    BgpRouteResult {
+        ip: ip.to_string(),
+        asn: None,
+        asn_name: None,
+        prefix: None,
+        visibility_percent: None,
+        is_announced: false,
+        country: None,
+        registry: None,
+        bgp_peers: None,
+        error: Some(error),
+    }
+}
+
 /// Check BGP route information for an IP address via RIPE STAT API.
 pub async fn check_bgp_route(req: &BgpRouteRequest) -> Result<BgpRouteResult> {
     // Validate IP address format to prevent SSRF/injection
     use std::str::FromStr;
     if std::net::IpAddr::from_str(&req.ip).is_err() {
-        return Ok(BgpRouteResult {
-            ip: req.ip.clone(),
-            asn: None,
-            asn_name: None,
-            prefix: None,
-            visibility_percent: None,
-            is_announced: false,
-            country: None,
-            registry: None,
-            bgp_peers: None,
-            error: Some(format!("Invalid IP address: {}", req.ip)),
-        });
+        return Ok(bgp_error_result(&req.ip, format!("Invalid IP address: {}", req.ip)));
     }
 
     let client = reqwest::Client::builder()
@@ -57,18 +62,7 @@ pub async fn check_bgp_route(req: &BgpRouteRequest) -> Result<BgpRouteResult> {
     let prefix_response = match client.get(&prefix_url).send().await {
         Ok(r) => r,
         Err(e) => {
-            return Ok(BgpRouteResult {
-                ip: req.ip.clone(),
-                asn: None,
-                asn_name: None,
-                prefix: None,
-                visibility_percent: None,
-                is_announced: false,
-                country: None,
-                registry: None,
-                bgp_peers: None,
-                error: Some(format!("Prefix lookup failed: {}", e)),
-            });
+            return Ok(bgp_error_result(&req.ip, format!("Prefix lookup failed: {}", e)));
         }
     };
 
@@ -76,54 +70,21 @@ pub async fn check_bgp_route(req: &BgpRouteRequest) -> Result<BgpRouteResult> {
     const MAX_RESPONSE_SIZE: u64 = 1024 * 500;  // 500 KB limit
     if let Some(len) = prefix_response.content_length() {
         if len > MAX_RESPONSE_SIZE {
-            return Ok(BgpRouteResult {
-                ip: req.ip.clone(),
-                asn: None,
-                asn_name: None,
-                prefix: None,
-                visibility_percent: None,
-                is_announced: false,
-                country: None,
-                registry: None,
-                bgp_peers: None,
-                error: Some("RIPE STAT response exceeds size limit".to_string()),
-            });
+            return Ok(bgp_error_result(&req.ip, "RIPE STAT response exceeds size limit".to_string()));
         }
     }
 
     let prefix_body = match prefix_response.text().await {
         Ok(b) => b,
         Err(e) => {
-            return Ok(BgpRouteResult {
-                ip: req.ip.clone(),
-                asn: None,
-                asn_name: None,
-                prefix: None,
-                visibility_percent: None,
-                is_announced: false,
-                country: None,
-                registry: None,
-                bgp_peers: None,
-                error: Some(format!("Failed to read prefix response: {}", e)),
-            });
+            return Ok(bgp_error_result(&req.ip, format!("Failed to read prefix response: {}", e)));
         }
     };
 
     let prefix_json: serde_json::Value = match serde_json::from_str(&prefix_body) {
         Ok(j) => j,
         Err(e) => {
-            return Ok(BgpRouteResult {
-                ip: req.ip.clone(),
-                asn: None,
-                asn_name: None,
-                prefix: None,
-                visibility_percent: None,
-                is_announced: false,
-                country: None,
-                registry: None,
-                bgp_peers: None,
-                error: Some(format!("Failed to parse prefix JSON: {}", e)),
-            });
+            return Ok(bgp_error_result(&req.ip, format!("Failed to parse prefix JSON: {}", e)));
         }
     };
 
@@ -189,7 +150,7 @@ pub async fn check_bgp_route(req: &BgpRouteRequest) -> Result<BgpRouteResult> {
                 registry,
                 bgp_peers: None,
                 error: Some("RIPE STAT routing response exceeds size limit".to_string()),
-            });
+            });  // Note: partial result with some data + error
         }
     }
 
@@ -206,7 +167,7 @@ pub async fn check_bgp_route(req: &BgpRouteRequest) -> Result<BgpRouteResult> {
                 country,
                 registry,
                 bgp_peers: None,
-                error: None,
+                error: None,  // Partial result is acceptable here
             });
         }
     };
@@ -224,7 +185,7 @@ pub async fn check_bgp_route(req: &BgpRouteRequest) -> Result<BgpRouteResult> {
                 country,
                 registry,
                 bgp_peers: None,
-                error: None,
+                error: None,  // Partial result is acceptable here
             });
         }
     };
