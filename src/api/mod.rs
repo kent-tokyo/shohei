@@ -44,6 +44,8 @@ pub mod traceroute;
 pub mod zone_transfer;
 pub mod greynoise;
 pub mod domain_risk;
+pub mod techfingerprint;
+pub mod cve_lookup;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
@@ -77,6 +79,8 @@ pub use traceroute::{check_traceroute, TracerouteRequest, TracerouteResult};
 pub use zone_transfer::{check_zone_transfer, ZoneTransferRequest, ZoneTransferResult};
 pub use greynoise::{check_ip_noise, GreyNoiseRequest, GreyNoiseResult};
 pub use domain_risk::{check_domain_risk, DomainRiskRequest, DomainRiskResult};
+pub use techfingerprint::{check_tech_stack, TechFingerprintRequest, TechFingerprintResult};
+pub use cve_lookup::{check_cve, CveLookupRequest, CveLookupResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

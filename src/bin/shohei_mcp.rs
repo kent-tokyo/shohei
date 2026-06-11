@@ -307,6 +307,21 @@ struct CheckDomainRiskParams {
     domain: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckTechStackParams {
+    /// URL to check for technology fingerprints
+    url: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckCveParams {
+    /// Software/version keyword to search for (e.g. "Apache 2.4", "WordPress 6.5")
+    keyword: String,
+    /// Maximum number of results to return (default 10, max 20)
+    #[serde(default)]
+    max_results: Option<u32>,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -978,6 +993,37 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::domain_risk::check_domain_risk(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Identify web technologies (web server, language, CMS, frameworks)")]
+    async fn check_tech_stack(
+        &self,
+        Parameters(CheckTechStackParams { url }): Parameters<CheckTechStackParams>,
+    ) -> String {
+        let req = shohei::api::TechFingerprintRequest {
+            url,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_tech_stack(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Search for known CVEs in the NVD database (no API key required)")]
+    async fn check_cve(
+        &self,
+        Parameters(CheckCveParams { keyword, max_results }): Parameters<CheckCveParams>,
+    ) -> String {
+        let req = shohei::api::CveLookupRequest {
+            keyword,
+            max_results: max_results.unwrap_or(10),
+            timeout_secs: 10,
+        };
+        match shohei::api::check_cve(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
