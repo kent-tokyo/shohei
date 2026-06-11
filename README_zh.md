@@ -7,9 +7,9 @@
 
 [English](README.md) | [日本語](README_ja.md)
 
-**shohei** v1.5.0+ — Rust 基础设施诊断库 × **Claude MCP 服务器**。DNS、TLS、邮件安全、DNS 传播、IPv6 双栈、安全头自动检查。告诉 Claude「检查 example.com 的 TLS 证书、IPv6 支持、安全头」，自动诊断。支持 DNSSEC 链验证、DANE/TLSA、现代协议。可集成到 Rust 项目，也可与 AI 代理协作。
+**shohei** v2.2.0 — **140 MCP 工具 × 56 模块**的 Rust 基础设施诊断库。全面的安全、OSINT、威胁情报和治理功能。DNS、TLS、邮件安全、DNS 传播、IPv6 双栈、安全头自动检查。**API 密钥零需求 — 完全免费、开源 API 专用**。可集成到 Rust 项目，也可与 AI 代理协作。
 
-- **Claude MCP 服务器** — 从 Claude Desktop 调用 40+ 诊断工具。告诉 Claude「检查 example.com 的安全性」即可自动诊断 TLS、邮件、DNS、IPv6、RPKI
+- **Claude MCP 服务器** — 从 Claude Desktop 调用 **140 个工具**。告诉 Claude「检查 example.com 的安全性」即可自动诊断 TLS、邮件、DNS、IPv6、RPKI、威胁情报
 - **TLS 证书检查** — DANE/TLSA 验证（RFC 6698 全部 6 种组合）、证书链分析、OCSP 响应钉扎检测、TLS 版本检测（1.0～1.3）、暗号套件枚举
 - **邮件安全评分** — MX/SPF/DKIM/DMARC/BIMI/MTA-STS/TLS-RPT 验证，0～100 合规度评分
 - **安全头审计** — CSP、HSTS、X-Frame-Options、X-Content-Type-Options、Referrer-Policy、Permissions-Policy 检查和风险评估
@@ -69,6 +69,37 @@
 | 交互式 TUI | **✓** | | | | | | |
 
 > dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC 验证解析器; drill = 基于 ldns
+
+## MCP 安全服务器对比
+
+shohei v2.2.0 是功能最全面、完全免费、无需 API 密钥的 MCP 安全服务器：
+
+| 功能 | shohei | honeylabs | kastell | unphurl | cloud-audit | maigret |
+|------|:------:|:---------:|:-------:|:-------:|:-----------:|:-------:|
+| **MCP 工具数** | **140** | ~25 | ~30 | ~15 | ~20 | ~35 |
+| **模块数** | **56** | ~8 | ~10 | ~5 | ~7 | ~12 |
+| **DNS/DNSSEC** | ✓ | ✓ | ✓ | | | |
+| **TLS/证书** | ✓ | ✓ | ✓ | | | |
+| **邮件安全** | ✓ | | | | | |
+| **OSINT/侦察** | ✓ | ✓ | | ✓ | | ✓ |
+| **威胁情报** | ✓ | | | | | |
+| **WHOIS/域名** | ✓ | | ✓ | | | |
+| **端口/服务** | ✓ | | | | | |
+| **IP 声誉** | ✓ | ✓ | | | | |
+| **合规性/治理** | ✓ | | | | ✓ | |
+| **加密货币/区块链** | ✓ | | | | | |
+| **网络头** | ✓ | ✓ | | ✓ | | |
+| **所需 API 密钥数** | **0** | 多个 | 多个 | 若干 | 多个 | 多个 |
+| **仅免费/开源 API** | **✓** | 部分 | 部分 | 部分 | 部分 | 部分 |
+| **活跃维护** | ✓ | | | | | ✓ |
+| **开源** | ✓ (MIT) | | | | | ✓ |
+
+**主要优势：**
+- **140 MCP 工具** — 最大的综合安全工具包（v2.2.0）
+- **0 API 密钥** — 所有工具使用免费/开源公共 API
+- **56 模块** — DNS、TLS、邮件、OSINT、威胁情报、治理、加密货币、Web 安全、合规性
+- **零设置成本** — 无需供应商 API 账户或身份验证
+- **纯库 + MCP** — CI/CD 用 Rust 库 + Claude Desktop/代理用 MCP 服务器
 
 
 ## 安装
@@ -305,9 +336,9 @@ shohei google.com --tui
 
 ## MCP 服务器 & Claude 集成
 
-### ✅ v0.5.1+ 已完成实现
+### ✅ v2.2.0+ 已完成实现
 
-**MCP（Model Context Protocol）服务器** 让 Claude Desktop 和其他 AI 代理能直接调用 shohei 诊断：
+**MCP（Model Context Protocol）服务器**（140 工具）让 Claude Desktop 和其他 AI 代理能直接调用 shohei 诊断：
 
 ```bash
 # 1. 安装 shohei
@@ -327,12 +358,21 @@ cargo install shohei
 # 4. 问 Claude：「检查 example.com 的 TLS 证书」
 ```
 
-**提供给 Claude 的 5 个工具：**
-1. **check_dns** — DNS 记录查询（A、AAAA、MX、TXT、CNAME、NS 等）
-2. **check_tls_chain** — TLS 证书检查 + DANE/TLSA 验证
-3. **check_email_security** — SPF、DKIM、DMARC、MX 记录验证
-4. **check_propagation_global** — 跨 6 大全球解析器的 DNS 一致性检查
-5. **benchmark_latency** — System、DoH、DoT、DoQ 多轮次延迟测量
+**提供给 Claude 的 140 个工具（56 模块）：**
+- **DNS & DNSSEC**（10+ 工具）— 记录查询、DNSSEC 验证、传播检查、区域传输、延迟基准测试
+- **TLS & 证书**（8+ 工具）— 链检查、DANE/TLSA 验证、证书透明度（CT）日志、OCSP 检查、密码套件
+- **邮件安全**（6+ 工具）— SPF、DKIM、DMARC、BIMI、MTA-STS、TLS-RPT 验证和合规评分
+- **IP & 网络**（10+ 工具）— IP 声誉、反向 DNS、ASN/GeoIP、端口扫描、跟踪路由、IPv6 双栈检查
+- **网络安全**（12+ 工具）— 安全头审计、WAF/CDN 检测、技术栈识别、HTTP/2/3 检测、重定向分析
+- **OSINT & 侦察**（15+ 工具）— WHOIS、域名年龄、子域列举、仿冒域名检测、泊车域名检测、品牌名检查器
+- **威胁情报**（10+ 工具）— CVE 查询、VirusTotal 集成、URLhaus 检查、Shodan 查询、数据泄露数据库查询
+- **治理 & 合规性**（8+ 工具）— BGP/RPKI 验证、GDPR 合规检查、邮件认证链（ARC）、DNS 放大风险
+- **加密货币 & 区块链**（10+ 工具）— 以太坊地址验证、加密货币持有者检测、区块链 WHOIS
+- **高级分析**（19+ 工具）— 实体关系图、品牌检测、URL 分析、重定向源域名年龄、合规报告、HASSH 指纹识别、云暴露、网络信誉
+- **URL 智能**（4 工具）— URL 解析、安全智能、篡改检测、分析
+- **云暴露**（4 工具）— 云提供商资产检测、配置误差扫描、云基础设施分析
+- **OSINT 扩展**（4 工具）— 高级侦察技术、基础设施映射、历史数据查询
+- **网络信誉**（3 工具）— ISP 信誉、网络行为分析、威胁评分
 
 **示例：** Claude 自动诊断域名：
 > 「检查 example.com 的邮件配置是否正确，验证其 TLS 证书链」

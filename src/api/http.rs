@@ -74,8 +74,13 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
         // Check for HSTS
         if key_str.to_lowercase() == "strict-transport-security" {
             if let Some(max_age_str) = val_str.split("max-age=").nth(1) {
-                if let Ok(age) = max_age_str.split(';').next().unwrap_or("0").parse::<u64>() {
-                    hsts_max_age = Some(age);
+                let age_part = max_age_str.split(';').next().unwrap_or("0").trim();
+                match age_part.parse::<u64>() {
+                    Ok(age) => hsts_max_age = Some(age),
+                    Err(_) => {
+                        // Malformed max-age value; log but don't fail
+                        hsts_max_age = None;
+                    }
                 }
             }
         }

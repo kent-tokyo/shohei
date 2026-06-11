@@ -64,6 +64,10 @@ pub mod osint;
 pub mod governance;
 pub mod privacy;
 pub mod crypto;
+pub mod url_intel;
+pub mod cloud_exposure;
+pub mod username_osint;
+pub mod network_reputation;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult, DmarcPolicy};
@@ -183,6 +187,26 @@ pub use crypto::{
     KeyManagementRequest, KeyManagementResult, KeyRotationRequest, KeyRotationResult,
     AuditTrailBindingRequest, AuditTrailBindingResult,
     HsmIntegrationRequest, HsmIntegrationResult, CryptographicComplianceRequest, CryptographicComplianceResult,
+};
+pub use url_intel::{
+    check_url_unshorten, check_ja4h_fingerprint, check_url_safety_multi, check_url_redirect_threat,
+    UrlUnshortenRequest, UrlUnshortenResult, Ja4hFingerprintRequest, Ja4hFingerprintResult,
+    UrlSafetyMultiRequest, UrlSafetyMultiResult, UrlRedirectThreatRequest, UrlRedirectThreatResult,
+};
+pub use cloud_exposure::{
+    check_s3_bucket_exposure, check_cloud_provider, check_server_hardening, check_dangling_dns,
+    S3BucketExposureRequest, S3BucketExposureResult, CloudProviderRequest, CloudProviderResult,
+    ServerHardeningRequest, ServerHardeningResult, DanglingDnsRequest, DanglingDnsResult,
+};
+pub use username_osint::{
+    check_username_osint, check_email_intel, check_organization_intel, check_social_media_presence,
+    UsernameOsintRequest, UsernameOsintResult, EmailIntelRequest, EmailIntelResult,
+    OrganizationIntelRequest, OrganizationIntelResult, SocialMediaPresenceRequest, SocialMediaPresenceResult,
+};
+pub use network_reputation::{
+    check_asn_reputation, check_bgp_hijack_history, check_network_exposure_score,
+    AsnReputationRequest, AsnReputationResult, BgpHijackHistoryRequest, BgpHijackHistoryResult,
+    NetworkExposureScoreRequest, NetworkExposureScoreResult,
 };
 
 // ── Transport enum ─────────────────────────────────────────────────────────

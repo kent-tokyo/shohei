@@ -2421,7 +2421,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "shohei"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "chrono",
  "clap",
@@ -2448,6 +2448,7 @@ dependencies = [
  "tokio-rustls",
  "url",
  "urlencoding",
+ "uuid",
  "x509-parser",
 ]
 
@@ -3001,6 +3002,7 @@ checksum = "ddd74a9687298c6858e9b88ec8935ec45d22e8fd5e6394fa1bd4e99a87789c76"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
+ "serde_core",
  "wasm-bindgen",
 ]
 

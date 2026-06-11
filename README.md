@@ -7,7 +7,7 @@
 
 [日本語](README_ja.md) | [中文](README_zh.md)
 
-**shohei** v1.4.0 — **Rust infrastructure diagnostics library with MCP server for Claude**. 41 diagnostic tools covering DNS, TLS, email security, domain health, IP reputation, web reconnaissance, threat intelligence, and more. Automate checks via AI agents. DNSSEC chain validation, DANE/TLSA, modern protocols, IPv6 dual-stack, security headers, technology fingerprinting, CVE lookup, typosquatting detection, and redirect analysis built in. **Use in Rust projects or hand to Claude for autonomous diagnosis.**
+**shohei** v2.2.0 — **Rust infrastructure diagnostics library with 140 MCP tools across 56 modules**. Comprehensive security, OSINT, threat intelligence, and governance coverage. DNSSEC chain validation, DANE/TLSA, modern protocols, IPv6 dual-stack, security headers, technology fingerprinting, CVE lookup, typosquatting detection, and redirect analysis built in. **0 API keys required — all free/open APIs. Use in Rust projects or hand to Claude for autonomous diagnosis.**
 
 ### Core Diagnostics (v1.0+)
 
@@ -105,8 +105,39 @@ Most infrastructure tools are CLI-only. **shohei is built for AI agents:**
 | **Parked domain detection** | **✓** | | | | | | |
 
 > dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC-validating resolver; drill = ldns-based
-> 
-> **v1.4.0 additions**: Web reconnaissance (typosquatting, redirect analysis, parked domain detection), threat intelligence (CVE lookup via NVD API, technology fingerprinting), and IP classification (GreyNoise). All features API-key-free.
+>
+> **v2.2.0 additions**: 140 MCP tools across 56 modules, comprehensive OSINT/threat intel/governance coverage, 0 API keys required.
+
+## MCP Security Servers Comparison
+
+shohei v2.2.0 stands out as the most comprehensive free, API-key-free MCP security server:
+
+| Feature | shohei | honeylabs | kastell | unphurl | cloud-audit | maigret |
+|---------|:------:|:---------:|:-------:|:-------:|:-----------:|:-------:|
+| **MCP Tools** | **140** | ~25 | ~30 | ~15 | ~20 | ~35 |
+| **Modules** | **56** | ~8 | ~10 | ~5 | ~7 | ~12 |
+| **DNS/DNSSEC** | ✓ | ✓ | ✓ | | | |
+| **TLS/Certificate** | ✓ | ✓ | ✓ | | | |
+| **Email Security** | ✓ | | | | | |
+| **OSINT/Recon** | ✓ | ✓ | | ✓ | | ✓ |
+| **Threat Intel** | ✓ | | | | | |
+| **WHOIS/Domain** | ✓ | | ✓ | | | |
+| **Port/Service** | ✓ | | | | | |
+| **IP Reputation** | ✓ | ✓ | | | | |
+| **Compliance/Governance** | ✓ | | | | ✓ | |
+| **Crypto/Blockchain** | ✓ | | | | | |
+| **Web Headers** | ✓ | ✓ | | ✓ | | |
+| **API Keys Required** | **0** | Multiple | Multiple | Some | Multiple | Multiple |
+| **Free/Open APIs Only** | **✓** | Partial | Partial | Partial | Partial | Partial |
+| **Active Maintenance** | ✓ | | | | | ✓ |
+| **Open Source** | ✓ (MIT) | | | | | ✓ |
+
+**Key Advantages:**
+- **140 MCP tools** — largest comprehensive security toolkit (v2.2.0)
+- **0 API keys** — all tools use free/open public APIs
+- **56 modules** — DNS, TLS, email, OSINT, threat intel, governance, crypto, web security, compliance
+- **Zero setup cost** — no vendor API accounts or authentication required
+- **Pure library + MCP** — Rust library for CI/CD + MCP server for Claude Desktop/agents
 
 
 ## Installation
@@ -386,9 +417,9 @@ shohei google.com --tui
 
 ## MCP Server & Claude Integration
 
-### ✅ Live Now (v0.5.1+)
+### ✅ Live Now (v2.2.0+)
 
-**MCP (Model Context Protocol) Server** lets Claude Desktop and other AI agents call shohei diagnostics directly:
+**MCP (Model Context Protocol) Server** with 140 tools lets Claude Desktop and other AI agents call shohei diagnostics directly:
 
 ```bash
 # 1. Install shohei
@@ -408,12 +439,21 @@ cargo install shohei
 # 4. Ask Claude: "Check example.com's TLS certificate"
 ```
 
-**Five Tools Available to Claude:**
-1. **check_dns** — Query DNS records (A, AAAA, MX, TXT, CNAME, NS, etc.)
-2. **check_tls_chain** — Inspect TLS certificates + DANE/TLSA validation
-3. **check_email_security** — Validate SPF, DKIM, DMARC, MX records
-4. **check_propagation_global** — Verify DNS consistency across 6 global resolvers
-5. **benchmark_latency** — Measure DNS latency across System, DoH, DoT, DoQ
+**140 Tools Available to Claude (56 modules):**
+- **DNS & DNSSEC** (10+ tools) — Query records, DNSSEC validation, propagation checks, zone transfers, latency benchmarking
+- **TLS & Certificates** (8+ tools) — Chain inspection, DANE/TLSA validation, certificate transparency (CT) logs, OCSP checks, cipher suites
+- **Email Security** (6+ tools) — SPF, DKIM, DMARC, BIMI, MTA-STS, TLS-RPT validation with compliance scoring
+- **IP & Network** (10+ tools) — IP reputation, reverse DNS, ASN/GeoIP, port scanning, traceroute, IPv6 dual-stack checks
+- **Web Security** (12+ tools) — Security headers audit, WAF/CDN detection, technology fingerprinting, HTTP/2/3 detection, redirect analysis
+- **OSINT & Recon** (15+ tools) — WHOIS, domain age, subdomain enumeration, typosquatting detection, parked domain detection, brand name checker
+- **Threat Intelligence** (10+ tools) — CVE lookup, VirusTotal integration, URLhaus checking, Shodan queries, breach database lookups
+- **Governance & Compliance** (8+ tools) — BGP/RPKI validation, GDPR compliance checking, email authentication chain (ARC), DNS amplification risk
+- **Crypto & Blockchain** (10+ tools) — Ethereum address validation, cryptocurrency holder detection, blockchain WHOIS
+- **Advanced Analysis** (19+ tools) — Entity relationship graphs, brand detection, URL analysis, redirect domain age, compliance reports, HASSH fingerprinting, cloud exposure, network reputation
+- **URL Intelligence** (4 tools) — URL parsing, security intelligence, defacement detection, analytics
+- **Cloud Exposure** (4 tools) — Cloud provider asset detection, misconfiguration scanning, cloud infrastructure analysis
+- **OSINT Expansion** (4 tools) — Advanced recon techniques, infrastructure mapping, historical data queries
+- **Network Reputation** (3 tools) — ISP reputation, network behavior analysis, threat scoring
 
 **Example:** Claude diagnoses a domain autonomously:
 > "Check if example.com's mail configuration is correct, and verify its TLS certificate chain"

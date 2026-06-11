@@ -1,6 +1,6 @@
 [package]
 name = "shohei"
-version = "2.1.0"
+version = "2.2.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Infrastructure diagnostics library: DNS, DNSSEC, TLS certificate inspection, email security, DNS propagation, and MCP-integrated AI agent support"
@@ -60,6 +60,7 @@ url = "2"
 urlencoding = "2"
 chrono = { version = "0.4", features = ["serde"] }
 ocsp = "0.3"
+uuid = { version = "1.0", features = ["v4", "serde"] }
 
 [features]
 default = []

@@ -1175,13 +1175,14 @@ pub async fn detect_infrastructure_overlap(req: &InfrastructureOverlapRequest) -
         }
 
         // Get ASNs
-        if all_ips.is_empty() { continue; }
-        if let Ok(bgp) = crate::api::check_bgp_route(&crate::api::BgpRouteRequest {
-            ip: all_ips.last().unwrap().clone(),
-            timeout_secs: req.timeout_secs,
-        }).await {
-            if let Some(asn) = bgp.asn {
-                all_asns.push(asn);
+        if let Some(ip) = all_ips.last() {
+            if let Ok(bgp) = crate::api::check_bgp_route(&crate::api::BgpRouteRequest {
+                ip: ip.clone(),
+                timeout_secs: req.timeout_secs,
+            }).await {
+                if let Some(asn) = bgp.asn {
+                    all_asns.push(asn);
+                }
             }
         }
     }

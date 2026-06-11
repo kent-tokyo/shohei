@@ -114,6 +114,32 @@ pub async fn check_dns_amplification(req: &DnsAmplificationRequest) -> Result<Dn
 }
 
 fn build_dns_query(domain: &str, record_type: u8) -> Result<Vec<u8>> {
+    // Validate domain name before constructing query
+    if domain.is_empty() {
+        return Err(crate::error::ShoheError::Parse("Domain cannot be empty".to_string()));
+    }
+    if domain.len() > 253 {
+        return Err(crate::error::ShoheError::Parse("Domain length exceeds 253 bytes".to_string()));
+    }
+
+    // Validate domain labels
+    for label in domain.split('.') {
+        if label.is_empty() {
+            return Err(crate::error::ShoheError::Parse("Domain contains empty label".to_string()));
+        }
+        if label.len() > 63 {
+            return Err(crate::error::ShoheError::Parse("Label exceeds 63 bytes".to_string()));
+        }
+        // Validate label characters: only alphanumeric, hyphen, and underscore
+        if !label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+            return Err(crate::error::ShoheError::Parse("Label contains invalid characters".to_string()));
+        }
+        // Labels cannot start or end with hyphen
+        if label.starts_with('-') || label.ends_with('-') {
+            return Err(crate::error::ShoheError::Parse("Label cannot start or end with hyphen".to_string()));
+        }
+    }
+
     // Simplified DNS query builder (valid minimal DNS query)
     let mut query = Vec::new();
 
@@ -143,9 +169,6 @@ fn build_dns_query(domain: &str, record_type: u8) -> Result<Vec<u8>> {
 
     // Question section: encode domain name
     for label in domain.split('.') {
-        if label.len() > 63 {
-            return Err(crate::error::ShoheError::Parse("Label too long".to_string()));
-        }
         query.push(label.len() as u8);
         query.extend_from_slice(label.as_bytes());
     }
@@ -185,7 +208,7 @@ fn default_domain() -> String {
 }
 
 fn default_timeout() -> u64 {
-    5
+    crate::api::helpers::DEFAULT_REQUEST_TIMEOUT_SECS
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

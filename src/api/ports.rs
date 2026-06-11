@@ -83,6 +83,8 @@ async fn check_port_status(host: &str, port: u16, timeout_secs: u64) -> PortStat
 }
 
 async fn grab_banner(stream: &mut TcpStream, timeout_secs: u64) -> Option<String> {
+    const MAX_BANNER_LEN: usize = 256;
+
     let mut buf = vec![0u8; 512];
     match timeout(
         Duration::from_secs(timeout_secs),
@@ -91,12 +93,18 @@ async fn grab_banner(stream: &mut TcpStream, timeout_secs: u64) -> Option<String
     .await
     {
         Ok(Ok(n)) if n > 0 => {
-            String::from_utf8_lossy(&buf[..n])
+            let banner = String::from_utf8_lossy(&buf[..n]);
+            // Sanitize: take first line, filter non-printable chars, truncate to safe length
+            banner
                 .trim()
-                .to_string()
                 .lines()
                 .next()
-                .map(|s| s.to_string())
+                .map(|s| {
+                    s.chars()
+                        .filter(|c| c.is_ascii_graphic() || c.is_ascii_whitespace())
+                        .take(MAX_BANNER_LEN)
+                        .collect::<String>()
+                })
         }
         _ => None,
     }
@@ -134,7 +142,7 @@ pub struct PortCheckRequest {
     pub timeout_secs: u64,
 }
 
-fn default_timeout() -> u64 { 5 }
+fn default_timeout() -> u64 { crate::api::helpers::DEFAULT_REQUEST_TIMEOUT_SECS }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortCheckResult {

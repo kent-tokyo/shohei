@@ -340,7 +340,7 @@ async fn check_ipv6_support(hostname: &str, port: u16, timeout_secs: u64) -> Opt
                         )
                         .await;
 
-                        if tcp_result.is_ok() && tcp_result.unwrap().is_ok() {
+                        if let Ok(Ok(_)) = tcp_result {
                             return Some(true);
                         }
                     }

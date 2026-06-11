@@ -135,14 +135,8 @@ pub async fn check_threat_intel_aggregate(req: &ThreatIntelRequest) -> Result<Th
         std::cmp::min(100, avg as u8)
     };
 
-    // Determine overall verdict
-    let overall_verdict = if flagged_count >= 2 {
-        "malicious".to_string()
-    } else if flagged_count == 1 || risk_score > 70 {
-        "suspicious".to_string()
-    } else {
-        "clean".to_string()
-    };
+    // Determine overall verdict using centralized verdict engine
+    let overall_verdict = crate::api::helpers::VerdictEngine::determine_threat_verdict(flagged_count, risk_score);
 
     let flagged_by = threat_sources.iter()
         .filter(|s| s.is_malicious)

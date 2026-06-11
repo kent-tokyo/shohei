@@ -913,6 +913,96 @@ struct CryptographicComplianceParams {
     domain: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct UrlUnshortenParams {
+    /// URL to unshorten
+    url: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct Ja4hFingerprintParams {
+    /// URL to fingerprint
+    url: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct UrlSafetyMultiParams {
+    /// URL to check
+    url: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct UrlRedirectThreatParams {
+    /// URL to check
+    url: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct S3BucketExposureParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CloudProviderParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct ServerHardeningParams {
+    /// URL to check
+    url: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DanglingDnsParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct UsernameOsintParams {
+    /// Username to check
+    username: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct EmailIntelParams {
+    /// Email address to check
+    email: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct OrganizationIntelParams {
+    /// Domain to analyze
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct SocialMediaPresenceParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct AsnReputationParams {
+    /// ASN (e.g., AS15169 or 15169)
+    asn: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct BgpHijackHistoryParams {
+    /// IP prefix (e.g., 8.8.8.0/24)
+    prefix: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct NetworkExposureScoreParams {
+    /// IP or domain to assess
+    target: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -2944,6 +3034,186 @@ impl ShoheiServer {
             standard: "FIPS140-3".to_string(),
         };
         match shohei::api::verify_crypto_compliance(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Resolve shortened URLs (bit.ly, t.co, etc.) through full redirect chain")]
+    async fn check_url_unshorten(
+        &self,
+        Parameters(UrlUnshortenParams { url }): Parameters<UrlUnshortenParams>,
+    ) -> String {
+        let req = shohei::api::UrlUnshortenRequest { url, timeout_secs: 10 };
+        match shohei::api::check_url_unshorten(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "JA4H HTTP client fingerprinting — analyze request headers to identify client type")]
+    async fn check_ja4h_fingerprint(
+        &self,
+        Parameters(Ja4hFingerprintParams { url }): Parameters<Ja4hFingerprintParams>,
+    ) -> String {
+        let req = shohei::api::Ja4hFingerprintRequest { url, timeout_secs: 10 };
+        match shohei::api::check_ja4h_fingerprint(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Multi-source URL threat check combining URLhaus + phishing + domain age")]
+    async fn check_url_safety_multi(
+        &self,
+        Parameters(UrlSafetyMultiParams { url }): Parameters<UrlSafetyMultiParams>,
+    ) -> String {
+        let req = shohei::api::UrlSafetyMultiRequest { url, timeout_secs: 10 };
+        match shohei::api::check_url_safety_multi(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect open redirect vulnerabilities in URL redirect chains")]
+    async fn check_url_redirect_threat(
+        &self,
+        Parameters(UrlRedirectThreatParams { url }): Parameters<UrlRedirectThreatParams>,
+    ) -> String {
+        let req = shohei::api::UrlRedirectThreatRequest { url, timeout_secs: 10 };
+        match shohei::api::check_url_redirect_threat(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check if domain maps to publicly accessible AWS S3 bucket")]
+    async fn check_s3_bucket_exposure(
+        &self,
+        Parameters(S3BucketExposureParams { domain }): Parameters<S3BucketExposureParams>,
+    ) -> String {
+        let req = shohei::api::S3BucketExposureRequest { domain, timeout_secs: 10 };
+        match shohei::api::check_s3_bucket_exposure(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect cloud provider (AWS/GCP/Azure/Cloudflare) via CNAME and IP patterns")]
+    async fn check_cloud_provider(
+        &self,
+        Parameters(CloudProviderParams { domain }): Parameters<CloudProviderParams>,
+    ) -> String {
+        let req = shohei::api::CloudProviderRequest { domain, timeout_secs: 10 };
+        match shohei::api::check_cloud_provider(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "CIS-lite benchmark: check HTTP security headers, server disclosure, directory listing")]
+    async fn check_server_hardening(
+        &self,
+        Parameters(ServerHardeningParams { url }): Parameters<ServerHardeningParams>,
+    ) -> String {
+        let req = shohei::api::ServerHardeningRequest { url, timeout_secs: 10 };
+        match shohei::api::check_server_hardening(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect dangling DNS records pointing to deleted cloud resources")]
+    async fn check_dangling_dns(
+        &self,
+        Parameters(DanglingDnsParams { domain }): Parameters<DanglingDnsParams>,
+    ) -> String {
+        let req = shohei::api::DanglingDnsRequest { domain, timeout_secs: 10 };
+        match shohei::api::check_dangling_dns(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check username availability on GitHub, Twitter, LinkedIn, Reddit, HackerNews")]
+    async fn check_username_osint(
+        &self,
+        Parameters(UsernameOsintParams { username }): Parameters<UsernameOsintParams>,
+    ) -> String {
+        let req = shohei::api::UsernameOsintRequest { username, timeout_secs: 10 };
+        match shohei::api::check_username_osint(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Email intelligence: SMTP validation + breach check + SPF/DKIM assessment")]
+    async fn check_email_intel(
+        &self,
+        Parameters(EmailIntelParams { email }): Parameters<EmailIntelParams>,
+    ) -> String {
+        let req = shohei::api::EmailIntelRequest { email, timeout_secs: 10 };
+        match shohei::api::check_email_intel(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Organization footprinting: WHOIS, tech stack, social media profiles")]
+    async fn check_organization_intel(
+        &self,
+        Parameters(OrganizationIntelParams { domain }): Parameters<OrganizationIntelParams>,
+    ) -> String {
+        let req = shohei::api::OrganizationIntelRequest { domain, timeout_secs: 10 };
+        match shohei::api::check_organization_intel(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Map social media handles linked to a domain/brand")]
+    async fn check_social_media_presence(
+        &self,
+        Parameters(SocialMediaPresenceParams { domain }): Parameters<SocialMediaPresenceParams>,
+    ) -> String {
+        let req = shohei::api::SocialMediaPresenceRequest { domain, timeout_secs: 10 };
+        match shohei::api::check_social_media_presence(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "ASN reputation scoring: combine DNSBL + BGP visibility + threat intel")]
+    async fn check_asn_reputation(
+        &self,
+        Parameters(AsnReputationParams { asn }): Parameters<AsnReputationParams>,
+    ) -> String {
+        let req = shohei::api::AsnReputationRequest { asn, timeout_secs: 10 };
+        match shohei::api::check_asn_reputation(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Historical BGP route changes via RIPE STAT")]
+    async fn check_bgp_hijack_history(
+        &self,
+        Parameters(BgpHijackHistoryParams { prefix }): Parameters<BgpHijackHistoryParams>,
+    ) -> String {
+        let req = shohei::api::BgpHijackHistoryRequest { prefix, timeout_secs: 10 };
+        match shohei::api::check_bgp_hijack_history(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Comprehensive attack surface score: open ports + CVEs + BGP + RPKI + threat intel")]
+    async fn check_network_exposure_score(
+        &self,
+        Parameters(NetworkExposureScoreParams { target }): Parameters<NetworkExposureScoreParams>,
+    ) -> String {
+        let req = shohei::api::NetworkExposureScoreRequest { target, timeout_secs: 10 };
+        match shohei::api::check_network_exposure_score(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

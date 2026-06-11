@@ -4,6 +4,28 @@ use std::net::IpAddr;
 use std::str::FromStr;
 use crate::error::Result;
 
+/// Default timeout for all API requests (in seconds). Centralized to enable single-point policy changes.
+pub const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 30;
+
+/// Verdict engine for determining threat/trust levels from scores.
+pub struct VerdictEngine;
+
+impl VerdictEngine {
+    /// Determine threat verdict from flag count and risk score.
+    /// - flagged_count >= 2: "malicious" (multiple sources agree)
+    /// - flagged_count == 1 || risk_score > 70: "suspicious" (one source or high score)
+    /// - else: "clean" (no flags)
+    pub fn determine_threat_verdict(flagged_count: u8, risk_score: u8) -> String {
+        if flagged_count >= 2 {
+            "malicious".to_string()
+        } else if flagged_count == 1 || risk_score > 70 {
+            "suspicious".to_string()
+        } else {
+            "clean".to_string()
+        }
+    }
+}
+
 /// Resolve a hostname to an IP address using DNS.
 pub async fn resolve_hostname_to_ip(hostname: &str, timeout_secs: u64) -> Result<IpAddr> {
     let dns_req = crate::api::DnsCheckRequest {

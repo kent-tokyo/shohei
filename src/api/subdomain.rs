@@ -7,14 +7,18 @@ use futures_util::future::join_all;
 
 /// Check common subdomains for DNS/HTTP/TLS validity.
 pub async fn check_common_subdomains(req: &SubdomainCheckRequest) -> Result<SubdomainCheckResult> {
+    const MAX_TOTAL_SUBDOMAINS: usize = 100;
+
     let mut subdomains = vec![
         "www", "mail", "ftp", "api", "cdn", "staging", "dev", "admin",
         "vpn", "test", "beta", "app", "mobile", "auth", "secure",
     ];
 
-    // Merge extra subdomains if provided
+    // Merge extra subdomains if provided, enforcing limit to prevent resource exhaustion
     if let Some(extra) = &req.extra_subdomains {
-        for extra_sub in extra {
+        let remaining_capacity = MAX_TOTAL_SUBDOMAINS.saturating_sub(subdomains.len());
+        let to_add = std::cmp::min(extra.len(), remaining_capacity);
+        for extra_sub in extra.iter().take(to_add) {
             subdomains.push(extra_sub.as_str());
         }
     }

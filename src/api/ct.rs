@@ -83,9 +83,11 @@ pub async fn check_ct(req: &CtCheckRequest) -> Result<CtCheckResult> {
         }
     }
 
-    let sct_found = !scts.is_empty() && scts[0].log_id != "unknown";
+    let sct_found = !scts.is_empty() && scts.iter().any(|s| s.log_id != "unknown");
     let error = if scts.is_empty() {
         Some("No CT logs found".to_string())
+    } else if !sct_found {
+        Some("All CT logs failed to parse".to_string())
     } else {
         None
     };
