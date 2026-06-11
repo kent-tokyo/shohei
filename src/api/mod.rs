@@ -106,7 +106,10 @@ pub use compliance::{check_compliance, ComplianceRequest, ComplianceResult};
 pub use bgp_route::{check_bgp_route, BgpRouteRequest, BgpRouteResult};
 pub use dns_hijacking::{check_dns_hijacking, DnsHijackingRequest, DnsHijackingResult, DnsHijackingRiskLevel};
 pub use spf_analysis::{check_spf_deep, SpfAnalysisRequest, SpfAnalysisResult};
-pub use threat_intelligence::{check_threat_intel_aggregate, ThreatIntelRequest, ThreatIntelligenceSummary};
+pub use threat_intelligence::{
+    check_threat_intel_aggregate, threat_intel_risk_score, phishing_detection_aggregate, malware_detected_sources,
+    ThreatIntelRequest, ThreatIntelligenceSummary, ThreatRiskScore, PhishingDetectionSummary, MalwareSourcesList,
+};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

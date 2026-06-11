@@ -427,6 +427,24 @@ struct CheckThreatIntelParams {
     include_sources: Option<Vec<String>>,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct ThreatIntelRiskScoreParams {
+    /// Domain or IP to analyze
+    target: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct PhishingDetectionParams {
+    /// Domain to check for phishing indicators
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct MalwareSourcesParams {
+    /// IP address to check
+    ip: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -1330,6 +1348,39 @@ impl ShoheiServer {
             timeout_secs: 30,
         };
         match shohei::api::check_threat_intel_aggregate(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Get detailed risk score breakdown (0-100) with per-source confidence and actionable recommendation")]
+    async fn threat_intel_risk_score(
+        &self,
+        Parameters(ThreatIntelRiskScoreParams { target }): Parameters<ThreatIntelRiskScoreParams>,
+    ) -> String {
+        match shohei::api::threat_intel_risk_score(&target).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect phishing indicators (brand impersonation, suspicious URLs, new domain registration) with phishing score")]
+    async fn phishing_detection_aggregate(
+        &self,
+        Parameters(PhishingDetectionParams { domain }): Parameters<PhishingDetectionParams>,
+    ) -> String {
+        match shohei::api::phishing_detection_aggregate(&domain, 30).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "List all threat intelligence sources that flagged an IP as malicious with confidence levels")]
+    async fn malware_detected_sources(
+        &self,
+        Parameters(MalwareSourcesParams { ip }): Parameters<MalwareSourcesParams>,
+    ) -> String {
+        match shohei::api::malware_detected_sources(&ip, 30).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

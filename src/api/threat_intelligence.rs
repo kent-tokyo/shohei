@@ -355,6 +355,197 @@ async fn check_ct_threat(domain: &str, timeout_secs: u64) -> Result<ThreatSource
     })
 }
 
+/// Get detailed risk score breakdown for a target.
+pub async fn threat_intel_risk_score(target: &str) -> Result<ThreatRiskScore> {
+    let req = ThreatIntelRequest {
+        target: target.to_string(),
+        include_sources: None,
+        timeout_secs: 30,
+    };
+
+    let summary = check_threat_intel_aggregate(&req).await?;
+
+    let source_scores = summary.threat_sources.iter()
+        .map(|ts| RiskScoreComponent {
+            source: ts.source_name.clone(),
+            score: ts.confidence,
+            is_flagged: ts.is_malicious,
+        })
+        .collect();
+
+    Ok(ThreatRiskScore {
+        target: summary.target,
+        overall_score: summary.risk_score,
+        verdict: summary.overall_verdict,
+        source_breakdown: source_scores,
+        recommendation: match summary.risk_score {
+            0..=20 => "No action required — domain/IP appears clean".to_string(),
+            21..=50 => "Monitor — low to medium risk, investigate if unexpected".to_string(),
+            51..=80 => "Caution — elevated risk, limit exposure or verify legitimacy".to_string(),
+            81..=100 => "Block recommended — high confidence threat detection".to_string(),
+            _ => "Unknown risk level".to_string(),  // Fallback for exhaustiveness
+        },
+    })
+}
+
+/// Aggregate phishing detection from multiple sources.
+pub async fn phishing_detection_aggregate(domain: &str, timeout_secs: u64) -> Result<PhishingDetectionSummary> {
+    let mut phishing_indicators = Vec::new();
+    let mut phishing_score = 0u8;
+    let mut is_phishing = false;
+
+    // Check brand impersonation
+    if let Ok(result) = crate::api::check_brand_impersonation(&crate::api::BrandImpersonationRequest {
+        domain: domain.to_string(),
+        timeout_secs,
+    }).await {
+        if result.is_impersonating {
+            is_phishing = true;
+            phishing_score = std::cmp::max(phishing_score, 85u8);
+            phishing_indicators.push("Brand impersonation detected".to_string());
+        }
+    }
+
+    // Check URLhaus for phishing URLs
+    let url = format!("https://{}", domain);
+    if let Ok(result) = crate::api::check_url_reputation(&crate::api::UrlhausRequest {
+        url: url.clone(),
+        timeout_secs,
+    }).await {
+        if result.is_malicious && result.threat.as_ref().map(|t| t.contains("phishing")).unwrap_or(false) {
+            is_phishing = true;
+            phishing_score = std::cmp::max(phishing_score, 90u8);
+            phishing_indicators.push("URLhaus phishing database match".to_string());
+        }
+    }
+
+    // Check URL structural analysis for phishing indicators
+    if let Ok(result) = crate::api::check_url_analysis(&crate::api::UrlAnalysisRequest {
+        url: url.clone(),
+    }).await {
+        if result.risk_score > 70 {
+            phishing_score = std::cmp::max(phishing_score, 60u8);
+            if !result.risk_signals.is_empty() {
+                phishing_indicators.push(format!("Suspicious URL structure: {}", result.risk_signals.join(", ")));
+            }
+        }
+    }
+
+    // Check domain age (new domains more suspicious)
+    if let Ok(result) = crate::api::check_whois(&crate::api::WhoisCheckRequest {
+        domain: domain.to_string(),
+        timeout_secs,
+    }).await {
+        if let Some(created) = result.created_date {
+            // Parse created date and check if < 6 months old
+            if created.contains("202") && (created.contains("202412") || created.contains("202501") || created.contains("202502")) {
+                phishing_score = std::cmp::max(phishing_score, 40u8);
+                phishing_indicators.push("Recently registered domain (< 6 months)".to_string());
+            }
+        }
+    }
+
+    Ok(PhishingDetectionSummary {
+        domain: domain.to_string(),
+        is_phishing,
+        phishing_score,
+        indicators: phishing_indicators,
+        recommendation: if is_phishing {
+            "Block or quarantine — phishing indicators detected".to_string()
+        } else if phishing_score > 50 {
+            "Exercise caution — suspicious characteristics detected".to_string()
+        } else {
+            "Likely legitimate — low phishing risk".to_string()
+        },
+    })
+}
+
+/// Get list of sources that flagged an IP as malicious.
+pub async fn malware_detected_sources(ip: &str, timeout_secs: u64) -> Result<MalwareSourcesList> {
+    let req = ThreatIntelRequest {
+        target: ip.to_string(),
+        include_sources: None,
+        timeout_secs,
+    };
+
+    let summary = check_threat_intel_aggregate(&req).await?;
+
+    let flagged_sources: Vec<FlaggedSource> = summary.threat_sources.iter()
+        .filter(|ts| ts.is_malicious)
+        .map(|ts| FlaggedSource {
+            source: ts.source_name.clone(),
+            threat_type: ts.threat_type.clone(),
+            confidence: ts.confidence,
+            evidence: ts.details.evidence.clone(),
+        })
+        .collect();
+
+    let is_malicious = !flagged_sources.is_empty();
+    let flagged_count = flagged_sources.len() as u8;
+
+    let overall_assessment = match flagged_count {
+        0 => "Not detected as malicious by any major threat intelligence source".to_string(),
+        1 => "Flagged by one source — verify with additional tools".to_string(),
+        2..=3 => "Flagged by multiple sources — likely malicious".to_string(),
+        _ => "Flagged by multiple sources — strong confidence malicious".to_string(),
+    };
+
+    Ok(MalwareSourcesList {
+        ip: ip.to_string(),
+        is_malicious,
+        flagged_count,
+        flagged_sources,
+        overall_assessment,
+    })
+}
+
+/// Risk score breakdown.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThreatRiskScore {
+    pub target: String,
+    pub overall_score: u8,  // 0-100
+    pub verdict: String,  // clean|suspicious|malicious
+    pub source_breakdown: Vec<RiskScoreComponent>,
+    pub recommendation: String,
+}
+
+/// Individual source risk contribution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskScoreComponent {
+    pub source: String,
+    pub score: u8,  // confidence 0-100
+    pub is_flagged: bool,
+}
+
+/// Phishing detection summary.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PhishingDetectionSummary {
+    pub domain: String,
+    pub is_phishing: bool,
+    pub phishing_score: u8,  // 0-100
+    pub indicators: Vec<String>,
+    pub recommendation: String,
+}
+
+/// Malware source list.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MalwareSourcesList {
+    pub ip: String,
+    pub is_malicious: bool,
+    pub flagged_count: u8,
+    pub flagged_sources: Vec<FlaggedSource>,
+    pub overall_assessment: String,
+}
+
+/// Individual flagged source.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FlaggedSource {
+    pub source: String,
+    pub threat_type: Option<String>,
+    pub confidence: u8,
+    pub evidence: Option<String>,
+}
+
 // ─── Internal result wrapper
 struct ThreatSourceResult {
     is_malicious: bool,
