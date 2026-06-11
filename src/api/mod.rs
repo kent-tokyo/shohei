@@ -49,6 +49,10 @@ pub mod cve_lookup;
 pub mod typosquat;
 pub mod redirect_chain;
 pub mod parked_domain;
+pub mod brand_impersonation;
+pub mod urlhaus;
+pub mod url_analysis;
+pub mod shodan_internetdb;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
@@ -87,6 +91,10 @@ pub use cve_lookup::{check_cve, CveLookupRequest, CveLookupResult};
 pub use typosquat::{check_typosquatting, TyposquatRequest, TyposquatResult};
 pub use redirect_chain::{check_redirect_chain, RedirectChainRequest, RedirectChainResult};
 pub use parked_domain::{check_parked_domain, ParkedDomainRequest, ParkedDomainResult};
+pub use brand_impersonation::{check_brand_impersonation, BrandImpersonationRequest, BrandImpersonationResult};
+pub use urlhaus::{check_url_reputation, UrlhausRequest, UrlhausResult};
+pub use url_analysis::{check_url_analysis, UrlAnalysisRequest, UrlAnalysisResult};
+pub use shodan_internetdb::{check_shodan_ip, ShodanInternetDbRequest, ShodanInternetDbResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

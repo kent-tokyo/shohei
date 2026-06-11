@@ -7,13 +7,20 @@ use futures_util::future::join_all;
 
 /// Check common subdomains for DNS/HTTP/TLS validity.
 pub async fn check_common_subdomains(req: &SubdomainCheckRequest) -> Result<SubdomainCheckResult> {
-    let common_subdomains = vec![
+    let mut subdomains = vec![
         "www", "mail", "ftp", "api", "cdn", "staging", "dev", "admin",
         "vpn", "test", "beta", "app", "mobile", "auth", "secure",
     ];
 
+    // Merge extra subdomains if provided
+    if let Some(extra) = &req.extra_subdomains {
+        for extra_sub in extra {
+            subdomains.push(extra_sub.as_str());
+        }
+    }
+
     // Parallel DNS resolution for all subdomains
-    let tasks: Vec<_> = common_subdomains
+    let tasks: Vec<_> = subdomains
         .iter()
         .map(|sub| {
             let domain = req.domain.clone();
@@ -122,6 +129,8 @@ pub struct SubdomainCheckRequest {
     pub domain: String,
     #[serde(default = "default_timeout")]
     pub timeout_secs: u64,
+    #[serde(default)]
+    pub extra_subdomains: Option<Vec<String>>,
 }
 
 fn default_timeout() -> u64 { 10 }

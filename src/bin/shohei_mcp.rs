@@ -179,6 +179,9 @@ struct CheckWhoisParams {
 struct CheckSubdomainsParams {
     /// Domain to check for subdomains
     domain: String,
+    /// Extra subdomains to check in addition to default list
+    #[serde(default)]
+    extra_subdomains: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Clone)]
@@ -344,6 +347,30 @@ struct CheckRedirectChainParams {
 struct CheckParkedDomainParams {
     /// Domain to check for parking indicators
     domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckBrandImpersonationParams {
+    /// Domain to check for brand impersonation
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckUrlReputationParams {
+    /// URL to check against URLhaus malware/phishing database
+    url: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckUrlAnalysisParams {
+    /// URL to analyze for phishing and brand impersonation signals
+    url: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckShodanIpParams {
+    /// IP address to query (e.g. "8.8.8.8")
+    ip: String,
 }
 
 #[derive(Clone)]
@@ -727,11 +754,12 @@ impl ShoheiServer {
     #[tool(description = "Check common subdomains for DNS/HTTP/TLS validity")]
     async fn check_subdomains(
         &self,
-        Parameters(CheckSubdomainsParams { domain }): Parameters<CheckSubdomainsParams>,
+        Parameters(CheckSubdomainsParams { domain, extra_subdomains }): Parameters<CheckSubdomainsParams>,
     ) -> String {
         let req = SubdomainCheckRequest {
             domain,
             timeout_secs: 10,
+            extra_subdomains,
         };
         match shohei::api::check_common_subdomains(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
@@ -1095,6 +1123,63 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_parked_domain(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check if a domain impersonates known brands")]
+    async fn check_brand_impersonation(
+        &self,
+        Parameters(CheckBrandImpersonationParams { domain }): Parameters<CheckBrandImpersonationParams>,
+    ) -> String {
+        let req = shohei::api::BrandImpersonationRequest {
+            domain,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_brand_impersonation(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check URL against URLhaus malware/phishing database (no API key required)")]
+    async fn check_url_reputation(
+        &self,
+        Parameters(CheckUrlReputationParams { url }): Parameters<CheckUrlReputationParams>,
+    ) -> String {
+        let req = shohei::api::UrlhausRequest {
+            url,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_url_reputation(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Analyze URL structure for phishing and brand impersonation signals")]
+    async fn check_url_analysis(
+        &self,
+        Parameters(CheckUrlAnalysisParams { url }): Parameters<CheckUrlAnalysisParams>,
+    ) -> String {
+        let req = shohei::api::UrlAnalysisRequest { url };
+        match shohei::api::check_url_analysis(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Query Shodan InternetDB for open ports, CPEs, tags, and CVE associations (no API key required)")]
+    async fn check_shodan_ip(
+        &self,
+        Parameters(CheckShodanIpParams { ip }): Parameters<CheckShodanIpParams>,
+    ) -> String {
+        let req = shohei::api::ShodanInternetDbRequest {
+            ip,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_shodan_ip(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
