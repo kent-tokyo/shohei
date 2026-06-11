@@ -70,6 +70,7 @@ pub mod username_osint;
 pub mod network_reputation;
 pub mod cloud_security;
 pub mod identity_security;
+pub mod supply_chain;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult, DmarcPolicy};
@@ -220,6 +221,12 @@ pub use identity_security::{
     check_jwt_security, check_cookie_security, check_csp_advanced,
     JwtSecurityRequest, JwtSecurityResult, CookieSecurityRequest, CookieSecurityResult,
     CspAdvancedRequest, CspAdvancedResult,
+};
+pub use supply_chain::{
+    check_exposed_files, check_npm_package_security, check_pypi_package_security, check_dependency_confusion, check_sbom_disclosure,
+    ExposedFilesRequest, ExposedFilesResult, NpmPackageSecurityRequest, NpmPackageSecurityResult,
+    PypiPackageSecurityRequest, PypiPackageSecurityResult, DependencyConfusionRequest, DependencyConfusionResult,
+    SbomDisclosureRequest, SbomDisclosureResult,
 };
 
 // ── Transport enum ─────────────────────────────────────────────────────────

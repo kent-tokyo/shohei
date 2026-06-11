@@ -1051,6 +1051,36 @@ struct CspAdvancedParams {
     url: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct ExposedFilesParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct NpmPackageSecurityParams {
+    /// Package name to check
+    package: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct PypiPackageSecurityParams {
+    /// Package name to check
+    package: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DependencyConfusionParams {
+    /// Internal package name to check
+    internal_package: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct SbomDisclosureParams {
+    /// Domain to check
+    domain: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -3358,6 +3388,66 @@ impl ShoheiServer {
     ) -> String {
         let req = shohei::api::CspAdvancedRequest { url, timeout_secs: 10 };
         match shohei::api::check_csp_advanced(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Probe common sensitive paths (.env, package.json, .git/config, etc.)")]
+    async fn check_exposed_files(
+        &self,
+        Parameters(ExposedFilesParams { domain }): Parameters<ExposedFilesParams>,
+    ) -> String {
+        let req = shohei::api::ExposedFilesRequest { domain, timeout_secs: 10 };
+        match shohei::api::check_exposed_files(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Query npm registry for package metadata, version, maintainers, typosquatting")]
+    async fn check_npm_package_security(
+        &self,
+        Parameters(NpmPackageSecurityParams { package }): Parameters<NpmPackageSecurityParams>,
+    ) -> String {
+        let req = shohei::api::NpmPackageSecurityRequest { package, timeout_secs: 10 };
+        match shohei::api::check_npm_package_security(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Query PyPI for package metadata, maintainers, security indicators")]
+    async fn check_pypi_package_security(
+        &self,
+        Parameters(PypiPackageSecurityParams { package }): Parameters<PypiPackageSecurityParams>,
+    ) -> String {
+        let req = shohei::api::PypiPackageSecurityRequest { package, timeout_secs: 10 };
+        match shohei::api::check_pypi_package_security(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check if internal package name exists on public registries (npm, PyPI, crates.io)")]
+    async fn check_dependency_confusion(
+        &self,
+        Parameters(DependencyConfusionParams { internal_package }): Parameters<DependencyConfusionParams>,
+    ) -> String {
+        let req = shohei::api::DependencyConfusionRequest { internal_package, timeout_secs: 10 };
+        match shohei::api::check_dependency_confusion(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect accidentally exposed SBOM files (/sbom.json, /bom.xml, /.well-known/sbom)")]
+    async fn check_sbom_disclosure(
+        &self,
+        Parameters(SbomDisclosureParams { domain }): Parameters<SbomDisclosureParams>,
+    ) -> String {
+        let req = shohei::api::SbomDisclosureRequest { domain, timeout_secs: 10 };
+        match shohei::api::check_sbom_disclosure(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
