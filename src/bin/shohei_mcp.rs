@@ -723,6 +723,102 @@ struct BreachSimulationParams {
     simulation_type: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct PiiDetectionParams {
+    /// Domain to scan for PII
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct PiiAnonymizationParams {
+    /// Domain with PII to anonymize
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DataRetentionPolicyParams {
+    /// Domain for retention policy
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct GdprComplianceParams {
+    /// Domain to assess
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct HipaaComplianceParams {
+    /// Domain to assess
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct PciDssComplianceParams {
+    /// Domain to assess
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DataClassificationParams {
+    /// Domain to classify
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DataMaskingParams {
+    /// Domain to mask
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DataDeletionParams {
+    /// Domain with data to delete
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DataSubjectAccessParams {
+    /// Domain for request
+    domain: String,
+    /// Subject identifier (email, phone, SSN)
+    subject_identifier: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct ConsentManagementParams {
+    /// Domain for consent
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CryptographicSignatureParams {
+    /// Domain to sign
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct AuditTrailImmutabilityParams {
+    /// Domain to verify
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct PrivacyImpactAssessmentParams {
+    /// Domain to assess
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct PrivacyBreachNotificationParams {
+    /// Domain affected
+    domain: String,
+    /// Number of affected records
+    breach_scope: u32,
+    /// Breach type: unauthorized_access | data_exfiltration | ransomware
+    breach_type: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -2290,6 +2386,237 @@ impl ShoheiServer {
             scope: "organization_wide".to_string(),
         };
         match shohei::api::run_breach_simulation(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect personally identifiable information (PII) in domain/system")]
+    async fn detect_pii(
+        &self,
+        Parameters(PiiDetectionParams { domain }): Parameters<PiiDetectionParams>,
+    ) -> String {
+        let req = shohei::api::PiiDetectionRequest {
+            domain,
+            scan_depth: "deep".to_string(),
+        };
+        match shohei::api::detect_pii(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Anonymize PII (redaction, pseudonymization, generalization)")]
+    async fn anonymize_pii(
+        &self,
+        Parameters(PiiAnonymizationParams { domain }): Parameters<PiiAnonymizationParams>,
+    ) -> String {
+        let req = shohei::api::PiiAnonymizationRequest {
+            domain,
+            pii_types: vec!["email".to_string(), "phone".to_string(), "ssn".to_string()],
+            retention_days: None,
+        };
+        match shohei::api::anonymize_pii(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Define data retention policy and auto-purge schedule")]
+    async fn define_retention_policy(
+        &self,
+        Parameters(DataRetentionPolicyParams { domain }): Parameters<DataRetentionPolicyParams>,
+    ) -> String {
+        let req = shohei::api::DataRetentionPolicyRequest {
+            domain,
+            data_type: "customer_data".to_string(),
+            retention_days: 365,
+        };
+        match shohei::api::define_retention_policy(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Assess GDPR compliance (processing, consent, DPIA, documentation)")]
+    async fn assess_gdpr_compliance(
+        &self,
+        Parameters(GdprComplianceParams { domain }): Parameters<GdprComplianceParams>,
+    ) -> String {
+        let req = shohei::api::GdprComplianceRequest {
+            domain,
+            assessment_scope: "processing".to_string(),
+        };
+        match shohei::api::assess_gdpr_compliance(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Assess HIPAA compliance (technical, administrative, physical controls)")]
+    async fn assess_hipaa_compliance(
+        &self,
+        Parameters(HipaaComplianceParams { domain }): Parameters<HipaaComplianceParams>,
+    ) -> String {
+        let req = shohei::api::HipaaComplianceRequest {
+            domain,
+            check_type: "technical".to_string(),
+        };
+        match shohei::api::assess_hipaa_compliance(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Assess PCI-DSS compliance for payment systems")]
+    async fn assess_pci_dss_compliance(
+        &self,
+        Parameters(PciDssComplianceParams { domain }): Parameters<PciDssComplianceParams>,
+    ) -> String {
+        let req = shohei::api::PciDssComplianceRequest {
+            domain,
+            requirement: None,
+        };
+        match shohei::api::assess_pci_dss_compliance(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Classify data by sensitivity level (public, internal, confidential, restricted)")]
+    async fn classify_data(
+        &self,
+        Parameters(DataClassificationParams { domain }): Parameters<DataClassificationParams>,
+    ) -> String {
+        let req = shohei::api::DataClassificationRequest {
+            domain,
+            data_inventory_provided: true,
+        };
+        match shohei::api::classify_data(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Apply data masking rules to sensitive fields")]
+    async fn apply_data_masking(
+        &self,
+        Parameters(DataMaskingParams { domain }): Parameters<DataMaskingParams>,
+    ) -> String {
+        let req = shohei::api::DataMaskingRequest {
+            domain,
+            masking_rules: vec!["email_mask".to_string(), "phone_mask".to_string()],
+        };
+        match shohei::api::apply_data_masking(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Delete expired data according to retention policies")]
+    async fn delete_expired_data(
+        &self,
+        Parameters(DataDeletionParams { domain }): Parameters<DataDeletionParams>,
+    ) -> String {
+        let req = shohei::api::DataDeletionRequest {
+            domain,
+            data_types: vec!["logs".to_string(), "backups".to_string()],
+            reason: "retention_expired".to_string(),
+        };
+        match shohei::api::delete_expired_data(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Process data subject access request (DSAR / subject access rights)")]
+    async fn process_data_subject_access(
+        &self,
+        Parameters(DataSubjectAccessParams { domain, subject_identifier }): Parameters<DataSubjectAccessParams>,
+    ) -> String {
+        let req = shohei::api::DataSubjectAccessRequest {
+            domain,
+            subject_identifier,
+            data_types: None,
+        };
+        match shohei::api::process_data_subject_access(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Manage user consent preferences (marketing, analytics, processing)")]
+    async fn manage_consent(
+        &self,
+        Parameters(ConsentManagementParams { domain }): Parameters<ConsentManagementParams>,
+    ) -> String {
+        let req = shohei::api::ConsentManagementRequest {
+            domain,
+            consent_type: "processing".to_string(),
+        };
+        match shohei::api::manage_consent(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Create cryptographic signature for audit trail (RSA, ECDSA, EdDSA)")]
+    async fn sign_audit_trail(
+        &self,
+        Parameters(CryptographicSignatureParams { domain }): Parameters<CryptographicSignatureParams>,
+    ) -> String {
+        let req = shohei::api::CryptographicSignatureRequest {
+            domain,
+            algorithm: "ECDSA".to_string(),
+            document_hash: "sha256".to_string(),
+        };
+        match shohei::api::sign_audit_trail(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Verify audit trail immutability (hash chain, blockchain, HSM)")]
+    async fn verify_audit_immutability(
+        &self,
+        Parameters(AuditTrailImmutabilityParams { domain }): Parameters<AuditTrailImmutabilityParams>,
+    ) -> String {
+        let req = shohei::api::AuditTrailImmutabilityRequest {
+            domain,
+            days: 90,
+        };
+        match shohei::api::verify_audit_immutability(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Conduct privacy impact assessment (DPIA/PIA)")]
+    async fn conduct_privacy_assessment(
+        &self,
+        Parameters(PrivacyImpactAssessmentParams { domain }): Parameters<PrivacyImpactAssessmentParams>,
+    ) -> String {
+        let req = shohei::api::PrivacyImpactAssessmentRequest {
+            domain,
+            processing_activity: "Data processing".to_string(),
+        };
+        match shohei::api::conduct_privacy_assessment(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Notify affected individuals of privacy breach (GDPR 72-hour requirement)")]
+    async fn notify_privacy_breach(
+        &self,
+        Parameters(PrivacyBreachNotificationParams { domain, breach_scope, breach_type }): Parameters<PrivacyBreachNotificationParams>,
+    ) -> String {
+        let req = shohei::api::PrivacyBreachNotificationRequest {
+            domain,
+            breach_scope,
+            breach_type,
+        };
+        match shohei::api::notify_privacy_breach(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

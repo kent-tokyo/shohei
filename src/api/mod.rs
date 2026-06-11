@@ -62,6 +62,7 @@ pub mod threat_intelligence;
 pub mod trust_scoring;
 pub mod osint;
 pub mod governance;
+pub mod privacy;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult, DmarcPolicy};
@@ -153,6 +154,20 @@ pub use governance::{
     AuditTrailVerificationRequest, AuditTrailVerificationResult, PolicyEffectivenessRequest, PolicyEffectivenessResult,
     IncidentResponsePlaybookRequest, IncidentResponsePlaybookResult,
     SecurityPostureAssessmentRequest, SecurityPostureAssessmentResult, BreachSimulationRequest, BreachSimulationResult,
+};
+pub use privacy::{
+    detect_pii, anonymize_pii, define_retention_policy, assess_gdpr_compliance, assess_hipaa_compliance,
+    assess_pci_dss_compliance, classify_data, apply_data_masking, delete_expired_data,
+    process_data_subject_access, manage_consent, sign_audit_trail, verify_audit_immutability,
+    conduct_privacy_assessment, notify_privacy_breach,
+    PiiDetectionRequest, PiiDetectionResult, PiiAnonymizationRequest, PiiAnonymizationResult,
+    DataRetentionPolicyRequest, DataRetentionPolicyResult, GdprComplianceRequest, GdprComplianceResult,
+    HipaaComplianceRequest, HipaaComplianceResult, PciDssComplianceRequest, PciDssComplianceResult,
+    DataClassificationRequest, DataClassificationResult, DataMaskingRequest, DataMaskingResult,
+    DataDeletionRequest, DataDeletionResult, DataSubjectAccessRequest, DataSubjectAccessResult,
+    ConsentManagementRequest, ConsentManagementResult, CryptographicSignatureRequest, CryptographicSignatureResult,
+    AuditTrailImmutabilityRequest, AuditTrailImmutabilityResult, PrivacyImpactAssessmentRequest, PrivacyImpactAssessmentResult,
+    PrivacyBreachNotificationRequest, PrivacyBreachNotificationResult,
 };
 
 // ── Transport enum ─────────────────────────────────────────────────────────
