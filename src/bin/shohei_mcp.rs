@@ -418,6 +418,15 @@ struct CheckSpfDeepParams {
     domain: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckThreatIntelParams {
+    /// Domain or IP to check
+    target: String,
+    /// Specific sources to include (optional, default: all)
+    #[serde(default)]
+    include_sources: Option<Vec<String>>,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -1305,6 +1314,22 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_spf_deep(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Aggregate threat intelligence from 5+ sources (GreyNoise, Shodan, URLhaus, Brand Impersonation, CT) with unified risk scoring")]
+    async fn check_threat_intel_aggregate(
+        &self,
+        Parameters(CheckThreatIntelParams { target, include_sources }): Parameters<CheckThreatIntelParams>,
+    ) -> String {
+        let req = shohei::api::ThreatIntelRequest {
+            target,
+            include_sources,
+            timeout_secs: 30,
+        };
+        match shohei::api::check_threat_intel_aggregate(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
