@@ -247,6 +247,66 @@ struct CheckIpv6Params {
     port: Option<u16>,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckArcParams {
+    /// Domain to check ARC records for
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckCipherSuitesParams {
+    /// Hostname to check
+    hostname: String,
+    /// Port (default 443)
+    #[serde(default = "default_port")]
+    port: u16,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckRpkiParams {
+    /// IP address or CIDR prefix to check
+    ip: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckDnsAmplificationParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckTracerouteParams {
+    /// Host to trace route to
+    host: String,
+    /// Maximum hops (default 30)
+    #[serde(default)]
+    max_hops: Option<u32>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckWildcardDnsParams {
+    /// Domain to check for wildcard DNS
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckZoneTransferParams {
+    /// Domain to attempt zone transfer on
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckIpNoiseParams {
+    /// IP address to check
+    ip: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckDomainRiskParams {
+    /// Domain to assess for registration risk
+    domain: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -781,6 +841,143 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_ipv6(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check ARC (Authenticated Received Chain) records for a domain")]
+    async fn check_arc(
+        &self,
+        Parameters(CheckArcParams { domain }): Parameters<CheckArcParams>,
+    ) -> String {
+        let req = ArcCheckRequest {
+            domain,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_arc(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check supported TLS cipher suites for a hostname")]
+    async fn check_cipher_suites(
+        &self,
+        Parameters(CheckCipherSuitesParams { hostname, port }): Parameters<CheckCipherSuitesParams>,
+    ) -> String {
+        let req = CipherSuitesRequest {
+            hostname,
+            port,
+            timeout_secs: 10,
+            probe_weak: false,
+        };
+        match shohei::api::check_cipher_suites(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check RPKI (Resource Public Key Infrastructure) validity for an IP prefix")]
+    async fn check_rpki(
+        &self,
+        Parameters(CheckRpkiParams { ip }): Parameters<CheckRpkiParams>,
+    ) -> String {
+        let req = RpkiCheckRequest { ip };
+        match shohei::api::check_rpki(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check DNS amplification risk (query/response size ratio)")]
+    async fn check_dns_amplification(
+        &self,
+        Parameters(CheckDnsAmplificationParams { domain }): Parameters<CheckDnsAmplificationParams>,
+    ) -> String {
+        let req = DnsAmplificationRequest {
+            nameserver: "8.8.8.8".to_string(),
+            port: 53,
+            domain,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_dns_amplification(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Trace route to a host using ICMP echo requests")]
+    async fn check_traceroute(
+        &self,
+        Parameters(CheckTracerouteParams { host, max_hops }): Parameters<CheckTracerouteParams>,
+    ) -> String {
+        let req = TracerouteRequest {
+            hostname: host,
+            max_hops: max_hops.unwrap_or(30),
+            timeout_secs: 30,
+        };
+        match shohei::api::check_traceroute(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check for wildcard DNS records that could mask domain enumeration")]
+    async fn check_wildcard_dns(
+        &self,
+        Parameters(CheckWildcardDnsParams { domain }): Parameters<CheckWildcardDnsParams>,
+    ) -> String {
+        let req = WildcardDnsRequest {
+            domain,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_wildcard_dns(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Attempt DNS zone transfer (AXFR) against authoritative nameservers")]
+    async fn check_zone_transfer(
+        &self,
+        Parameters(CheckZoneTransferParams { domain }): Parameters<CheckZoneTransferParams>,
+    ) -> String {
+        let req = shohei::api::zone_transfer::ZoneTransferRequest {
+            domain,
+            timeout_secs: 10,
+        };
+        match shohei::api::zone_transfer::check_zone_transfer(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Classify IP address using GreyNoise community API (no API key required)")]
+    async fn check_ip_noise(
+        &self,
+        Parameters(CheckIpNoiseParams { ip }): Parameters<CheckIpNoiseParams>,
+    ) -> String {
+        let req = shohei::api::greynoise::GreyNoiseRequest {
+            ip,
+            timeout_secs: 10,
+        };
+        match shohei::api::greynoise::check_ip_noise(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Evaluate domain registration risk for phishing and squatting")]
+    async fn check_domain_risk(
+        &self,
+        Parameters(CheckDomainRiskParams { domain }): Parameters<CheckDomainRiskParams>,
+    ) -> String {
+        let req = shohei::api::domain_risk::DomainRiskRequest {
+            domain,
+            timeout_secs: 10,
+        };
+        match shohei::api::domain_risk::check_domain_risk(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

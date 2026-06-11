@@ -41,6 +41,9 @@ pub mod wildcard_dns;
 pub mod cipher_suites;
 pub mod arc;
 pub mod traceroute;
+pub mod zone_transfer;
+pub mod greynoise;
+pub mod domain_risk;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
@@ -71,6 +74,9 @@ pub use wildcard_dns::{check_wildcard_dns, WildcardDnsRequest, WildcardDnsResult
 pub use cipher_suites::{check_cipher_suites, CipherSuitesRequest, CipherSuitesResult};
 pub use arc::{check_arc, ArcCheckRequest, ArcCheckResult};
 pub use traceroute::{check_traceroute, TracerouteRequest, TracerouteResult};
+pub use zone_transfer::{check_zone_transfer, ZoneTransferRequest, ZoneTransferResult};
+pub use greynoise::{check_ip_noise, GreyNoiseRequest, GreyNoiseResult};
+pub use domain_risk::{check_domain_risk, DomainRiskRequest, DomainRiskResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
