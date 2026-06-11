@@ -152,6 +152,9 @@ struct CheckCtParams {
     /// Port (default 443)
     #[serde(default = "default_port")]
     port: u16,
+    /// Expected CAs for unexpected cert detection (optional)
+    #[serde(default)]
+    expected_cas: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Clone)]
@@ -394,6 +397,27 @@ struct CheckComplianceParams {
     url: Option<String>,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckBgpRouteParams {
+    /// IP address to check (e.g. "8.8.8.8")
+    ip: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckDnsHijackingParams {
+    /// Domain to check
+    domain: String,
+    /// Record type (default "A")
+    #[serde(default)]
+    record_type: Option<String>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckSpfDeepParams {
+    /// Domain to analyze
+    domain: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -587,12 +611,13 @@ impl ShoheiServer {
     #[tool(description = "Check Certificate Transparency logs")]
     async fn check_ct(
         &self,
-        Parameters(CheckCtParams { hostname, port }): Parameters<CheckCtParams>,
+        Parameters(CheckCtParams { hostname, port, expected_cas }): Parameters<CheckCtParams>,
     ) -> String {
         let req = CtCheckRequest {
             hostname,
             port,
             timeout_secs: 10,
+            expected_cas,
         };
         match shohei::api::check_ct(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
@@ -1234,6 +1259,52 @@ impl ShoheiServer {
             timeout_secs: 15,
         };
         match shohei::api::check_compliance(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Query RIPE STAT for BGP route, AS name, prefix visibility, and routing status (no API key required)")]
+    async fn check_bgp_route(
+        &self,
+        Parameters(CheckBgpRouteParams { ip }): Parameters<CheckBgpRouteParams>,
+    ) -> String {
+        let req = shohei::api::BgpRouteRequest {
+            ip,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_bgp_route(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Compare authoritative DNS answers vs public resolvers to detect DNS hijacking, cache poisoning, or split-horizon configuration")]
+    async fn check_dns_hijacking(
+        &self,
+        Parameters(CheckDnsHijackingParams { domain, record_type }): Parameters<CheckDnsHijackingParams>,
+    ) -> String {
+        let req = shohei::api::DnsHijackingRequest {
+            domain,
+            record_type: record_type.unwrap_or_else(|| "A".to_string()),
+            timeout_secs: 10,
+        };
+        match shohei::api::check_dns_hijacking(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Recursively resolve SPF include chains and count total DNS lookups against RFC 7208 limit of 10 (no API key required)")]
+    async fn check_spf_deep(
+        &self,
+        Parameters(CheckSpfDeepParams { domain }): Parameters<CheckSpfDeepParams>,
+    ) -> String {
+        let req = shohei::api::SpfAnalysisRequest {
+            domain,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_spf_deep(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

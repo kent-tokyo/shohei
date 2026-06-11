@@ -4,11 +4,27 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Result, ShoheError};
 use crate::api::tls::{check_tls_chain, TlsCheckRequest};
 
+/// Default trusted CAs for unexpected certificate detection.
+fn default_trusted_cas() -> Vec<String> {
+    vec![
+        "Let's Encrypt".to_string(),
+        "DigiCert".to_string(),
+        "Sectigo".to_string(),
+        "GlobalSign".to_string(),
+        "Comodo".to_string(),
+        "Amazon".to_string(),
+        "Google Trust Services".to_string(),
+        "Microsoft".to_string(),
+        "GeoTrust".to_string(),
+        "RapidSSL".to_string(),
+    ]
+}
+
 /// Check Certificate Transparency logs for certificate inclusion.
 pub async fn check_ct(req: &CtCheckRequest) -> Result<CtCheckResult> {
     let scts = Vec::new();
     let mut log_entries = Vec::new();
-    let unexpected_certs = Vec::new();
+    let mut unexpected_certs = Vec::new();
     let mut scts = scts;
 
     // Step 1: Get certificate via TLS
@@ -26,12 +42,27 @@ pub async fn check_ct(req: &CtCheckRequest) -> Result<CtCheckResult> {
             // Step 2: Query crt.sh for certificate transparency
             match query_crt_sh(&req.hostname).await {
                 Ok(certs) => {
+                    let default_cas = default_trusted_cas();
+                    let trusted_cas = req.expected_cas.as_ref()
+                        .unwrap_or(&default_cas);
+
                     for cert in certs {
                         log_entries.push(CtLogEntry {
                             not_before: cert.get("notBefore").cloned(),
                             not_after: cert.get("notAfter").cloned(),
                             serial: cert.get("serial").cloned(),
+                            issuer_name: cert.get("issuer").cloned(),
                         });
+
+                        // Check if issuer is unexpected
+                        if let Some(issuer) = cert.get("issuer") {
+                            let is_expected = trusted_cas.iter()
+                                .any(|ca| issuer.to_lowercase().contains(&ca.to_lowercase()));
+                            if !is_expected && !issuer.is_empty() {
+                                let serial = cert.get("serial").cloned().unwrap_or_else(|| "unknown".to_string());
+                                unexpected_certs.push(format!("{} (issuer: {})", serial, issuer));
+                            }
+                        }
                     }
                     scts.push(ScTInfo {
                         version: Some(1),
@@ -90,6 +121,9 @@ async fn query_crt_sh(domain: &str) -> Result<Vec<std::collections::HashMap<Stri
                             if let Some(na) = item.get("not_after").and_then(|v| v.as_str()) {
                                 cert.insert("notAfter".to_string(), na.to_string());
                             }
+                            if let Some(issuer) = item.get("issuer_name").and_then(|v| v.as_str()) {
+                                cert.insert("issuer".to_string(), issuer.to_string());
+                            }
                             certs.push(cert);
                         }
                         Ok(certs)
@@ -111,6 +145,8 @@ pub struct CtCheckRequest {
     pub port: u16,
     #[serde(default = "default_timeout")]
     pub timeout_secs: u64,
+    #[serde(default)]
+    pub expected_cas: Option<Vec<String>>,
 }
 
 fn default_port() -> u16 { 443 }
@@ -144,4 +180,6 @@ pub struct CtLogEntry {
     pub not_after: Option<String>,
     #[serde(default)]
     pub serial: Option<String>,
+    #[serde(default)]
+    pub issuer_name: Option<String>,
 }

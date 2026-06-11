@@ -55,6 +55,9 @@ pub mod url_analysis;
 pub mod shodan_internetdb;
 pub mod ssh_fingerprint;
 pub mod compliance;
+pub mod bgp_route;
+pub mod dns_hijacking;
+pub mod spf_analysis;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult, DmarcPolicy};
@@ -99,6 +102,9 @@ pub use url_analysis::{check_url_analysis, UrlAnalysisRequest, UrlAnalysisResult
 pub use shodan_internetdb::{check_shodan_ip, ShodanInternetDbRequest, ShodanInternetDbResult};
 pub use ssh_fingerprint::{check_ssh_fingerprint, SshFingerprintRequest, SshFingerprintResult};
 pub use compliance::{check_compliance, ComplianceRequest, ComplianceResult};
+pub use bgp_route::{check_bgp_route, BgpRouteRequest, BgpRouteResult};
+pub use dns_hijacking::{check_dns_hijacking, DnsHijackingRequest, DnsHijackingResult};
+pub use spf_analysis::{check_spf_deep, SpfAnalysisRequest, SpfAnalysisResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

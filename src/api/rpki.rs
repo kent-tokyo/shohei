@@ -29,33 +29,26 @@ async fn check_rpki_validity(ip: &str) -> Result<RpkiCheckResult> {
 
     let client = Client::new();
 
-    // First, get IP info from ipinfo.io to retrieve ASN
-    let ipinfo_url = format!("https://ipinfo.io/{}/json", urlencoding::encode(ip));
-    let ip_info_response = client
-        .get(&ipinfo_url)
-        .timeout(std::time::Duration::from_secs(10))
-        .send()
-        .await;
-
-    let asn = match ip_info_response {
-        Ok(resp) => {
-            if let Ok(json) = resp.json::<serde_json::Value>().await {
-                json.get("org")
-                    .and_then(|v| v.as_str())
-                    .and_then(|org| org.split_whitespace().next())
-                    .and_then(|asn_str| asn_str.parse::<u32>().ok())
-            } else {
-                None
-            }
-        }
-        Err(_) => None,
+    // Get BGP route info from RIPE STAT to get actual prefix and ASN
+    let bgp_req = crate::api::BgpRouteRequest {
+        ip: ip.to_string(),
+        timeout_secs: 10,
     };
 
-    // Determine prefix CIDR (simplified)
-    let prefix = if ip.contains(':') {
-        format!("{}/64", ip)  // Simplified: assume /64 for IPv6
-    } else {
-        format!("{}/24", ip)  // Simplified: assume /24 for IPv4
+    let bgp_result = crate::api::check_bgp_route(&bgp_req).await.ok();
+    let asn = bgp_result.as_ref().and_then(|r| r.asn);
+    let prefix = bgp_result.as_ref().and_then(|r| r.prefix.clone());
+
+    // Fallback prefix if BGP lookup fails
+    let prefix = match prefix {
+        Some(p) => p,
+        None => {
+            if ip.contains(':') {
+                format!("{}/64", ip)  // Fallback: assume /64 for IPv6
+            } else {
+                format!("{}/24", ip)  // Fallback: assume /24 for IPv4
+            }
+        }
     };
 
     // Query Cloudflare RPKI API
