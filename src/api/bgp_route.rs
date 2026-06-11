@@ -30,6 +30,11 @@ pub struct BgpRouteResult {
 
 /// Check BGP route information for an IP address via RIPE STAT API.
 pub async fn check_bgp_route(req: &BgpRouteRequest) -> Result<BgpRouteResult> {
+    // Validate IP address format to prevent SSRF/injection
+    use std::str::FromStr;
+    std::net::IpAddr::from_str(&req.ip)
+        .map_err(|_| crate::error::ShoheError::Parse(format!("Invalid IP address: {}", req.ip)))?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .build()
@@ -54,6 +59,25 @@ pub async fn check_bgp_route(req: &BgpRouteRequest) -> Result<BgpRouteResult> {
             });
         }
     };
+
+    // Check response size to prevent memory exhaustion DoS
+    const MAX_RESPONSE_SIZE: u64 = 1024 * 500;  // 500 KB limit
+    if let Some(len) = prefix_response.content_length() {
+        if len > MAX_RESPONSE_SIZE {
+            return Ok(BgpRouteResult {
+                ip: req.ip.clone(),
+                asn: None,
+                asn_name: None,
+                prefix: None,
+                visibility_percent: None,
+                is_announced: false,
+                country: None,
+                registry: None,
+                bgp_peers: None,
+                error: Some("RIPE STAT response exceeds size limit".to_string()),
+            });
+        }
+    }
 
     let prefix_body = match prefix_response.text().await {
         Ok(b) => b,
@@ -138,6 +162,24 @@ pub async fn check_bgp_route(req: &BgpRouteRequest) -> Result<BgpRouteResult> {
             });
         }
     };
+
+    // Check response size to prevent memory exhaustion DoS
+    if let Some(len) = routing_response.content_length() {
+        if len > MAX_RESPONSE_SIZE {
+            return Ok(BgpRouteResult {
+                ip: req.ip.clone(),
+                asn,
+                asn_name,
+                prefix,
+                visibility_percent: None,
+                is_announced: false,
+                country,
+                registry,
+                bgp_peers: None,
+                error: Some("RIPE STAT routing response exceeds size limit".to_string()),
+            });
+        }
+    }
 
     let routing_body = match routing_response.text().await {
         Ok(b) => b,

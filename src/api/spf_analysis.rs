@@ -41,13 +41,16 @@ pub struct SpfAnalysisResult {
 
 /// Perform SPF recursive deep analysis.
 pub async fn check_spf_deep(req: &SpfAnalysisRequest) -> Result<SpfAnalysisResult> {
+    const MAX_SPF_DEPTH: u32 = 10;  // RFC 7208 §4.6.4 limit
+    const MAX_QUEUE_SIZE: usize = 1000;  // Prevent queue explosion
+
     let mut visited = HashSet::new();
     let mut work_queue = vec![(req.domain.clone(), 0u32)];
     let mut nodes = Vec::new();
     let mut total_lookups = 0u32;
 
     while let Some((domain, depth)) = work_queue.pop() {
-        if depth > 10 || visited.contains(&domain) {
+        if depth >= MAX_SPF_DEPTH || visited.contains(&domain) || work_queue.len() >= MAX_QUEUE_SIZE {
             continue;
         }
         visited.insert(domain.clone());
@@ -138,14 +141,14 @@ async fn resolve_spf_domain(domain: &str, depth: u32, timeout_secs: u64) -> Opti
         // Parse SPF record
         let parts: Vec<&str> = spf.split_whitespace().collect();
         for part in parts {
-            if part.starts_with("ip4:") {
+            if part.starts_with("ip4:") && part.len() > 4 {
                 ip4_cidrs.push(part[4..].to_string());
-            } else if part.starts_with("ip6:") {
+            } else if part.starts_with("ip6:") && part.len() > 4 {
                 ip6_cidrs.push(part[4..].to_string());
-            } else if part.starts_with("include:") {
+            } else if part.starts_with("include:") && part.len() > 8 {
                 let include_domain = &part[8..];
                 includes.push(include_domain.to_string());
-            } else if part.starts_with("redirect=") {
+            } else if part.starts_with("redirect=") && part.len() > 9 {
                 let redirect_domain = &part[9..];
                 includes.push(redirect_domain.to_string());
             }

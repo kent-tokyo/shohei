@@ -106,11 +106,20 @@ async fn query_crt_sh(domain: &str) -> Result<Vec<std::collections::HashMap<Stri
 
     match client.get(&url).timeout(std::time::Duration::from_secs(10)).send().await {
         Ok(response) => {
+            // Check response size to prevent memory exhaustion DoS
+            const MAX_RESPONSE_SIZE: u64 = 1024 * 500;  // 500 KB limit
+            if let Some(len) = response.content_length() {
+                if len > MAX_RESPONSE_SIZE {
+                    return Err(ShoheError::Parse("crt.sh response exceeds size limit".to_string()));
+                }
+            }
+
             match response.json::<serde_json::Value>().await {
                 Ok(value) => {
                     if let serde_json::Value::Array(arr) = value {
+                        const MAX_CERTS: usize = 1000;  // Prevent unbounded iteration
                         let mut certs = Vec::new();
-                        for item in arr {
+                        for item in arr.iter().take(MAX_CERTS) {
                             let mut cert = HashMap::new();
                             if let Some(id) = item.get("id").and_then(|v| v.as_number()) {
                                 cert.insert("serial".to_string(), id.to_string());

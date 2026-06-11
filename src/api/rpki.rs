@@ -26,6 +26,11 @@ pub async fn check_rpki(req: &RpkiCheckRequest) -> Result<RpkiCheckResult> {
 
 async fn check_rpki_validity(ip: &str) -> Result<RpkiCheckResult> {
     use reqwest::Client;
+    use std::str::FromStr;
+
+    // Validate IP address format to prevent SSRF/injection
+    std::net::IpAddr::from_str(ip)
+        .map_err(|_| crate::error::ShoheError::Parse(format!("Invalid IP address: {}", ip)))?;
 
     let client = Client::new();
 

@@ -39,6 +39,21 @@ pub struct DnsHijackingResult {
 
 /// Check for DNS hijacking by comparing authoritative vs public resolvers.
 pub async fn check_dns_hijacking(req: &DnsHijackingRequest) -> Result<DnsHijackingResult> {
+    // Validate record type to prevent DNS protocol violations
+    const ALLOWED_TYPES: &[&str] = &["A", "AAAA", "CNAME", "MX", "TXT", "NS"];
+    if !ALLOWED_TYPES.contains(&req.record_type.as_str()) {
+        return Ok(DnsHijackingResult {
+            domain: req.domain.clone(),
+            record_type: req.record_type.clone(),
+            is_consistent: false,
+            authoritative_answers: vec![],
+            resolver_answers: vec![],
+            discrepancies: vec![format!("Invalid record type: {}", req.record_type)],
+            risk_level: "error".to_string(),
+            error: Some(format!("Invalid record type: {}", req.record_type)),
+        });
+    }
+
     // Step 1: Get authoritative NS for domain
     let ns_req = crate::api::DnsCheckRequest {
         domain: req.domain.clone(),
@@ -103,10 +118,11 @@ pub async fn check_dns_hijacking(req: &DnsHijackingRequest) -> Result<DnsHijacki
         ..Default::default()
     };
 
-    let mut authoritative_answers = Vec::new();
+    const MAX_ANSWERS_PER_RESOLVER: usize = 100;  // Prevent unbounded collection
+    let mut authoritative_answers = Vec::with_capacity(10);
     if let Ok(results) = crate::api::check_dns(&auth_req).await {
         for result in results {
-            for answer in &result.answers {
+            for answer in result.answers.iter().take(MAX_ANSWERS_PER_RESOLVER - authoritative_answers.len()) {
                 match &answer.data {
                     crate::resolver::RecordData::A(ip) => authoritative_answers.push(ip.clone()),
                     crate::resolver::RecordData::Aaaa(ip) => authoritative_answers.push(ip.clone()),
@@ -141,10 +157,10 @@ pub async fn check_dns_hijacking(req: &DnsHijackingRequest) -> Result<DnsHijacki
             ..Default::default()
         };
 
-        let mut answers = Vec::new();
+        let mut answers = Vec::with_capacity(10);
         if let Ok(results) = crate::api::check_dns(&pub_req).await {
             for result in results {
-                for answer in &result.answers {
+                for answer in result.answers.iter().take(MAX_ANSWERS_PER_RESOLVER - answers.len()) {
                     match &answer.data {
                         crate::resolver::RecordData::A(addr) => answers.push(addr.clone()),
                         crate::resolver::RecordData::Aaaa(addr) => answers.push(addr.clone()),
