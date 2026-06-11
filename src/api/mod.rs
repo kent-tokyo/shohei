@@ -46,6 +46,9 @@ pub mod greynoise;
 pub mod domain_risk;
 pub mod techfingerprint;
 pub mod cve_lookup;
+pub mod typosquat;
+pub mod redirect_chain;
+pub mod parked_domain;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
@@ -81,6 +84,9 @@ pub use greynoise::{check_ip_noise, GreyNoiseRequest, GreyNoiseResult};
 pub use domain_risk::{check_domain_risk, DomainRiskRequest, DomainRiskResult};
 pub use techfingerprint::{check_tech_stack, TechFingerprintRequest, TechFingerprintResult};
 pub use cve_lookup::{check_cve, CveLookupRequest, CveLookupResult};
+pub use typosquat::{check_typosquatting, TyposquatRequest, TyposquatResult};
+pub use redirect_chain::{check_redirect_chain, RedirectChainRequest, RedirectChainResult};
+pub use parked_domain::{check_parked_domain, ParkedDomainRequest, ParkedDomainResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

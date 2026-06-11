@@ -322,6 +322,30 @@ struct CheckCveParams {
     max_results: Option<u32>,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckTyposquattingParams {
+    /// Domain to check for typosquatting variants (e.g. "google.com")
+    domain: String,
+    /// Maximum mutations to generate (default 200, max 500)
+    #[serde(default)]
+    max_mutations: Option<u32>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckRedirectChainParams {
+    /// URL to trace redirects for
+    url: String,
+    /// Maximum hops to follow (default 20)
+    #[serde(default)]
+    max_hops: Option<u32>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckParkedDomainParams {
+    /// Domain to check for parking indicators
+    domain: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -1024,6 +1048,53 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_cve(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect typosquatting variants of a domain")]
+    async fn check_typosquatting(
+        &self,
+        Parameters(CheckTyposquattingParams { domain, max_mutations }): Parameters<CheckTyposquattingParams>,
+    ) -> String {
+        let req = shohei::api::TyposquatRequest {
+            domain,
+            timeout_secs: 10,
+            max_mutations: max_mutations.unwrap_or(200),
+        };
+        match shohei::api::check_typosquatting(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Trace HTTP redirect chain from a URL")]
+    async fn check_redirect_chain(
+        &self,
+        Parameters(CheckRedirectChainParams { url, max_hops }): Parameters<CheckRedirectChainParams>,
+    ) -> String {
+        let req = shohei::api::RedirectChainRequest {
+            url,
+            timeout_secs: 10,
+            max_hops: max_hops.unwrap_or(20),
+        };
+        match shohei::api::check_redirect_chain(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check if a domain is parked for sale")]
+    async fn check_parked_domain(
+        &self,
+        Parameters(CheckParkedDomainParams { domain }): Parameters<CheckParkedDomainParams>,
+    ) -> String {
+        let req = shohei::api::ParkedDomainRequest {
+            domain,
+            timeout_secs: 10,
+        };
+        match shohei::api::check_parked_domain(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
