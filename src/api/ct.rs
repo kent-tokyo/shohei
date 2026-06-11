@@ -22,10 +22,9 @@ fn default_trusted_cas() -> Vec<String> {
 
 /// Check Certificate Transparency logs for certificate inclusion.
 pub async fn check_ct(req: &CtCheckRequest) -> Result<CtCheckResult> {
-    let scts = Vec::new();
+    let mut scts = Vec::new();
     let mut log_entries = Vec::new();
     let mut unexpected_certs = Vec::new();
-    let mut scts = scts;
 
     // Step 1: Get certificate via TLS
     let tls_req = TlsCheckRequest {
@@ -98,9 +97,41 @@ pub async fn check_ct(req: &CtCheckRequest) -> Result<CtCheckResult> {
     })
 }
 
-async fn query_crt_sh(domain: &str) -> Result<Vec<std::collections::HashMap<String, String>>> {
-    use std::collections::HashMap;
+/// Typed certificate entry from crt.sh API
+#[derive(Debug, Clone, Deserialize)]
+struct CrtShCertEntry {
+    #[serde(default)]
+    id: Option<u64>,
+    #[serde(default)]
+    not_before: Option<String>,
+    #[serde(default)]
+    not_after: Option<String>,
+    #[serde(default)]
+    issuer_name: Option<String>,
+}
 
+impl CrtShCertEntry {
+    /// Convert to HashMap for compatibility with existing code
+    fn to_hashmap(&self) -> std::collections::HashMap<String, String> {
+        use std::collections::HashMap;
+        let mut m = HashMap::new();
+        if let Some(id) = self.id {
+            m.insert("serial".to_string(), id.to_string());
+        }
+        if let Some(nb) = &self.not_before {
+            m.insert("notBefore".to_string(), nb.clone());
+        }
+        if let Some(na) = &self.not_after {
+            m.insert("notAfter".to_string(), na.clone());
+        }
+        if let Some(issuer) = &self.issuer_name {
+            m.insert("issuer".to_string(), issuer.clone());
+        }
+        m
+    }
+}
+
+async fn query_crt_sh(domain: &str) -> Result<Vec<std::collections::HashMap<String, String>>> {
     let url = format!("https://crt.sh/?q={}&output=json", urlencoding::encode(domain));
     let client = reqwest::Client::new();
 
@@ -114,31 +145,13 @@ async fn query_crt_sh(domain: &str) -> Result<Vec<std::collections::HashMap<Stri
                 }
             }
 
-            match response.json::<serde_json::Value>().await {
-                Ok(value) => {
-                    if let serde_json::Value::Array(arr) = value {
-                        const MAX_CERTS: usize = 1000;  // Prevent unbounded iteration
-                        let mut certs = Vec::new();
-                        for item in arr.iter().take(MAX_CERTS) {
-                            let mut cert = HashMap::new();
-                            if let Some(id) = item.get("id").and_then(|v| v.as_number()) {
-                                cert.insert("serial".to_string(), id.to_string());
-                            }
-                            if let Some(nb) = item.get("not_before").and_then(|v| v.as_str()) {
-                                cert.insert("notBefore".to_string(), nb.to_string());
-                            }
-                            if let Some(na) = item.get("not_after").and_then(|v| v.as_str()) {
-                                cert.insert("notAfter".to_string(), na.to_string());
-                            }
-                            if let Some(issuer) = item.get("issuer_name").and_then(|v| v.as_str()) {
-                                cert.insert("issuer".to_string(), issuer.to_string());
-                            }
-                            certs.push(cert);
-                        }
-                        Ok(certs)
-                    } else {
-                        Err(ShoheError::Parse("Invalid crt.sh response format".to_string()))
-                    }
+            match response.json::<Vec<CrtShCertEntry>>().await {
+                Ok(certs) => {
+                    const MAX_CERTS: usize = 1000;  // Prevent unbounded iteration
+                    Ok(certs.iter()
+                        .take(MAX_CERTS)
+                        .map(|cert| cert.to_hashmap())
+                        .collect())
                 }
                 Err(e) => Err(ShoheError::Transport(format!("Failed to parse crt.sh JSON: {}", e)))
             }

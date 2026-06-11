@@ -32,8 +32,20 @@ pub struct BgpRouteResult {
 pub async fn check_bgp_route(req: &BgpRouteRequest) -> Result<BgpRouteResult> {
     // Validate IP address format to prevent SSRF/injection
     use std::str::FromStr;
-    std::net::IpAddr::from_str(&req.ip)
-        .map_err(|_| crate::error::ShoheError::Parse(format!("Invalid IP address: {}", req.ip)))?;
+    if std::net::IpAddr::from_str(&req.ip).is_err() {
+        return Ok(BgpRouteResult {
+            ip: req.ip.clone(),
+            asn: None,
+            asn_name: None,
+            prefix: None,
+            visibility_percent: None,
+            is_announced: false,
+            country: None,
+            registry: None,
+            bgp_peers: None,
+            error: Some(format!("Invalid IP address: {}", req.ip)),
+        });
+    }
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
