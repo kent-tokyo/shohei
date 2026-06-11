@@ -1,6 +1,6 @@
 [package]
 name = "shohei"
-version = "1.5.0"
+version = "1.6.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Infrastructure diagnostics library: DNS, DNSSEC, TLS certificate inspection, email security, DNS propagation, and MCP-integrated AI agent support"
@@ -50,6 +50,7 @@ tokio-rustls = "0.26"
 x509-parser = "0.16"
 hex = "0.4"
 sha2 = "0.10"
+md5 = "0.7"
 rmcp = { version = "1.7", features = ["transport-io"] }
 schemars = "0.8"
 ratatui = { version = "0.29", optional = true }

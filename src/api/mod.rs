@@ -53,9 +53,11 @@ pub mod brand_impersonation;
 pub mod urlhaus;
 pub mod url_analysis;
 pub mod shodan_internetdb;
+pub mod ssh_fingerprint;
+pub mod compliance;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
-pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult};
+pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult, DmarcPolicy};
 pub use bench::{benchmark_latency, LatencyBenchRequest, BenchTransport, LatencyBenchResult};
 pub use tls::{check_tls_chain, TlsCheckRequest, TlsCheckResult, CertInfo, DaneTlsaResult};
 pub use mta_sts::{check_mta_sts, MtaStsRequest, MtaStsResult, MtaStsPolicy, MtaStsMode};
@@ -95,6 +97,8 @@ pub use brand_impersonation::{check_brand_impersonation, BrandImpersonationReque
 pub use urlhaus::{check_url_reputation, UrlhausRequest, UrlhausResult};
 pub use url_analysis::{check_url_analysis, UrlAnalysisRequest, UrlAnalysisResult};
 pub use shodan_internetdb::{check_shodan_ip, ShodanInternetDbRequest, ShodanInternetDbResult};
+pub use ssh_fingerprint::{check_ssh_fingerprint, SshFingerprintRequest, SshFingerprintResult};
+pub use compliance::{check_compliance, ComplianceRequest, ComplianceResult};
 
 // ── Transport enum ─────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

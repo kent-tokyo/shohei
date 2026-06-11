@@ -341,6 +341,9 @@ struct CheckRedirectChainParams {
     /// Maximum hops to follow (default 20)
     #[serde(default)]
     max_hops: Option<u32>,
+    /// Check domain age for each redirect hop (opt-in due to latency)
+    #[serde(default)]
+    check_domain_age: Option<bool>,
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Clone)]
@@ -371,6 +374,24 @@ struct CheckUrlAnalysisParams {
 struct CheckShodanIpParams {
     /// IP address to query (e.g. "8.8.8.8")
     ip: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckSshFingerprintParams {
+    /// Host to connect to (e.g. "github.com")
+    host: String,
+    /// SSH port (default 22)
+    #[serde(default)]
+    port: Option<u16>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CheckComplianceParams {
+    /// Domain to assess
+    domain: String,
+    /// URL for HTTP/HTTPS checks (optional)
+    #[serde(default)]
+    url: Option<String>,
 }
 
 #[derive(Clone)]
@@ -1100,12 +1121,13 @@ impl ShoheiServer {
     #[tool(description = "Trace HTTP redirect chain from a URL")]
     async fn check_redirect_chain(
         &self,
-        Parameters(CheckRedirectChainParams { url, max_hops }): Parameters<CheckRedirectChainParams>,
+        Parameters(CheckRedirectChainParams { url, max_hops, check_domain_age }): Parameters<CheckRedirectChainParams>,
     ) -> String {
         let req = shohei::api::RedirectChainRequest {
             url,
             timeout_secs: 10,
             max_hops: max_hops.unwrap_or(20),
+            check_domain_age: check_domain_age.unwrap_or(false),
         };
         match shohei::api::check_redirect_chain(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
@@ -1180,6 +1202,38 @@ impl ShoheiServer {
             timeout_secs: 10,
         };
         match shohei::api::check_shodan_ip(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Compute HASSH SSH fingerprint from server KEXINIT packet")]
+    async fn check_ssh_fingerprint(
+        &self,
+        Parameters(CheckSshFingerprintParams { host, port }): Parameters<CheckSshFingerprintParams>,
+    ) -> String {
+        let req = shohei::api::SshFingerprintRequest {
+            host,
+            port: port.unwrap_or(22),
+            timeout_secs: 10,
+        };
+        match shohei::api::check_ssh_fingerprint(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Assess domain compliance against CIS, PCI-DSS, HIPAA, and OWASP controls")]
+    async fn check_compliance(
+        &self,
+        Parameters(CheckComplianceParams { domain, url }): Parameters<CheckComplianceParams>,
+    ) -> String {
+        let req = shohei::api::ComplianceRequest {
+            domain,
+            url,
+            timeout_secs: 15,
+        };
+        match shohei::api::check_compliance(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

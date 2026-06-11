@@ -11,6 +11,8 @@ pub struct RedirectChainRequest {
     pub max_hops: u32,
     #[serde(default = "default_timeout")]
     pub timeout_secs: u64,
+    #[serde(default)]
+    pub check_domain_age: bool,
 }
 
 fn default_max_hops() -> u32 { 20 }
@@ -23,6 +25,8 @@ pub struct RedirectHop {
     pub status_code: u16,
     pub location: Option<String>,
     pub scheme_downgrade: bool,
+    #[serde(default)]
+    pub domain_age_days: Option<i64>,
 }
 
 /// Result of redirect chain tracing.
@@ -104,6 +108,7 @@ pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<Redirect
             status_code,
             location: location.clone(),
             scheme_downgrade,
+            domain_age_days: None,
         });
 
         // Stop if not a redirect
@@ -120,6 +125,7 @@ pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<Redirect
                     status_code: 0,
                     location: None,
                     scheme_downgrade: false,
+                    domain_age_days: None,
                 });
                 break;
             }
@@ -130,6 +136,56 @@ pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<Redirect
     }
 
     let final_url = hops.last().map(|h| h.url.clone()).unwrap_or(original_url.clone());
+
+    // Backfill domain age if requested
+    if req.check_domain_age {
+        use url::Url;
+        use futures_util::future::join_all;
+        use std::collections::HashMap;
+
+        // Extract unique hostnames
+        let mut unique_hosts = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for hop in &hops {
+            if let Ok(parsed) = Url::parse(&hop.url) {
+                if let Some(host) = parsed.host_str() {
+                    if seen.insert(host.to_string()) {
+                        unique_hosts.push(host.to_string());
+                    }
+                }
+            }
+        }
+
+        // Query domain age for all unique hosts in parallel
+        let age_tasks: Vec<_> = unique_hosts.iter().map(|host| {
+            let host = host.clone();
+            async move {
+                let req = crate::api::DomainRiskRequest {
+                    domain: host.clone(),
+                    timeout_secs: req.timeout_secs,
+                };
+                let age = match crate::api::check_domain_risk(&req).await {
+                    Ok(result) => result.domain_age_days,
+                    Err(_) => None,
+                };
+                (host, age)
+            }
+        }).collect();
+
+        let age_results = join_all(age_tasks).await;
+        let age_map: HashMap<String, Option<i64>> = age_results.into_iter().collect();
+
+        // Backfill domain ages into hops
+        for hop in &mut hops {
+            if let Ok(parsed) = Url::parse(&hop.url) {
+                if let Some(host) = parsed.host_str() {
+                    if let Some(&age) = age_map.get(host) {
+                        hop.domain_age_days = age;
+                    }
+                }
+            }
+        }
+    }
 
     Ok(RedirectChainResult {
         original_url,
