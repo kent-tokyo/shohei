@@ -78,25 +78,26 @@ pub async fn check_dns_hijacking(req: &DnsHijackingRequest) -> Result<DnsHijacki
         }
     };
 
-    // Extract first NS server
-    let mut authoritative_ip: Option<String> = None;
+    // Collect all resolvable NS servers (up to 3 for redundancy)
+    let mut ns_ips = Vec::new();
     for result in &ns_results {
         for answer in &result.answers {
             if let crate::resolver::RecordData::Ns(ns_domain) = &answer.data {
-                // Resolve NS hostname to IP
                 if let Ok(ip) = crate::api::helpers::resolve_hostname_to_ip(ns_domain, req.timeout_secs).await {
-                    authoritative_ip = Some(ip.to_string());
-                    break;
+                    ns_ips.push(ip.to_string());
+                    if ns_ips.len() >= 3 {  // Try up to 3 NSs for redundancy
+                        break;
+                    }
                 }
             }
         }
-        if authoritative_ip.is_some() {
+        if ns_ips.len() >= 3 {
             break;
         }
     }
 
-    // If we couldn't get authoritative NS, fall back to generic public resolver check
-    if authoritative_ip.is_none() {
+    // If we couldn't get any authoritative NS, return unable to verify state
+    if ns_ips.is_empty() {
         return Ok(DnsHijackingResult {
             domain: req.domain.clone(),
             record_type: req.record_type.clone(),
@@ -104,34 +105,42 @@ pub async fn check_dns_hijacking(req: &DnsHijackingRequest) -> Result<DnsHijacki
             authoritative_answers: vec![],
             resolver_answers: vec![],
             discrepancies: vec!["Unable to resolve authoritative nameserver".to_string()],
-            risk_level: "unknown".to_string(),
+            risk_level: "unable_to_verify".to_string(),
             error: Some("No authoritative NS resolved".to_string()),
         });
     }
 
-    // Step 2: Query authoritative nameserver
-    let auth_req = crate::api::DnsCheckRequest {
-        domain: req.domain.clone(),
-        record_types: vec![req.record_type.clone()],
-        transport: crate::api::Transport::Server(authoritative_ip.clone().unwrap()),
-        timeout_secs: req.timeout_secs,
-        ..Default::default()
-    };
+    // Step 2: Query authoritative nameserver(s) — try first one that responds
+    let mut auth_req_result: Option<crate::api::DnsQueryResult> = None;
+    for ns_ip in &ns_ips {
+        let auth_req = crate::api::DnsCheckRequest {
+            domain: req.domain.clone(),
+            record_types: vec![req.record_type.clone()],
+            transport: crate::api::Transport::Server(ns_ip.clone()),
+            timeout_secs: req.timeout_secs,
+            ..Default::default()
+        };
+
+        if let Ok(mut results) = crate::api::check_dns(&auth_req).await {
+            if !results.is_empty() {
+                auth_req_result = Some(results.remove(0));
+                break;
+            }
+        }
+    }
 
     const MAX_ANSWERS_PER_RESOLVER: usize = 100;  // Prevent unbounded collection
     let mut authoritative_answers = Vec::with_capacity(10);
-    if let Ok(results) = crate::api::check_dns(&auth_req).await {
-        for result in results {
-            for answer in result.answers.iter().take(MAX_ANSWERS_PER_RESOLVER - authoritative_answers.len()) {
-                match &answer.data {
-                    crate::resolver::RecordData::A(ip) => authoritative_answers.push(ip.clone()),
-                    crate::resolver::RecordData::Aaaa(ip) => authoritative_answers.push(ip.clone()),
-                    crate::resolver::RecordData::Cname(cname) => authoritative_answers.push(cname.clone()),
-                    crate::resolver::RecordData::Txt(txt) => {
-                        authoritative_answers.push(txt.join(" "));
-                    }
-                    _ => {}
+    if let Some(result) = &auth_req_result {
+        for answer in result.answers.iter().take(MAX_ANSWERS_PER_RESOLVER) {
+            match &answer.data {
+                crate::resolver::RecordData::A(ip) => authoritative_answers.push(ip.clone()),
+                crate::resolver::RecordData::Aaaa(ip) => authoritative_answers.push(ip.clone()),
+                crate::resolver::RecordData::Cname(cname) => authoritative_answers.push(cname.clone()),
+                crate::resolver::RecordData::Txt(txt) => {
+                    authoritative_answers.push(txt.join(" "));
                 }
+                _ => {}
             }
         }
     }
@@ -191,10 +200,12 @@ pub async fn check_dns_hijacking(req: &DnsHijackingRequest) -> Result<DnsHijacki
     let is_consistent = discrepancies.is_empty();
     let risk_level = if is_consistent {
         "none".to_string()
+    } else if authoritative_answers.is_empty() && resolver_answers.iter().all(|r| r.answers.is_empty()) {
+        "no_data".to_string()  // Both auth and resolvers returned no data
     } else if authoritative_answers.is_empty() {
-        "possible_hijacking".to_string()
+        "no_authoritative_data".to_string()  // Auth returned nothing but resolvers have data
     } else {
-        "confirmed_discrepancy".to_string()
+        "confirmed_discrepancy".to_string()  // Actual inconsistency detected
     };
 
     Ok(DnsHijackingResult {

@@ -223,7 +223,21 @@ pub async fn check_bgp_route(req: &BgpRouteRequest) -> Result<BgpRouteResult> {
         .as_bool()
         .unwrap_or(false);
 
+    // Try v4 first, fallback to v6 for IPv6 addresses
     let visibility_percent = if let Some(visibility) = routing_data["visibility"]["v4"].as_object() {
+        let ris_peers_seeing = visibility["ris_peers_seeing"]
+            .as_u64()
+            .unwrap_or(0);
+        let total_ris_peers = visibility["total_ris_peers_seeing"]
+            .as_u64()
+            .unwrap_or(1);
+
+        if total_ris_peers > 0 {
+            Some((ris_peers_seeing as f64 / total_ris_peers as f64) * 100.0)
+        } else {
+            None
+        }
+    } else if let Some(visibility) = routing_data["visibility"]["v6"].as_object() {
         let ris_peers_seeing = visibility["ris_peers_seeing"]
             .as_u64()
             .unwrap_or(0);
@@ -240,9 +254,11 @@ pub async fn check_bgp_route(req: &BgpRouteRequest) -> Result<BgpRouteResult> {
         None
     };
 
+    // Try v4 first, fallback to v6
     let bgp_peers = routing_data["visibility"]["v4"]["ris_peers_seeing"]
         .as_u64()
-        .map(|n| n as u32);
+        .map(|n| n as u32)
+        .or_else(|| routing_data["visibility"]["v6"]["ris_peers_seeing"].as_u64().map(|n| n as u32));
 
     Ok(BgpRouteResult {
         ip: req.ip.clone(),

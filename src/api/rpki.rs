@@ -44,15 +44,19 @@ async fn check_rpki_validity(ip: &str) -> Result<RpkiCheckResult> {
     let asn = bgp_result.as_ref().and_then(|r| r.asn);
     let prefix = bgp_result.as_ref().and_then(|r| r.prefix.clone());
 
-    // Fallback prefix if BGP lookup fails
+    // Require BGP data for accurate prefix; don't guess
     let prefix = match prefix {
         Some(p) => p,
         None => {
-            if ip.contains(':') {
-                format!("{}/64", ip)  // Fallback: assume /64 for IPv6
-            } else {
-                format!("{}/24", ip)  // Fallback: assume /24 for IPv4
-            }
+            // Return error instead of making incorrect assumptions about prefix length
+            return Ok(RpkiCheckResult {
+                ip: ip.to_string(),
+                asn,
+                prefix: None,
+                roa_state: "unable_to_determine".to_string(),
+                roa_valid: false,
+                error: Some("Could not determine prefix length from BGP — RPKI validation unreliable".to_string()),
+            });
         }
     };
 
