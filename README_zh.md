@@ -7,9 +7,9 @@
 
 [English](README.md) | [日本語](README_ja.md)
 
-**shohei** v2.2.0 — **140 MCP 工具 × 56 模块**的 Rust 基础设施诊断库。全面的安全、OSINT、威胁情报和治理功能。DNS、TLS、邮件安全、DNS 传播、IPv6 双栈、安全头自动检查。**API 密钥零需求 — 完全免费、开源 API 专用**。可集成到 Rust 项目，也可与 AI 代理协作。
+**shohei** v2.3.0 — **153 MCP 工具 × 57 模块**的 Rust 基础设施诊断库。全面的安全、OSINT、威胁情报和治理功能。DNS、TLS、邮件安全、DNS 传播、IPv6 双栈、安全头自动检查。**API 密钥零需求 — 完全免费、开源 API 专用**。可集成到 Rust 项目，也可与 AI 代理协作。
 
-- **Claude MCP 服务器** — 从 Claude Desktop 调用 **140 个工具**。告诉 Claude「检查 example.com 的安全性」即可自动诊断 TLS、邮件、DNS、IPv6、RPKI、威胁情报
+- **Claude MCP 服务器** — 从 Claude Desktop 调用 **153 个工具**。告诉 Claude「检查 example.com 的安全性」即可自动诊断 TLS、邮件、DNS、IPv6、RPKI、威胁情报
 - **TLS 证书检查** — DANE/TLSA 验证（RFC 6698 全部 6 种组合）、证书链分析、OCSP 响应钉扎检测、TLS 版本检测（1.0～1.3）、暗号套件枚举
 - **邮件安全评分** — MX/SPF/DKIM/DMARC/BIMI/MTA-STS/TLS-RPT 验证，0～100 合规度评分
 - **安全头审计** — CSP、HSTS、X-Frame-Options、X-Content-Type-Options、Referrer-Policy、Permissions-Policy 检查和风险评估
