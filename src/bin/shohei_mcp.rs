@@ -1003,6 +1003,54 @@ struct NetworkExposureScoreParams {
     target: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CloudMetadataExposureParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct AzureBlobExposureParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct GcsBucketExposureParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CorsPolicyParams {
+    /// URL to check
+    url: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct SecurityTxtParams {
+    /// Domain to check
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct JwtSecurityParams {
+    /// JWT token to analyze
+    token: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CookieSecurityParams {
+    /// URL to check
+    url: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CspAdvancedParams {
+    /// URL to check
+    url: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -3214,6 +3262,102 @@ impl ShoheiServer {
     ) -> String {
         let req = shohei::api::NetworkExposureScoreRequest { target, timeout_secs: 10 };
         match shohei::api::check_network_exposure_score(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check if 169.254.169.254 IMDS endpoint is accessible")]
+    async fn check_cloud_metadata_exposure(
+        &self,
+        Parameters(CloudMetadataExposureParams { domain }): Parameters<CloudMetadataExposureParams>,
+    ) -> String {
+        let req = shohei::api::CloudMetadataExposureRequest { domain, timeout_secs: 10 };
+        match shohei::api::check_cloud_metadata_exposure(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect Azure Blob Storage CNAME exposure")]
+    async fn check_azure_blob_exposure(
+        &self,
+        Parameters(AzureBlobExposureParams { domain }): Parameters<AzureBlobExposureParams>,
+    ) -> String {
+        let req = shohei::api::AzureBlobExposureRequest { domain, timeout_secs: 10 };
+        match shohei::api::check_azure_blob_exposure(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect Google Cloud Storage CNAME exposure")]
+    async fn check_gcs_bucket_exposure(
+        &self,
+        Parameters(GcsBucketExposureParams { domain }): Parameters<GcsBucketExposureParams>,
+    ) -> String {
+        let req = shohei::api::GcsBucketExposureRequest { domain, timeout_secs: 10 };
+        match shohei::api::check_gcs_bucket_exposure(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Analyze CORS policy from HTTP response headers")]
+    async fn check_cors_policy(
+        &self,
+        Parameters(CorsPolicyParams { url }): Parameters<CorsPolicyParams>,
+    ) -> String {
+        let req = shohei::api::CorsPolicyRequest { url, timeout_secs: 10 };
+        match shohei::api::check_cors_policy(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Fetch and parse .well-known/security.txt (RFC 9116)")]
+    async fn check_security_txt(
+        &self,
+        Parameters(SecurityTxtParams { domain }): Parameters<SecurityTxtParams>,
+    ) -> String {
+        let req = shohei::api::SecurityTxtRequest { domain, timeout_secs: 10 };
+        match shohei::api::check_security_txt(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Parse and analyze JWT token security (alg, exp, none attack)")]
+    async fn check_jwt_security(
+        &self,
+        Parameters(JwtSecurityParams { token }): Parameters<JwtSecurityParams>,
+    ) -> String {
+        let req = shohei::api::JwtSecurityRequest { token };
+        match shohei::api::check_jwt_security(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Inspect HTTP Set-Cookie headers for Secure, HttpOnly, SameSite flags")]
+    async fn check_cookie_security(
+        &self,
+        Parameters(CookieSecurityParams { url }): Parameters<CookieSecurityParams>,
+    ) -> String {
+        let req = shohei::api::CookieSecurityRequest { url, timeout_secs: 10 };
+        match shohei::api::check_cookie_security(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Deep CSP analysis: unsafe-inline, unsafe-eval, wildcard sources")]
+    async fn check_csp_advanced(
+        &self,
+        Parameters(CspAdvancedParams { url }): Parameters<CspAdvancedParams>,
+    ) -> String {
+        let req = shohei::api::CspAdvancedRequest { url, timeout_secs: 10 };
+        match shohei::api::check_csp_advanced(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

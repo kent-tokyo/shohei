@@ -68,6 +68,8 @@ pub mod url_intel;
 pub mod cloud_exposure;
 pub mod username_osint;
 pub mod network_reputation;
+pub mod cloud_security;
+pub mod identity_security;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult, DmarcPolicy};
@@ -207,6 +209,17 @@ pub use network_reputation::{
     check_asn_reputation, check_bgp_hijack_history, check_network_exposure_score,
     AsnReputationRequest, AsnReputationResult, BgpHijackHistoryRequest, BgpHijackHistoryResult,
     NetworkExposureScoreRequest, NetworkExposureScoreResult,
+};
+pub use cloud_security::{
+    check_cloud_metadata_exposure, check_azure_blob_exposure, check_gcs_bucket_exposure, check_cors_policy, check_security_txt,
+    CloudMetadataExposureRequest, CloudMetadataExposureResult, AzureBlobExposureRequest, AzureBlobExposureResult,
+    GcsBucketExposureRequest, GcsBucketExposureResult, CorsPolicyRequest, CorsPolicyResult,
+    SecurityTxtRequest, SecurityTxtResult,
+};
+pub use identity_security::{
+    check_jwt_security, check_cookie_security, check_csp_advanced,
+    JwtSecurityRequest, JwtSecurityResult, CookieSecurityRequest, CookieSecurityResult,
+    CspAdvancedRequest, CspAdvancedResult,
 };
 
 // ── Transport enum ─────────────────────────────────────────────────────────
