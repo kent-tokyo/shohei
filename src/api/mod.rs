@@ -63,6 +63,7 @@ pub mod trust_scoring;
 pub mod osint;
 pub mod governance;
 pub mod privacy;
+pub mod crypto;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult, DmarcPolicy};
@@ -168,6 +169,20 @@ pub use privacy::{
     ConsentManagementRequest, ConsentManagementResult, CryptographicSignatureRequest, CryptographicSignatureResult,
     AuditTrailImmutabilityRequest, AuditTrailImmutabilityResult, PrivacyImpactAssessmentRequest, PrivacyImpactAssessmentResult,
     PrivacyBreachNotificationRequest, PrivacyBreachNotificationResult,
+};
+pub use crypto::{
+    request_rfc3161_timestamp, validate_timestamp, add_sigstore_rekor_entry, verify_rekor_entry,
+    generate_zk_proof, verify_zk_proof, create_escrow_agreement, release_escrow,
+    notarize_document, verify_notarization, manage_cryptographic_key, rotate_key, bind_audit_trail,
+    integrate_hsm, verify_crypto_compliance,
+    Rfc3161TimestampRequest, Rfc3161TimestampResult, TimestampValidationRequest, TimestampValidationResult,
+    SignstoreRekorEntryRequest, SignstoreRekorEntryResult, RekorEntryVerificationRequest, RekorEntryVerificationResult,
+    ZkProofGenerationRequest, ZkProofGenerationResult, ZkProofVerificationRequest, ZkProofVerificationResult,
+    EscrowAgreementRequest, EscrowAgreementResult, EscrowReleaseRequest, EscrowReleaseResult,
+    DigitalNotarizationRequest, DigitalNotarizationResult, NotarizationVerificationRequest, NotarizationVerificationResult,
+    KeyManagementRequest, KeyManagementResult, KeyRotationRequest, KeyRotationResult,
+    AuditTrailBindingRequest, AuditTrailBindingResult,
+    HsmIntegrationRequest, HsmIntegrationResult, CryptographicComplianceRequest, CryptographicComplianceResult,
 };
 
 // ── Transport enum ─────────────────────────────────────────────────────────

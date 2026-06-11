@@ -819,6 +819,100 @@ struct PrivacyBreachNotificationParams {
     breach_type: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct Rfc3161TimestampParams {
+    /// Document hash
+    document_hash: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct TimestampValidationParams {
+    /// Timestamp token
+    timestamp_token: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct SignstoreRekorParams {
+    /// Artifact hash
+    artifact_hash: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct RekorVerificationParams {
+    /// Entry UUID
+    entry_uuid: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct ZkProofGenerationParams {
+    /// Circuit type: merkle_proof | range_proof | authentication
+    circuit_type: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct ZkProofVerificationParams {
+    /// Proof
+    proof: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct EscrowAgreementParams {
+    /// Payer
+    payer: String,
+    /// Payee
+    payee: String,
+    /// Amount
+    amount: u64,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct EscrowReleaseParams {
+    /// Escrow ID
+    escrow_id: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DigitalNotarizationParams {
+    /// Document hash
+    document_hash: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct NotarizationVerificationParams {
+    /// Notarization ID
+    notarization_id: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct KeyManagementParams {
+    /// Key type: RSA | ECDSA | EdDSA
+    key_type: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct KeyRotationParams {
+    /// Key ID to rotate
+    key_id: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct AuditTrailBindingParams {
+    /// Number of audit entries
+    audit_entries: usize,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct HsmIntegrationParams {
+    /// Operation type: sign | encrypt | decrypt | generate_key
+    operation: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CryptographicComplianceParams {
+    /// Domain to verify
+    domain: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -2617,6 +2711,239 @@ impl ShoheiServer {
             breach_type,
         };
         match shohei::api::notify_privacy_breach(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Request RFC 3161 timestamp from TSA (timestamp authority)")]
+    async fn request_rfc3161_timestamp(
+        &self,
+        Parameters(Rfc3161TimestampParams { document_hash }): Parameters<Rfc3161TimestampParams>,
+    ) -> String {
+        let req = shohei::api::Rfc3161TimestampRequest {
+            document_hash,
+            hash_algorithm: "SHA256".to_string(),
+            tsa_url: None,
+        };
+        match shohei::api::request_rfc3161_timestamp(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Validate RFC 3161 timestamp token and TSA signature")]
+    async fn validate_timestamp(
+        &self,
+        Parameters(TimestampValidationParams { timestamp_token }): Parameters<TimestampValidationParams>,
+    ) -> String {
+        let req = shohei::api::TimestampValidationRequest {
+            timestamp_token,
+            document_hash: "".to_string(),
+        };
+        match shohei::api::validate_timestamp(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Add entry to Sigstore Rekor transparency log (immutable audit trail)")]
+    async fn add_sigstore_rekor_entry(
+        &self,
+        Parameters(SignstoreRekorParams { artifact_hash }): Parameters<SignstoreRekorParams>,
+    ) -> String {
+        let req = shohei::api::SignstoreRekorEntryRequest {
+            artifact_hash,
+            signature: "".to_string(),
+            certificate: "".to_string(),
+        };
+        match shohei::api::add_sigstore_rekor_entry(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Verify Sigstore Rekor entry consistency and inclusion proofs")]
+    async fn verify_rekor_entry(
+        &self,
+        Parameters(RekorVerificationParams { entry_uuid }): Parameters<RekorVerificationParams>,
+    ) -> String {
+        let req = shohei::api::RekorEntryVerificationRequest {
+            entry_uuid,
+            merkle_tree_leaf_hash: "".to_string(),
+        };
+        match shohei::api::verify_rekor_entry(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Generate zero-knowledge proof (merkle, range, authentication proofs)")]
+    async fn generate_zk_proof(
+        &self,
+        Parameters(ZkProofGenerationParams { circuit_type }): Parameters<ZkProofGenerationParams>,
+    ) -> String {
+        let req = shohei::api::ZkProofGenerationRequest {
+            statement: "".to_string(),
+            witness: "".to_string(),
+            circuit_type,
+        };
+        match shohei::api::generate_zk_proof(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Verify zero-knowledge proof (correctness and security)")]
+    async fn verify_zk_proof(
+        &self,
+        Parameters(ZkProofVerificationParams { proof }): Parameters<ZkProofVerificationParams>,
+    ) -> String {
+        let req = shohei::api::ZkProofVerificationRequest {
+            proof,
+            verification_key: "".to_string(),
+            statement: "".to_string(),
+        };
+        match shohei::api::verify_zk_proof(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Create escrow agreement with release conditions")]
+    async fn create_escrow_agreement(
+        &self,
+        Parameters(EscrowAgreementParams { payer, payee, amount }): Parameters<EscrowAgreementParams>,
+    ) -> String {
+        let req = shohei::api::EscrowAgreementRequest {
+            payer,
+            payee,
+            amount,
+            release_conditions: Vec::new(),
+        };
+        match shohei::api::create_escrow_agreement(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Release funds from escrow upon condition satisfaction")]
+    async fn release_escrow(
+        &self,
+        Parameters(EscrowReleaseParams { escrow_id }): Parameters<EscrowReleaseParams>,
+    ) -> String {
+        let req = shohei::api::EscrowReleaseRequest {
+            escrow_id,
+            release_reason: "Conditions satisfied".to_string(),
+        };
+        match shohei::api::release_escrow(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Notarize document digitally (blockchain, TSA, or ledger)")]
+    async fn notarize_document(
+        &self,
+        Parameters(DigitalNotarizationParams { document_hash }): Parameters<DigitalNotarizationParams>,
+    ) -> String {
+        let req = shohei::api::DigitalNotarizationRequest {
+            document_hash,
+            document_type: "".to_string(),
+            notary_type: "public_blockchain".to_string(),
+        };
+        match shohei::api::notarize_document(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Verify digital notarization (integrity and authenticity)")]
+    async fn verify_notarization(
+        &self,
+        Parameters(NotarizationVerificationParams { notarization_id }): Parameters<NotarizationVerificationParams>,
+    ) -> String {
+        let req = shohei::api::NotarizationVerificationRequest {
+            notarization_id,
+            document_hash: "".to_string(),
+        };
+        match shohei::api::verify_notarization(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Generate and manage cryptographic keys (RSA, ECDSA, EdDSA)")]
+    async fn manage_cryptographic_key(
+        &self,
+        Parameters(KeyManagementParams { key_type }): Parameters<KeyManagementParams>,
+    ) -> String {
+        let req = shohei::api::KeyManagementRequest {
+            key_type,
+            key_size: 2048,
+            usage: "signing".to_string(),
+        };
+        match shohei::api::manage_cryptographic_key(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Rotate cryptographic key with transition period")]
+    async fn rotate_key(
+        &self,
+        Parameters(KeyRotationParams { key_id }): Parameters<KeyRotationParams>,
+    ) -> String {
+        let req = shohei::api::KeyRotationRequest {
+            key_id,
+            new_key_size: None,
+        };
+        match shohei::api::rotate_key(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Bind audit trail entries cryptographically (hash chain, merkle tree)")]
+    async fn bind_audit_trail(
+        &self,
+        Parameters(AuditTrailBindingParams { audit_entries }): Parameters<AuditTrailBindingParams>,
+    ) -> String {
+        let req = shohei::api::AuditTrailBindingRequest {
+            audit_entries,
+            binding_type: "hash_chain".to_string(),
+        };
+        match shohei::api::bind_audit_trail(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Perform cryptographic operations via Hardware Security Module (HSM)")]
+    async fn integrate_hsm(
+        &self,
+        Parameters(HsmIntegrationParams { operation }): Parameters<HsmIntegrationParams>,
+    ) -> String {
+        let req = shohei::api::HsmIntegrationRequest {
+            operation,
+            hsm_slot: 0,
+        };
+        match shohei::api::integrate_hsm(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Verify cryptographic compliance (FIPS140-2/3, Common Criteria)")]
+    async fn verify_crypto_compliance(
+        &self,
+        Parameters(CryptographicComplianceParams { domain }): Parameters<CryptographicComplianceParams>,
+    ) -> String {
+        let req = shohei::api::CryptographicComplianceRequest {
+            domain,
+            standard: "FIPS140-3".to_string(),
+        };
+        match shohei::api::verify_crypto_compliance(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
