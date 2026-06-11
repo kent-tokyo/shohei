@@ -84,6 +84,24 @@ pub async fn check_url_reputation(req: &UrlhausRequest) -> Result<UrlhausResult>
         });
     }
 
+    // Check content length to prevent OOM on malicious responses
+    const MAX_RESPONSE_SIZE: u64 = 1024 * 100;  // 100 KB limit
+    if let Some(len) = response.content_length() {
+        if len > MAX_RESPONSE_SIZE {
+            return Ok(UrlhausResult {
+                url: req.url.clone(),
+                is_malicious: false,
+                url_status: "unknown".to_string(),
+                threat: None,
+                tags: vec![],
+                date_added: None,
+                urlhaus_reference: None,
+                message: "Response too large".to_string(),
+                error: Some("Response exceeds size limit".to_string()),
+            });
+        }
+    }
+
     let body = match response.text().await {
         Ok(b) => b,
         Err(e) => {

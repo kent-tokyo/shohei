@@ -44,7 +44,8 @@ pub struct RedirectChainResult {
 /// Trace HTTP redirect chain for a URL.
 pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<RedirectChainResult> {
     let original_url = req.url.clone();
-    let max_hops = req.max_hops as usize;
+    const MAX_HOPS_LIMIT: u32 = 100;  // Cap to prevent resource exhaustion
+    let max_hops = std::cmp::min(req.max_hops, MAX_HOPS_LIMIT) as usize;
 
     // Build client with no automatic redirects
     let client = reqwest::Client::builder()
@@ -157,7 +158,7 @@ pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<Redirect
         }
 
         // Query domain age for all unique hosts in parallel
-        let age_tasks: Vec<_> = unique_hosts.iter().map(|host| {
+        let age_tasks: Vec<_> = unique_hosts.iter().take(10).map(|host| {  // Limit to 10 concurrent tasks
             let host = host.clone();
             async move {
                 let req = crate::api::DomainRiskRequest {
@@ -172,7 +173,14 @@ pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<Redirect
             }
         }).collect();
 
-        let age_results = join_all(age_tasks).await;
+        // Add overall timeout to prevent backfill from blocking indefinitely
+        let age_results = match tokio::time::timeout(
+            std::time::Duration::from_secs(req.timeout_secs),
+            join_all(age_tasks),
+        ).await {
+            Ok(results) => results,
+            Err(_) => Vec::new(),  // Timeout: skip backfill, continue with results
+        };
         let age_map: HashMap<String, Option<i64>> = age_results.into_iter().collect();
 
         // Backfill domain ages into hops

@@ -57,9 +57,9 @@ pub async fn check_compliance(req: &ComplianceRequest) -> Result<ComplianceResul
         timeout_secs: req.timeout_secs,
     };
 
-    let (tls_result, email_result, http_result, caa_result) = tokio::join!(
-        crate::api::check_tls_chain(&tls_req),
-        crate::api::check_email_security(&email_req),
+    let (tls_result, email_result, http_result, caa_result) = (
+        crate::api::check_tls_chain(&tls_req).await,
+        crate::api::check_email_security(&email_req).await,
         async {
             if let Some(url) = &req.url {
                 let http_req = crate::api::HttpCheckRequest {
@@ -71,8 +71,8 @@ pub async fn check_compliance(req: &ComplianceRequest) -> Result<ComplianceResul
             } else {
                 None
             }
-        },
-        crate::api::check_caa(&caa_req),
+        }.await,
+        crate::api::check_caa(&caa_req).await,
     );
 
     let mut items = Vec::new();
@@ -162,13 +162,13 @@ pub async fn check_compliance(req: &ComplianceRequest) -> Result<ComplianceResul
             status: status.to_string(),
             evidence: format!("HSTS present: {}", http.hsts_present),
         });
-    } else if req.url.is_none() {
+    } else {
         items.push(ComplianceItem {
             control_id: "OWASP-A05-HSTS".to_string(),
             framework: "OWASP".to_string(),
             description: "HTTP Strict-Transport-Security header present".to_string(),
-            status: "not_checked".to_string(),
-            evidence: "No URL provided".to_string(),
+            status: if req.url.is_none() { "not_checked" } else { "fail" }.to_string(),
+            evidence: if req.url.is_none() { "No URL provided".to_string() } else { "HTTP check failed".to_string() },
         });
     }
 
@@ -185,13 +185,13 @@ pub async fn check_compliance(req: &ComplianceRequest) -> Result<ComplianceResul
             status: status.to_string(),
             evidence: format!("CSP header present: {}", csp_ok),
         });
-    } else if req.url.is_none() {
+    } else {
         items.push(ComplianceItem {
             control_id: "OWASP-A05-CSP".to_string(),
             framework: "OWASP".to_string(),
             description: "Content-Security-Policy header present".to_string(),
-            status: "not_checked".to_string(),
-            evidence: "No URL provided".to_string(),
+            status: if req.url.is_none() { "not_checked" } else { "fail" }.to_string(),
+            evidence: if req.url.is_none() { "No URL provided".to_string() } else { "HTTP check failed".to_string() },
         });
     }
 
@@ -208,13 +208,13 @@ pub async fn check_compliance(req: &ComplianceRequest) -> Result<ComplianceResul
             status: status.to_string(),
             evidence: format!("X-Frame-Options present: {}", xfo_ok),
         });
-    } else if req.url.is_none() {
+    } else {
         items.push(ComplianceItem {
             control_id: "OWASP-A05-XFO".to_string(),
             framework: "OWASP".to_string(),
             description: "X-Frame-Options header present".to_string(),
-            status: "not_checked".to_string(),
-            evidence: "No URL provided".to_string(),
+            status: if req.url.is_none() { "not_checked" } else { "fail" }.to_string(),
+            evidence: if req.url.is_none() { "No URL provided".to_string() } else { "HTTP check failed".to_string() },
         });
     }
 

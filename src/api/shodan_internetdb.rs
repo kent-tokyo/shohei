@@ -74,6 +74,22 @@ pub async fn check_shodan_ip(req: &ShodanInternetDbRequest) -> Result<ShodanInte
         });
     }
 
+    // Check content length to prevent OOM on malicious responses
+    const MAX_RESPONSE_SIZE: u64 = 1024 * 100;  // 100 KB limit
+    if let Some(len) = response.content_length() {
+        if len > MAX_RESPONSE_SIZE {
+            return Ok(ShodanInternetDbResult {
+                ip: req.ip.clone(),
+                open_ports: vec![],
+                hostnames: vec![],
+                cpes: vec![],
+                tags: vec![],
+                vulns: vec![],
+                error: Some("Response exceeds size limit".to_string()),
+            });
+        }
+    }
+
     let body = match response.text().await {
         Ok(b) => b,
         Err(e) => {

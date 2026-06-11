@@ -63,6 +63,7 @@ pub async fn check_starttls(req: &StartTlsCheckRequest) -> Result<StartTlsCheckR
 }
 
 async fn check_smtp_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
+    const MAX_LINE_LEN: usize = 8192;  // Prevent unbounded memory allocation
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
@@ -73,6 +74,9 @@ async fn check_smtp_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
         .is_err()
     {
         return false;
+    }
+    if line.len() > MAX_LINE_LEN {
+        return false;  // Line too long: reject
     }
 
     // Send EHLO command
@@ -87,6 +91,9 @@ async fn check_smtp_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
         match timeout(Duration::from_secs(timeout_secs), reader.read_line(&mut line)).await {
             Ok(Ok(0)) => break,
             Ok(Ok(_)) => {
+                if line.len() > MAX_LINE_LEN || response.len() + line.len() > MAX_LINE_LEN {
+                    return false;  // Total response too long: reject
+                }
                 response.push_str(&line);
                 // SMTP: continue-line starts with space/dash, final line starts with status code followed by space
                 if line.len() > 4 && line.chars().nth(3) == Some(' ') {
@@ -101,6 +108,7 @@ async fn check_smtp_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
 }
 
 async fn check_imap_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
+    const MAX_LINE_LEN: usize = 8192;
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
@@ -110,6 +118,9 @@ async fn check_imap_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
         .await
         .is_err()
     {
+        return false;
+    }
+    if line.len() > MAX_LINE_LEN {
         return false;
     }
 
@@ -125,6 +136,9 @@ async fn check_imap_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
         match timeout(Duration::from_secs(timeout_secs), reader.read_line(&mut line)).await {
             Ok(Ok(0)) => break,
             Ok(Ok(_)) => {
+                if line.len() > MAX_LINE_LEN || response.len() + line.len() > MAX_LINE_LEN {
+                    return false;
+                }
                 response.push_str(&line);
                 // IMAP: response ends when we see our tag (A001) followed by status
                 if line.starts_with("A001 ") {
@@ -139,6 +153,7 @@ async fn check_imap_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
 }
 
 async fn check_pop3_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
+    const MAX_LINE_LEN: usize = 8192;
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
@@ -148,6 +163,9 @@ async fn check_pop3_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
         .await
         .is_err()
     {
+        return false;
+    }
+    if line.len() > MAX_LINE_LEN {
         return false;
     }
 
@@ -163,6 +181,9 @@ async fn check_pop3_starttls(stream: TcpStream, timeout_secs: u64) -> bool {
         match timeout(Duration::from_secs(timeout_secs), reader.read_line(&mut line)).await {
             Ok(Ok(0)) => break,
             Ok(Ok(_)) => {
+                if line.len() > MAX_LINE_LEN || response.len() + line.len() > MAX_LINE_LEN {
+                    return false;
+                }
                 response.push_str(&line);
                 // POP3: multi-line response ends with ".\r\n"
                 if line.trim() == "." {

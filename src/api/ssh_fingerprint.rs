@@ -137,7 +137,8 @@ pub async fn check_ssh_fingerprint(req: &SshFingerprintRequest) -> Result<SshFin
     }
 
     let packet_len = u32::from_be_bytes(len_buf) as usize;
-    if packet_len > 1024 * 1024 {
+    const MAX_SSH_PACKET: usize = 32 * 1024;  // SSH KEXINIT typically ~200 bytes; 32KB is safe limit
+    if packet_len > MAX_SSH_PACKET {
         return Ok(SshFingerprintResult {
             host: req.host.clone(),
             port: req.port,
