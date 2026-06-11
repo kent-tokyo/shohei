@@ -7,11 +7,11 @@
 
 [日本語](README_ja.md) | [中文](README_zh.md)
 
-**shohei** v1.5.0+ — **Rust infrastructure diagnostics library with MCP server for Claude**. Automate DNS, TLS, email security, domain health, IP reputation, CDN detection, and DNS delegation checks via AI agents. DNSSEC chain validation, DANE/TLSA, modern protocols, IPv6 dual-stack, and security headers built in. **Use in Rust projects or hand to Claude for autonomous diagnosis.**
+**shohei** v1.4.0 — **Rust infrastructure diagnostics library with MCP server for Claude**. 41 diagnostic tools covering DNS, TLS, email security, domain health, IP reputation, web reconnaissance, threat intelligence, and more. Automate checks via AI agents. DNSSEC chain validation, DANE/TLSA, modern protocols, IPv6 dual-stack, security headers, technology fingerprinting, CVE lookup, typosquatting detection, and redirect analysis built in. **Use in Rust projects or hand to Claude for autonomous diagnosis.**
 
 ### Core Diagnostics (v1.0+)
 
-- **MCP server for Claude** — 40+ diagnostic tools; ask "Check example.com's TLS certificate, DNSBL status, IPv6 support, and security headers" for autonomous analysis
+- **MCP server for Claude** — 41 diagnostic tools; ask "Check example.com's TLS certificate, DNSBL status, IPv6 support, technology stack, CVE vulnerabilities, typosquatting variants, and redirect chain" for autonomous analysis
 - **TLS certificate inspection** — DANE/TLSA validation (RFC 6698), chain analysis, OCSP responder detection, IPv6 support, OCSP stapling detection, TLS version probing (1.0–1.3), cipher suite enumeration
 - **Email security scoring** — MX records, SPF, DKIM, DMARC, BIMI, MTA-STS, TLS-RPT validation with 0–100 compliance score + issue linting
 - **IP reputation** — DNSBL checks against Spamhaus, Barracuda, SORBS; reverse DNS (PTR) + forward-confirmed reverse DNS (FCrDNS)
@@ -34,20 +34,28 @@
 - **Wildcard DNS detection** — Probe random subdomains to detect misconfigured `*.domain` records
 - **Traceroute / hop analysis** — Multi-platform hop-by-hop latency measurement (Linux/macOS/Windows)
 
-### Advanced Features
+### Advanced Features (v1.0+)
 
 - **DoH, DoT, and DoQ** — DNS-over-HTTPS, DNS-over-TLS, and DNS-over-QUIC built in
-- **Zone transfer (AXFR)** — dump an entire zone from an authoritative server with `--axfr`
+- **Zone transfer (AXFR)** — dump an entire zone from an authoritative server; detect critical misconfiguration
 - **N-way server comparison** — diff any number of resolvers simultaneously with `--compare`
 - **Multiple record types** — `--type a --type aaaa --type mx` queries all types concurrently in a single invocation
 - **Stdin and file batch mode** — pipe a list of domains or use `-f domains.txt`
 - **JSON output** — pipe-friendly for scripting and automation
 - **Watch mode** — auto-refresh at a set interval with `--watch`
 - **Interactive TUI** — browse records, DNSSEC chain, and trace in a single terminal window (`--features tui`)
-- **HTTP protocol detection** — Automatically detect HTTP/1.1, HTTP/2 version in responses
+- **HTTP protocol detection** — Automatically detect HTTP/1.1, HTTP/2, HTTP/3 version in responses
 - **RPKI/ROA validation** — BGP origin authorization checks via Cloudflare API
 - **ARC authentication** — Email chain authentication record validation (DNS-level)
 - **TLS-RPT checking** — SMTP TLS Reporting Policy record discovery and parsing
+
+### Web Reconnaissance & Threat Intelligence (v1.3–1.4)
+
+- **Technology stack fingerprinting** — Identify web server, language runtime, CMS (WordPress/Drupal), frameworks from HTTP headers
+- **CVE lookup via NVD API** — Search for known vulnerabilities (no API key required); integrates with tech fingerprinting
+- **Typosquatting detection** — Generate 200+ domain variants (TLD swap, missing char, transposition, homoglyph, etc.); parallel DNS resolution to find live squats
+- **URL redirect chain tracing** — Follow HTTP redirects hop-by-hop; detect HTTPS→HTTP downgrades and redirect loops
+- **Parked domain detection** — Identify domains parked for sale via header signatures (Sedo, GoDaddy, Bodis, etc.)
 
 ## Why shohei?
 
@@ -90,8 +98,15 @@ Most infrastructure tools are CLI-only. **shohei is built for AI agents:**
 | DNS-over-QUIC (DoQ) | **✓** | | | | ✓ | | |
 | JSON output | ✓ | ✓ | ✓ | ✓ | ✓ | | |
 | Interactive TUI | **✓** | | | | | | |
+| **Technology stack fingerprinting** | **✓** | | | | | | |
+| **CVE lookup (no API key)** | **✓** | | | | | | |
+| **Typosquatting detection** | **✓** | | | | | | |
+| **URL redirect chain tracing** | **✓** | | | | | | |
+| **Parked domain detection** | **✓** | | | | | | |
 
 > dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC-validating resolver; drill = ldns-based
+> 
+> **v1.4.0 additions**: Web reconnaissance (typosquatting, redirect analysis, parked domain detection), threat intelligence (CVE lookup via NVD API, technology fingerprinting), and IP classification (GreyNoise). All features API-key-free.
 
 
 ## Installation
@@ -102,7 +117,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-shohei = "1.0"
+shohei = "1.4"
 ```
 
 Then import and use:
