@@ -445,6 +445,18 @@ struct MalwareSourcesParams {
     ip: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DomainTrustScoreParams {
+    /// Domain to assess
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct IpTrustScoreParams {
+    /// IP address to assess
+    ip: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -1381,6 +1393,36 @@ impl ShoheiServer {
         Parameters(MalwareSourcesParams { ip }): Parameters<MalwareSourcesParams>,
     ) -> String {
         match shohei::api::malware_detected_sources(&ip, 30).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Calculate 5-dimensional domain trust score (0-100): DNS consistency, TLS validity, threat reputation, registration age, infrastructure maturity")]
+    async fn check_domain_trust_score(
+        &self,
+        Parameters(DomainTrustScoreParams { domain }): Parameters<DomainTrustScoreParams>,
+    ) -> String {
+        let req = shohei::api::DomainTrustScoreRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::check_domain_trust_score(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Calculate 5-dimensional IP trust score (0-100): reverse DNS, TLS presence, threat reputation, BGP status, RPKI validity")]
+    async fn check_ip_trust_score(
+        &self,
+        Parameters(IpTrustScoreParams { ip }): Parameters<IpTrustScoreParams>,
+    ) -> String {
+        let req = shohei::api::IpTrustScoreRequest {
+            ip,
+            timeout_secs: 30,
+        };
+        match shohei::api::check_ip_trust_score(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

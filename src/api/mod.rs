@@ -59,6 +59,7 @@ pub mod bgp_route;
 pub mod dns_hijacking;
 pub mod spf_analysis;
 pub mod threat_intelligence;
+pub mod trust_scoring;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult, DmarcPolicy};
@@ -109,6 +110,10 @@ pub use spf_analysis::{check_spf_deep, SpfAnalysisRequest, SpfAnalysisResult};
 pub use threat_intelligence::{
     check_threat_intel_aggregate, threat_intel_risk_score, phishing_detection_aggregate, malware_detected_sources,
     ThreatIntelRequest, ThreatIntelligenceSummary, ThreatRiskScore, PhishingDetectionSummary, MalwareSourcesList,
+};
+pub use trust_scoring::{
+    check_domain_trust_score, check_ip_trust_score,
+    DomainTrustScoreRequest, IpTrustScoreRequest, TrustScore, DimensionScores,
 };
 
 // ── Transport enum ─────────────────────────────────────────────────────────
