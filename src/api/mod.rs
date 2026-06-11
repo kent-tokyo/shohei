@@ -118,8 +118,20 @@ pub use trust_scoring::{
 };
 pub use osint::{
     enumerate_subdomains, enrich_whois, map_dns_threats, assess_dns_takeover_risk,
+    bruteforce_subdomains, detect_typosquats, enrich_ip_whois, analyze_domain_age,
+    get_certificate_history, map_threat_actor_infra, analyze_dns_history,
+    get_ip_geolocation, lookup_asn, detect_whois_privacy, assess_email_spoofing_risk,
+    validate_tls_cert, detect_infrastructure_overlap, fingerprint_tech_stack, analyze_domain_reputation,
     SubdomainEnumerationRequest, SubdomainEnumerationResult, WhoisEnrichmentRequest, WhoisEnrichmentResult,
     DnsThreatMappingRequest, DnsThreatMappingResult, DnsTakeoverRiskRequest, DnsTakeoverRiskResult,
+    SubdomainBruteforceRequest, SubdomainBruteforceResult, TyposquatDetectionRequest, TyposquatDetectionResult,
+    IpWhoisEnrichmentRequest, IpWhoisEnrichmentResult, DomainAgeTimelineRequest, DomainAgeAnalysis,
+    CertificateHistoryRequest, CertificateHistoryResult, ThreatActorInfraRequest, ThreatActorInfraResult,
+    DnsHistoryRequest, DnsHistoryResult,
+    IpGeolocationRequest, IpGeolocationResult, AsnLookupRequest, AsnLookupResult,
+    WhoisPrivacyDetectionRequest, WhoisPrivacyDetectionResult, EmailSpoofingRiskRequest, EmailSpoofingRiskResult,
+    TlsCertValidationRequest, TlsCertValidationResult, InfrastructureOverlapRequest, InfrastructureOverlapResult,
+    TechStackFingerprintingRequest, TechStackResult, DomainReputationAnalysisRequest, DomainReputationAnalysisResult,
 };
 
 // ── Transport enum ─────────────────────────────────────────────────────────

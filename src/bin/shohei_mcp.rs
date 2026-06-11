@@ -481,6 +481,96 @@ struct DnsTakeoverRiskParams {
     domain: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct SubdomainBruteforceParams {
+    /// Domain to brute-force
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct TyposquatDetectionParams {
+    /// Domain to check for typosquats
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct IpWhoisEnrichmentParams {
+    /// IP address to enrich
+    ip: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DomainAgeTimelineParams {
+    /// Domain to analyze
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct CertificateHistoryParams {
+    /// Domain to check certificate history
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct ThreatActorInfraParams {
+    /// Domain to map threat infrastructure
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DnsHistoryParams {
+    /// Domain to analyze DNS history
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct IpGeolocationParams {
+    /// IP address to geolocate
+    ip: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct AsnLookupParams {
+    /// IP address to look up ASN
+    ip: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct WhoisPrivacyDetectionParams {
+    /// Domain to check for WHOIS privacy
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct EmailSpoofingRiskParams {
+    /// Domain to assess for email spoofing risk
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct TlsCertValidationParams {
+    /// Domain to validate TLS certificate
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct InfrastructureOverlapParams {
+    /// List of domains to check for infrastructure overlap
+    domains: Vec<String>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct TechStackFingerprintingParams {
+    /// Domain to fingerprint technology stack
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DomainReputationAnalysisParams {
+    /// Domain to analyze reputation
+    domain: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -1507,6 +1597,231 @@ impl ShoheiServer {
             timeout_secs: 30,
         };
         match shohei::api::assess_dns_takeover_risk(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Brute-force common subdomain prefixes (www, mail, api, admin, staging, etc.)")]
+    async fn bruteforce_subdomains(
+        &self,
+        Parameters(SubdomainBruteforceParams { domain }): Parameters<SubdomainBruteforceParams>,
+    ) -> String {
+        let req = shohei::api::SubdomainBruteforceRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::bruteforce_subdomains(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect typosquat domain variants (character omission, swaps, vowel substitution)")]
+    async fn detect_typosquats(
+        &self,
+        Parameters(TyposquatDetectionParams { domain }): Parameters<TyposquatDetectionParams>,
+    ) -> String {
+        let req = shohei::api::TyposquatDetectionRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::detect_typosquats(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Enrich IP address with WHOIS, BGP, and ASN information")]
+    async fn enrich_ip_whois(
+        &self,
+        Parameters(IpWhoisEnrichmentParams { ip }): Parameters<IpWhoisEnrichmentParams>,
+    ) -> String {
+        let req = shohei::api::IpWhoisEnrichmentRequest {
+            ip,
+            timeout_secs: 30,
+        };
+        match shohei::api::enrich_ip_whois(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Analyze domain age and registration timeline (new/young/established/legacy)")]
+    async fn analyze_domain_age(
+        &self,
+        Parameters(DomainAgeTimelineParams { domain }): Parameters<DomainAgeTimelineParams>,
+    ) -> String {
+        let req = shohei::api::DomainAgeTimelineRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::analyze_domain_age(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Retrieve domain certificate history from Certificate Transparency logs")]
+    async fn get_certificate_history(
+        &self,
+        Parameters(CertificateHistoryParams { domain }): Parameters<CertificateHistoryParams>,
+    ) -> String {
+        let req = shohei::api::CertificateHistoryRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::get_certificate_history(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Map threat actor infrastructure (IPs, nameservers, ASNs) and threat scoring")]
+    async fn map_threat_actor_infra(
+        &self,
+        Parameters(ThreatActorInfraParams { domain }): Parameters<ThreatActorInfraParams>,
+    ) -> String {
+        let req = shohei::api::ThreatActorInfraRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::map_threat_actor_infra(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Analyze current DNS configuration as historical snapshot for forensics")]
+    async fn analyze_dns_history(
+        &self,
+        Parameters(DnsHistoryParams { domain }): Parameters<DnsHistoryParams>,
+    ) -> String {
+        let req = shohei::api::DnsHistoryRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::analyze_dns_history(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Get IP geolocation: country, region, city, coordinates, timezone, ISP")]
+    async fn get_ip_geolocation(
+        &self,
+        Parameters(IpGeolocationParams { ip }): Parameters<IpGeolocationParams>,
+    ) -> String {
+        let req = shohei::api::IpGeolocationRequest {
+            ip,
+            timeout_secs: 30,
+        };
+        match shohei::api::get_ip_geolocation(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Look up ASN (Autonomous System Number) and organization for IP address")]
+    async fn lookup_asn(
+        &self,
+        Parameters(AsnLookupParams { ip }): Parameters<AsnLookupParams>,
+    ) -> String {
+        let req = shohei::api::AsnLookupRequest {
+            ip,
+            timeout_secs: 30,
+        };
+        match shohei::api::lookup_asn(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect WHOIS privacy protection (redacted/anonymized registrant information)")]
+    async fn detect_whois_privacy(
+        &self,
+        Parameters(WhoisPrivacyDetectionParams { domain }): Parameters<WhoisPrivacyDetectionParams>,
+    ) -> String {
+        let req = shohei::api::WhoisPrivacyDetectionRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::detect_whois_privacy(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Assess email spoofing risk (SPF/DKIM/DMARC configuration analysis)")]
+    async fn assess_email_spoofing_risk(
+        &self,
+        Parameters(EmailSpoofingRiskParams { domain }): Parameters<EmailSpoofingRiskParams>,
+    ) -> String {
+        let req = shohei::api::EmailSpoofingRiskRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::assess_email_spoofing_risk(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Validate TLS certificate: issuer, signature algorithm, expiry, trust level")]
+    async fn validate_tls_cert(
+        &self,
+        Parameters(TlsCertValidationParams { domain }): Parameters<TlsCertValidationParams>,
+    ) -> String {
+        let req = shohei::api::TlsCertValidationRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::validate_tls_cert(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Detect infrastructure overlap between multiple domains (shared IPs, nameservers, ASNs)")]
+    async fn detect_infrastructure_overlap(
+        &self,
+        Parameters(InfrastructureOverlapParams { domains }): Parameters<InfrastructureOverlapParams>,
+    ) -> String {
+        let req = shohei::api::InfrastructureOverlapRequest {
+            domains,
+            timeout_secs: 30,
+        };
+        match shohei::api::detect_infrastructure_overlap(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Fingerprint domain technology stack (web servers, frameworks, languages, tools)")]
+    async fn fingerprint_tech_stack(
+        &self,
+        Parameters(TechStackFingerprintingParams { domain }): Parameters<TechStackFingerprintingParams>,
+    ) -> String {
+        let req = shohei::api::TechStackFingerprintingRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::fingerprint_tech_stack(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Analyze domain reputation: trust score, health, threats, age, email security")]
+    async fn analyze_domain_reputation(
+        &self,
+        Parameters(DomainReputationAnalysisParams { domain }): Parameters<DomainReputationAnalysisParams>,
+    ) -> String {
+        let req = shohei::api::DomainReputationAnalysisRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::analyze_domain_reputation(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
