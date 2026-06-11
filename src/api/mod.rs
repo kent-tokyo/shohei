@@ -61,6 +61,7 @@ pub mod spf_analysis;
 pub mod threat_intelligence;
 pub mod trust_scoring;
 pub mod osint;
+pub mod governance;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult, DmarcPolicy};
@@ -132,6 +133,26 @@ pub use osint::{
     WhoisPrivacyDetectionRequest, WhoisPrivacyDetectionResult, EmailSpoofingRiskRequest, EmailSpoofingRiskResult,
     TlsCertValidationRequest, TlsCertValidationResult, InfrastructureOverlapRequest, InfrastructureOverlapResult,
     TechStackFingerprintingRequest, TechStackResult, DomainReputationAnalysisRequest, DomainReputationAnalysisResult,
+};
+pub use governance::{
+    define_policy, add_domain_blocklist, add_ip_blocklist, add_allowlist, set_rate_limit_policy,
+    create_approval_gate, query_audit_logs, generate_compliance_report, set_tool_call_control,
+    classify_risk, quarantine_targets, audit_access_control, create_governance_workflow,
+    alert_policy_violation, check_data_residency, verify_encryption_status, create_policy_exception,
+    verify_audit_trail, measure_policy_effectiveness, get_incident_response_playbook,
+    assess_security_posture, run_breach_simulation,
+    PolicyDefinitionRequest, PolicyDefinitionResult, DomainBlocklistRequest, DomainBlocklistResult,
+    IpReputationBlocklistRequest, IpReputationBlocklistResult, AllowlistRequest, AllowlistResult,
+    RateLimitPolicyRequest, RateLimitPolicyResult, ApprovalGateRequest, ApprovalGateResult,
+    AuditLogQueryRequest, AuditLogQueryResult, ComplianceReportRequest, ComplianceReportResult,
+    ToolCallControlRequest, ToolCallControlResult, RiskClassificationRequest, RiskClassificationResult,
+    QuarantineRequest, QuarantineResult, AccessControlAuditRequest, AccessControlAuditResult,
+    WorkflowOrchestratorRequest, WorkflowOrchestratorResult,
+    PolicyViolationAlertRequest, PolicyViolationAlertResult, DataResidencyComplianceRequest, DataResidencyComplianceResult,
+    EncryptionStatusRequest, EncryptionStatusResult, PolicyExceptionRequest, PolicyExceptionResult,
+    AuditTrailVerificationRequest, AuditTrailVerificationResult, PolicyEffectivenessRequest, PolicyEffectivenessResult,
+    IncidentResponsePlaybookRequest, IncidentResponsePlaybookResult,
+    SecurityPostureAssessmentRequest, SecurityPostureAssessmentResult, BreachSimulationRequest, BreachSimulationResult,
 };
 
 // ── Transport enum ─────────────────────────────────────────────────────────

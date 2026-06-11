@@ -571,6 +571,158 @@ struct DomainReputationAnalysisParams {
     domain: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct PolicyDefinitionParams {
+    /// Policy name
+    policy_name: String,
+    /// Policy type: blocklist | allowlist | rate_limit | approval_gate
+    policy_type: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DomainBlocklistParams {
+    /// Domains to block
+    domains: Vec<String>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct IpBlocklistParams {
+    /// IPs to block
+    ips: Vec<String>,
+    /// Threat level: low | medium | high | critical
+    threat_level: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct AllowlistParams {
+    /// Domains to whitelist
+    domains: Vec<String>,
+    /// Reason for allowlisting
+    reason: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct RateLimitPolicyParams {
+    /// User ID
+    user_id: String,
+    /// Requests per minute
+    requests_per_minute: u32,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct ApprovalGateParams {
+    /// Operation type
+    operation: String,
+    /// Requester name
+    requester: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct AuditLogQueryParams {
+    /// Number of days to query
+    #[serde(default = "default_audit_days")]
+    days: u32,
+}
+
+fn default_audit_days() -> u32 { 30 }
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct ComplianceReportParams {
+    /// Compliance framework: SOC2 | ISO27001 | HIPAA | GDPR | PCI-DSS
+    framework: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct ToolCallControlParams {
+    /// Tool name to control
+    tool_name: String,
+    /// Comma-separated allowed user IDs
+    #[serde(default)]
+    allowed_users: Option<String>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct RiskClassificationParams {
+    /// Domain or IP to classify
+    target: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct QuarantineParams {
+    /// Targets to quarantine
+    targets: Vec<String>,
+    /// Reason for quarantine
+    reason: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct PolicyViolationAlertParams {
+    /// Domain causing violation
+    domain: String,
+    /// Violation type
+    violation_type: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DataResidencyComplianceParams {
+    /// Domain to check
+    domain: String,
+    /// Required region: EU | US | APAC | CA
+    required_region: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct EncryptionStatusParams {
+    /// Domain to verify
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct PolicyExceptionParams {
+    /// Target domain/IP
+    target: String,
+    /// Exception type: temporary | permanent
+    exception_type: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct AuditTrailVerificationParams {
+    /// Domain to verify
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct PolicyEffectivenessParams {
+    /// Days to analyze
+    #[serde(default = "default_effectiveness_days")]
+    days: u32,
+}
+
+fn default_effectiveness_days() -> u32 { 30 }
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct IncidentResponsePlaybookParams {
+    /// Incident type: data_breach | malware | ransomware | ddos
+    incident_type: String,
+    /// Severity: low | medium | high | critical
+    #[serde(default = "default_severity")]
+    severity: String,
+}
+
+fn default_severity() -> String { "high".to_string() }
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct SecurityPostureAssessmentParams {
+    /// Domain to assess
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct BreachSimulationParams {
+    /// Simulation type: phishing | credential_theft | data_exfil | lateral_movement
+    simulation_type: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -1822,6 +1974,322 @@ impl ShoheiServer {
             timeout_secs: 30,
         };
         match shohei::api::analyze_domain_reputation(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Define governance policy (blocklist, allowlist, rate limit, approval gate)")]
+    async fn define_policy(
+        &self,
+        Parameters(PolicyDefinitionParams { policy_name, policy_type }): Parameters<PolicyDefinitionParams>,
+    ) -> String {
+        let req = shohei::api::PolicyDefinitionRequest {
+            policy_name,
+            policy_type,
+            rules: Vec::new(),
+            enabled: true,
+        };
+        match shohei::api::define_policy(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Add domains to blocklist (malicious, phishing, spam, malware)")]
+    async fn add_domain_blocklist(
+        &self,
+        Parameters(DomainBlocklistParams { domains }): Parameters<DomainBlocklistParams>,
+    ) -> String {
+        let req = shohei::api::DomainBlocklistRequest {
+            domains,
+            reason: None,
+            expires_at: None,
+        };
+        match shohei::api::add_domain_blocklist(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Add IPs to reputation blocklist with threat level classification")]
+    async fn add_ip_blocklist(
+        &self,
+        Parameters(IpBlocklistParams { ips, threat_level }): Parameters<IpBlocklistParams>,
+    ) -> String {
+        let req = shohei::api::IpReputationBlocklistRequest {
+            ips,
+            threat_level,
+            reason: None,
+        };
+        match shohei::api::add_ip_blocklist(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Add domains to allowlist (trusted, verified partners)")]
+    async fn add_allowlist(
+        &self,
+        Parameters(AllowlistParams { domains, reason }): Parameters<AllowlistParams>,
+    ) -> String {
+        let req = shohei::api::AllowlistRequest {
+            domains,
+            reason,
+            trusted_until: None,
+        };
+        match shohei::api::add_allowlist(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Set rate limit policy for user (requests per minute/hour/day)")]
+    async fn set_rate_limit_policy(
+        &self,
+        Parameters(RateLimitPolicyParams { user_id, requests_per_minute }): Parameters<RateLimitPolicyParams>,
+    ) -> String {
+        let req = shohei::api::RateLimitPolicyRequest {
+            user_id,
+            requests_per_minute,
+            requests_per_hour: requests_per_minute * 60,
+            requests_per_day: requests_per_minute * 1440,
+        };
+        match shohei::api::set_rate_limit_policy(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Create approval gate for sensitive operations (requires 2+ approvals)")]
+    async fn create_approval_gate(
+        &self,
+        Parameters(ApprovalGateParams { operation, requester }): Parameters<ApprovalGateParams>,
+    ) -> String {
+        let req = shohei::api::ApprovalGateRequest {
+            operation,
+            requester,
+            justification: "Governance operation".to_string(),
+            urgency: "medium".to_string(),
+        };
+        match shohei::api::create_approval_gate(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Query audit logs for user actions and system events")]
+    async fn query_audit_logs(
+        &self,
+        Parameters(AuditLogQueryParams { days }): Parameters<AuditLogQueryParams>,
+    ) -> String {
+        let req = shohei::api::AuditLogQueryRequest {
+            user: None,
+            action: None,
+            days,
+        };
+        match shohei::api::query_audit_logs(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Generate compliance report (SOC2, ISO27001, HIPAA, GDPR, PCI-DSS)")]
+    async fn generate_compliance_report(
+        &self,
+        Parameters(ComplianceReportParams { framework }): Parameters<ComplianceReportParams>,
+    ) -> String {
+        let req = shohei::api::ComplianceReportRequest {
+            framework,
+            period: "monthly".to_string(),
+        };
+        match shohei::api::generate_compliance_report(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Set tool call access control (restrict by user, domain, or rate limit)")]
+    async fn set_tool_call_control(
+        &self,
+        Parameters(ToolCallControlParams { tool_name, allowed_users }): Parameters<ToolCallControlParams>,
+    ) -> String {
+        let users: Vec<String> = allowed_users
+            .map(|u| u.split(',').map(|s| s.trim().to_string()).collect())
+            .unwrap_or_default();
+
+        let req = shohei::api::ToolCallControlRequest {
+            tool_name,
+            allowed_users: users,
+            allowed_domains: None,
+            max_calls_per_day: None,
+        };
+        match shohei::api::set_tool_call_control(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Classify domain/IP by risk level (critical, high, medium, low, unknown)")]
+    async fn classify_risk(
+        &self,
+        Parameters(RiskClassificationParams { target }): Parameters<RiskClassificationParams>,
+    ) -> String {
+        let req = shohei::api::RiskClassificationRequest {
+            target,
+            historical_data: true,
+        };
+        match shohei::api::classify_risk(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Quarantine suspicious domains/IPs pending review")]
+    async fn quarantine_targets(
+        &self,
+        Parameters(QuarantineParams { targets, reason }): Parameters<QuarantineParams>,
+    ) -> String {
+        let req = shohei::api::QuarantineRequest {
+            targets,
+            reason,
+            duration_hours: 72,
+        };
+        match shohei::api::quarantine_targets(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Alert on policy violations (blocklist match, rate limit, unauthorized access)")]
+    async fn alert_policy_violation(
+        &self,
+        Parameters(PolicyViolationAlertParams { domain, violation_type }): Parameters<PolicyViolationAlertParams>,
+    ) -> String {
+        let req = shohei::api::PolicyViolationAlertRequest {
+            domain,
+            violation_type,
+        };
+        match shohei::api::alert_policy_violation(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Check data residency compliance (EU, US, APAC, CA)")]
+    async fn check_data_residency(
+        &self,
+        Parameters(DataResidencyComplianceParams { domain, required_region }): Parameters<DataResidencyComplianceParams>,
+    ) -> String {
+        let req = shohei::api::DataResidencyComplianceRequest {
+            domain,
+            required_region,
+        };
+        match shohei::api::check_data_residency(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Verify encryption status (TLS version, cipher strength, compliance)")]
+    async fn verify_encryption_status(
+        &self,
+        Parameters(EncryptionStatusParams { domain }): Parameters<EncryptionStatusParams>,
+    ) -> String {
+        let req = shohei::api::EncryptionStatusRequest {
+            domain,
+        };
+        match shohei::api::verify_encryption_status(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Create policy exception (temporary or permanent)")]
+    async fn create_policy_exception(
+        &self,
+        Parameters(PolicyExceptionParams { target, exception_type }): Parameters<PolicyExceptionParams>,
+    ) -> String {
+        let req = shohei::api::PolicyExceptionRequest {
+            target,
+            exception_type,
+            duration_days: Some(30),
+            justification: "Governance exception".to_string(),
+        };
+        match shohei::api::create_policy_exception(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Verify audit trail integrity and completeness")]
+    async fn verify_audit_trail(
+        &self,
+        Parameters(AuditTrailVerificationParams { domain }): Parameters<AuditTrailVerificationParams>,
+    ) -> String {
+        let req = shohei::api::AuditTrailVerificationRequest {
+            domain,
+            days: 30,
+        };
+        match shohei::api::verify_audit_trail(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Measure governance policy effectiveness and ROI")]
+    async fn measure_policy_effectiveness(
+        &self,
+        Parameters(PolicyEffectivenessParams { days }): Parameters<PolicyEffectivenessParams>,
+    ) -> String {
+        let req = shohei::api::PolicyEffectivenessRequest {
+            days,
+        };
+        match shohei::api::measure_policy_effectiveness(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Get incident response playbook with escalation procedures")]
+    async fn get_incident_response_playbook(
+        &self,
+        Parameters(IncidentResponsePlaybookParams { incident_type, severity }): Parameters<IncidentResponsePlaybookParams>,
+    ) -> String {
+        let req = shohei::api::IncidentResponsePlaybookRequest {
+            incident_type,
+            severity,
+        };
+        match shohei::api::get_incident_response_playbook(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Assess security posture maturity level and improvement areas")]
+    async fn assess_security_posture(
+        &self,
+        Parameters(SecurityPostureAssessmentParams { domain }): Parameters<SecurityPostureAssessmentParams>,
+    ) -> String {
+        let req = shohei::api::SecurityPostureAssessmentRequest {
+            domain,
+        };
+        match shohei::api::assess_security_posture(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Run breach simulation / tabletop exercise (phishing, credential theft, data exfil, lateral movement)")]
+    async fn run_breach_simulation(
+        &self,
+        Parameters(BreachSimulationParams { simulation_type }): Parameters<BreachSimulationParams>,
+    ) -> String {
+        let req = shohei::api::BreachSimulationRequest {
+            simulation_type,
+            scope: "organization_wide".to_string(),
+        };
+        match shohei::api::run_breach_simulation(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }
