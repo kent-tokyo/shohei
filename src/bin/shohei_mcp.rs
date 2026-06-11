@@ -457,6 +457,30 @@ struct IpTrustScoreParams {
     ip: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct SubdomainEnumerationParams {
+    /// Domain to enumerate
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct WhoisEnrichmentParams {
+    /// Domain to enrich
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DnsThreatMappingParams {
+    /// Domain to map threats for
+    domain: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Clone)]
+struct DnsTakeoverRiskParams {
+    /// Domain to assess for DNS takeover risk
+    domain: String,
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -1423,6 +1447,66 @@ impl ShoheiServer {
             timeout_secs: 30,
         };
         match shohei::api::check_ip_trust_score(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Enumerate subdomains via Certificate Transparency, WHOIS nameservers, and DNS resolution")]
+    async fn enumerate_subdomains(
+        &self,
+        Parameters(SubdomainEnumerationParams { domain }): Parameters<SubdomainEnumerationParams>,
+    ) -> String {
+        let req = shohei::api::SubdomainEnumerationRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::enumerate_subdomains(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Enrich WHOIS data with registration details, nameservers, and DNSSEC status")]
+    async fn enrich_whois(
+        &self,
+        Parameters(WhoisEnrichmentParams { domain }): Parameters<WhoisEnrichmentParams>,
+    ) -> String {
+        let req = shohei::api::WhoisEnrichmentRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::enrich_whois(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Map DNS domain to threat sources (GreyNoise, Shodan, URLhaus, etc.) with risk scoring")]
+    async fn map_dns_threats(
+        &self,
+        Parameters(DnsThreatMappingParams { domain }): Parameters<DnsThreatMappingParams>,
+    ) -> String {
+        let req = shohei::api::DnsThreatMappingRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::map_dns_threats(&req).await {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+        }
+    }
+
+    #[tool(description = "Assess DNS takeover risk by checking nameserver redundancy, responsiveness, and dangling records")]
+    async fn assess_dns_takeover_risk(
+        &self,
+        Parameters(DnsTakeoverRiskParams { domain }): Parameters<DnsTakeoverRiskParams>,
+    ) -> String {
+        let req = shohei::api::DnsTakeoverRiskRequest {
+            domain,
+            timeout_secs: 30,
+        };
+        match shohei::api::assess_dns_takeover_risk(&req).await {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => format!("{{\"error\": \"{}\"}}", e),
         }

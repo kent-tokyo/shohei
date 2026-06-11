@@ -60,6 +60,7 @@ pub mod dns_hijacking;
 pub mod spf_analysis;
 pub mod threat_intelligence;
 pub mod trust_scoring;
+pub mod osint;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult, DmarcPolicy};
@@ -114,6 +115,11 @@ pub use threat_intelligence::{
 pub use trust_scoring::{
     check_domain_trust_score, check_ip_trust_score,
     DomainTrustScoreRequest, IpTrustScoreRequest, TrustScore, DimensionScores,
+};
+pub use osint::{
+    enumerate_subdomains, enrich_whois, map_dns_threats, assess_dns_takeover_risk,
+    SubdomainEnumerationRequest, SubdomainEnumerationResult, WhoisEnrichmentRequest, WhoisEnrichmentResult,
+    DnsThreatMappingRequest, DnsThreatMappingResult, DnsTakeoverRiskRequest, DnsTakeoverRiskResult,
 };
 
 // ── Transport enum ─────────────────────────────────────────────────────────
