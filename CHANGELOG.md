@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0] - 2026-06-13
+
+### Added
+
+#### Phase 9: Competitor Gap-Filling (15 new tools)
+
+**Module: web_intelligence**
+- `check_robots_txt` — Fetch and parse robots.txt; identify sensitive disallowed paths (admin, backup, .git, credentials)
+- `check_well_known` — Discover all accessible .well-known/ endpoints (OIDC, security.txt, JWKS, MTA-STS, SBOM, ai-plugin.json, and more)
+- `check_oauth_oidc` — Audit OAuth 2.0 / OIDC configuration from .well-known/openid-configuration; detect implicit flow, PKCE support, grant types
+- `check_cert_pinning` — Check Expect-CT enforce mode, HPKP remnants (deprecated), and CAA iodef reporting
+- `check_api_exposure` — Probe for exposed debug/API endpoints (Spring Actuator, Swagger UI, GraphQL, phpinfo, server-status) and version disclosure headers
+
+**Module: service_exposure**
+- `check_exposed_databases` — Detect unauthenticated Redis (6379), MongoDB (27017), Elasticsearch (9200), Memcached (11211), CouchDB (5984)
+- `check_container_exposure` — Detect exposed Docker API (2375/2376), Kubernetes API (6443), etcd (2379)
+- `check_service_fingerprint` — Banner-based service fingerprinting for SSH, FTP, SMTP, MySQL, PostgreSQL, Redis with CVE hints
+- `check_dga_risk` — Algorithmically score domain names for DGA risk (entropy, vowel ratio, digit ratio, consonant cluster analysis)
+
+**Module: subdomain_takeover_ext**
+- `check_subdomain_takeover` — Detect subdomain takeover across 30+ cloud services (GitHub Pages, Heroku, Netlify, Vercel, Azure, AWS EB, Shopify, Fastly, Tumblr, SendGrid, Mailgun, and more)
+- `check_passive_dns` — Query RIPE Stat passive DNS API for historical DNS records (no API key required)
+- `check_azure_ad_exposure` — Discover Azure AD / Entra ID tenant info via public Microsoft Graph endpoints (tenant ID, federation type)
+
+**Module: email_advanced**
+- `check_dkim_key_strength` — Detect weak 1024-bit DKIM RSA keys; validate 2048-bit and Ed25519 keys across common selectors
+- `check_mx_security` — Deep MX server audit: STARTTLS support, ESMTP features, banner leak via live SMTP connection
+
+**Module: dga_and_threat**
+- `check_attack_surface` — Composite attack surface score (0–100): aggregates TLS, web security headers, email security, and open port exposure (CVSS-like)
+
+### Fixed (Security)
+
+- **[CRITICAL] SSRF prevention** — Added `validate_url_safety()` in `helpers.rs`; blocks `file://`, loopback, RFC1918, link-local (169.254.x.x) URLs
+- **[CRITICAL] cloud_security** — `check_cloud_metadata_exposure` no longer queries the MCP server's own IMDS; now checks if target domain resolves to IMDS IP via DNS
+- **[HIGH] identity_security** — JWT `token_valid` logic was inverted (`alg=none` returned `valid=true`); fixed to `critical_issues.is_empty() && alg_secure`
+- **[HIGH] identity_security** — Cookie security score `u8` arithmetic overflow fixed (use `u32`, then clamp to 100)
+- **[HIGH] shohei_mcp** — All 169 error responses now use `serde_json::json!` for proper escaping (was: unsafe `format!` with user-controlled strings)
+- **[HIGH] typosquat** — IDN domain panic fixed: `remove(i)` / `insert(i, '-')` / `replace_range(i..i+1)` now use byte offsets from `char_indices()` instead of character ordinals
+- **[HIGH] shohei_mcp** — `rate_limit_policy` `u32` multiplication overflow fixed with `saturating_mul`
+- **[HIGH] mta_sts** — `fetch_mta_sts_policy` now uses `Client::builder().timeout()` instead of `Client::new()` (no-timeout)
+- **[MEDIUM] propagation** — `check_propagation` resolver count capped at 50 to prevent unbounded `tokio::spawn` DoS
+- **[MEDIUM] username_osint** — Eliminated duplicate `check_email_security` call (was making 2 identical DNS queries)
+
+---
+
 ## [1.0.0] - 2026-06-10
 
 ### Added (v0.8.1 - v1.0.0)
