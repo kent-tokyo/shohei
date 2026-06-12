@@ -7,9 +7,9 @@
 
 [English](README.md) | [日本語](README_ja.md)
 
-**shohei** v2.3.0 — **153 MCP 工具 × 57 模块**的 Rust 基础设施诊断库。全面的安全、OSINT、威胁情报和治理功能。DNS、TLS、邮件安全、DNS 传播、IPv6 双栈、安全头自动检查。**API 密钥零需求 — 完全免费、开源 API 专用**。可集成到 Rust 项目，也可与 AI 代理协作。
+**shohei** v2.4.0 — **168 MCP 工具 × 62 模块**的 Rust 基础设施诊断库。全面的安全、OSINT、威胁情报和治理功能。DNS、TLS、邮件安全、DNS 传播、IPv6 双栈、安全头自动检查。**API 密钥零需求 — 完全免费、开源 API 专用**。可集成到 Rust 项目，也可与 AI 代理协作。
 
-- **Claude MCP 服务器** — 从 Claude Desktop 调用 **153 个工具**。告诉 Claude「检查 example.com 的安全性」即可自动诊断 TLS、邮件、DNS、IPv6、RPKI、威胁情报
+- **Claude MCP 服务器** — 从 Claude Desktop 调用 **168 个工具**。告诉 Claude「检查 example.com 的安全性」即可自动诊断 TLS、邮件、DNS、IPv6、RPKI、威胁情报
 - **TLS 证书检查** — DANE/TLSA 验证（RFC 6698 全部 6 种组合）、证书链分析、OCSP 响应钉扎检测、TLS 版本检测（1.0～1.3）、暗号套件枚举
 - **邮件安全评分** — MX/SPF/DKIM/DMARC/BIMI/MTA-STS/TLS-RPT 验证，0～100 合规度评分
 - **安全头审计** — CSP、HSTS、X-Frame-Options、X-Content-Type-Options、Referrer-Policy、Permissions-Policy 检查和风险评估
@@ -72,12 +72,12 @@
 
 ## MCP 安全服务器对比
 
-shohei v2.2.0 是功能最全面、完全免费、无需 API 密钥的 MCP 安全服务器：
+shohei v2.4.0 是功能最全面、完全免费、无需 API 密钥的 MCP 安全服务器：
 
 | 功能 | shohei | honeylabs | kastell | unphurl | cloud-audit | maigret |
 |------|:------:|:---------:|:-------:|:-------:|:-----------:|:-------:|
-| **MCP 工具数** | **140** | ~25 | ~30 | ~15 | ~20 | ~35 |
-| **模块数** | **56** | ~8 | ~10 | ~5 | ~7 | ~12 |
+| **MCP 工具数** | **168** | ~25 | ~30 | ~15 | ~20 | ~35 |
+| **模块数** | **62** | ~8 | ~10 | ~5 | ~7 | ~12 |
 | **DNS/DNSSEC** | ✓ | ✓ | ✓ | | | |
 | **TLS/证书** | ✓ | ✓ | ✓ | | | |
 | **邮件安全** | ✓ | | | | | |
@@ -95,9 +95,9 @@ shohei v2.2.0 是功能最全面、完全免费、无需 API 密钥的 MCP 安�
 | **开源** | ✓ (MIT) | | | | | ✓ |
 
 **主要优势：**
-- **140 MCP 工具** — 最大的综合安全工具包（v2.2.0）
+- **168 MCP 工具** — 最大的综合安全工具包（v2.4.0）
 - **0 API 密钥** — 所有工具使用免费/开源公共 API
-- **56 模块** — DNS、TLS、邮件、OSINT、威胁情报、治理、加密货币、Web 安全、合规性
+- **62 模块** — DNS、TLS、邮件、OSINT、威胁情报、治理、加密货币、Web 安全、供应链安全、合规性
 - **零设置成本** — 无需供应商 API 账户或身份验证
 - **纯库 + MCP** — CI/CD 用 Rust 库 + Claude Desktop/代理用 MCP 服务器
 
@@ -336,9 +336,9 @@ shohei google.com --tui
 
 ## MCP 服务器 & Claude 集成
 
-### ✅ v2.2.0+ 已完成实现
+### ✅ v2.4.0+ 已完成实现
 
-**MCP（Model Context Protocol）服务器**（140 工具）让 Claude Desktop 和其他 AI 代理能直接调用 shohei 诊断：
+**MCP（Model Context Protocol）服务器**（168 工具）让 Claude Desktop 和其他 AI 代理能直接调用 shohei 诊断：
 
 ```bash
 # 1. 安装 shohei
@@ -358,7 +358,7 @@ cargo install shohei
 # 4. 问 Claude：「检查 example.com 的 TLS 证书」
 ```
 
-**提供给 Claude 的 140 个工具（56 模块）：**
+**提供给 Claude 的 168 个工具（62 模块）：**
 - **DNS & DNSSEC**（10+ 工具）— 记录查询、DNSSEC 验证、传播检查、区域传输、延迟基准测试
 - **TLS & 证书**（8+ 工具）— 链检查、DANE/TLSA 验证、证书透明度（CT）日志、OCSP 检查、密码套件
 - **邮件安全**（6+ 工具）— SPF、DKIM、DMARC、BIMI、MTA-STS、TLS-RPT 验证和合规评分
@@ -373,6 +373,14 @@ cargo install shohei
 - **云暴露**（4 工具）— 云提供商资产检测、配置误差扫描、云基础设施分析
 - **OSINT 扩展**（4 工具）— 高级侦察技术、基础设施映射、历史数据查询
 - **网络信誉**（3 工具）— ISP 信誉、网络行为分析、威胁评分
+- **云基础设施**（4+ 工具）— AWS/GCP/Azure 资产暴露、存储桶误配检测、IAM 策略分析
+- **凭证安全**（4+ 工具）— 泄露凭证检查、API 密钥暴露扫描、公开资源的 Secret 检测
+- **供应链安全**（4+ 工具）— 依赖项漏洞分析、包注册表完整性检查、包名仿冒域名检测
+- **Web 智能**（5 工具）— robots.txt 分析、.well-known 端点探测、OAuth/OIDC 安全审计、证书固定、API 调试端点暴露
+- **服务暴露检测**（4 工具）— 未认证数据库访问（Redis/MongoDB/ES）、Docker/Kubernetes API 暴露、服务横幅指纹、DGA 风险评分
+- **子域名接管**（3 工具）— 30+ 服务签名（GitHub Pages/Heroku/Netlify/Vercel/Azure 等）、RIPE Stat 被动 DNS、Azure AD 租户信息暴露
+- **高级邮件安全**（2 工具）— DKIM 密钥强度检测（1024/2048/Ed25519）、MX 服务器 STARTTLS 深度审计
+- **攻击面评估**（1 工具）— 聚合 TLS + Web 头部 + 邮件 + 网络暴露的类 CVSS 综合评分（0-100）
 
 **示例：** Claude 自动诊断域名：
 > 「检查 example.com 的邮件配置是否正确，验证其 TLS 证书链」

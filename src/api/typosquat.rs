@@ -134,12 +134,12 @@ fn generate_mutations(label: &str, tld: &str, max_count: u32) -> Vec<(String, St
     }
 
     // Missing character (remove each char one at a time)
-    for i in 0..label.len() {
+    for (byte_i, _) in label.char_indices() {
         if mutations.len() >= max_count as usize {
             break;
         }
         let mut mutated = label.to_string();
-        mutated.remove(i);
+        mutated.remove(byte_i);
         if !mutated.is_empty() {
             mutations.push((
                 format!("{}.{}", mutated, tld),
@@ -181,12 +181,12 @@ fn generate_mutations(label: &str, tld: &str, max_count: u32) -> Vec<(String, St
     }
 
     // Hyphen insertion (between characters)
-    for i in 1..label.len() {
+    for (byte_i, _) in label.char_indices().skip(1) {
         if mutations.len() >= max_count as usize {
             break;
         }
         let mut mutated = label.to_string();
-        mutated.insert(i, '-');
+        mutated.insert(byte_i, '-');
         mutations.push((
             format!("{}.{}", mutated, tld),
             "hyphen".to_string(),
@@ -195,14 +195,15 @@ fn generate_mutations(label: &str, tld: &str, max_count: u32) -> Vec<(String, St
 
     // Homoglyph (character substitution)
     let homoglyphs = [('o', '0'), ('l', '1'), ('i', '1'), ('e', '3'), ('a', '4'), ('s', '5'), ('g', '9')];
-    for (i, ch) in label.chars().enumerate() {
+    for (byte_i, ch) in label.char_indices() {
         if mutations.len() >= max_count as usize {
             break;
         }
         for (from, to) in &homoglyphs {
             if ch == *from {
                 let mut mutated = label.to_string();
-                mutated.replace_range(i..i + 1, &to.to_string());
+                let char_len = ch.len_utf8();
+                mutated.replace_range(byte_i..byte_i + char_len, &to.to_string());
                 mutations.push((
                     format!("{}.{}", mutated, tld),
                     "homoglyph".to_string(),

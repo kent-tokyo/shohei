@@ -6,10 +6,11 @@ use crate::api::{check_dns, DnsCheckRequest, Transport};
 
 /// Check DNS propagation across specified resolvers.
 pub async fn check_propagation(req: &PropagationRequest) -> Result<PropagationResult> {
-    // Spawn parallel tasks for all resolvers
+    // Spawn parallel tasks for all resolvers (cap at 50 to prevent DoS)
     let mut handles = vec![];
+    let resolvers: Vec<_> = req.resolvers.iter().take(50).cloned().collect();
 
-    for resolver in &req.resolvers {
+    for resolver in resolvers {
         let resolver = resolver.clone();
         let domain = req.domain.clone();
         let record_type = req.record_type.clone();

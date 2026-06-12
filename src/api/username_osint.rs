@@ -107,17 +107,9 @@ pub async fn check_email_intel(req: &EmailIntelRequest) -> Result<EmailIntelResu
         timeout_secs: req.timeout_secs,
     };
 
-    let spf_configured = crate::api::check_email_security(&email_req)
-        .await
-        .ok()
-        .map(|e| e.spf.raw.is_some())
-        .unwrap_or(false);
-
-    let dkim_configured = crate::api::check_email_security(&email_req)
-        .await
-        .ok()
-        .map(|e| !e.dkim.is_empty())
-        .unwrap_or(false);
+    let email_security = crate::api::check_email_security(&email_req).await.ok();
+    let spf_configured = email_security.as_ref().map(|e| e.spf.raw.is_some()).unwrap_or(false);
+    let dkim_configured = email_security.as_ref().map(|e| !e.dkim.is_empty()).unwrap_or(false);
 
     let mut risk_score = 50u8;
     let mut recommendations = Vec::new();

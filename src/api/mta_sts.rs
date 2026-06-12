@@ -53,11 +53,13 @@ pub async fn check_mta_sts(req: &MtaStsRequest) -> Result<MtaStsResult> {
 }
 
 async fn fetch_mta_sts_policy(url: &str, timeout_secs: u64) -> Result<MtaStsPolicy> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .build()
+        .map_err(|e| ShoheError::Transport(e.to_string()))?;
 
     let response = client
         .get(url)
-        .timeout(std::time::Duration::from_secs(timeout_secs))
         .send()
         .await
         .map_err(|e| ShoheError::Transport(format!("HTTP fetch failed: {}", e)))?;

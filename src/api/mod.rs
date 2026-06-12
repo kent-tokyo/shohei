@@ -71,6 +71,11 @@ pub mod network_reputation;
 pub mod cloud_security;
 pub mod identity_security;
 pub mod supply_chain;
+pub mod web_intelligence;
+pub mod service_exposure;
+pub mod subdomain_takeover_ext;
+pub mod email_advanced;
+pub mod dga_and_threat;
 
 pub use propagation::{check_propagation, check_propagation_global, PropagationRequest, PropagationResolver, PropagationResult, PropagationStatus, ResolverCheckResult};
 pub use email::{check_email_security, EmailSecurityRequest, EmailSecurityResult, DmarcPolicy};
@@ -227,6 +232,34 @@ pub use supply_chain::{
     ExposedFilesRequest, ExposedFilesResult, NpmPackageSecurityRequest, NpmPackageSecurityResult,
     PypiPackageSecurityRequest, PypiPackageSecurityResult, DependencyConfusionRequest, DependencyConfusionResult,
     SbomDisclosureRequest, SbomDisclosureResult,
+};
+pub use web_intelligence::{
+    check_robots_txt, check_well_known, check_oauth_oidc, check_cert_pinning, check_api_exposure,
+    RobotsTxtRequest, RobotsTxtResult, WellKnownRequest, WellKnownResult, WellKnownEndpoint,
+    OauthOidcRequest, OauthOidcResult, CertPinningRequest, CertPinningResult,
+    ApiExposureRequest, ApiExposureResult, ExposedEndpoint,
+};
+pub use service_exposure::{
+    check_exposed_databases, check_container_exposure, check_service_fingerprint, check_dga_risk,
+    ExposedDatabasesRequest, ExposedDatabasesResult, ExposedService,
+    ContainerExposureRequest, ContainerExposureResult,
+    ServiceFingerprintRequest, ServiceFingerprintResult, ServiceFingerprint,
+    DgaRiskRequest, DgaRiskResult,
+};
+pub use subdomain_takeover_ext::{
+    check_subdomain_takeover, check_passive_dns, check_azure_ad_exposure,
+    SubdomainTakeoverRequest, SubdomainTakeoverResult, TakeoverFinding,
+    PassiveDnsRequest, PassiveDnsResult, PassiveDnsRecord,
+    AzureAdExposureRequest, AzureAdExposureResult,
+};
+pub use email_advanced::{
+    check_dkim_key_strength, check_mx_security,
+    DkimKeyStrengthRequest, DkimKeyStrengthResult, DkimKeyResult,
+    MxSecurityRequest, MxSecurityResult, MxServerSecurity,
+};
+pub use dga_and_threat::{
+    check_attack_surface,
+    AttackSurfaceRequest, AttackSurfaceResult, AttackSurfaceFinding,
 };
 
 // ── Transport enum ─────────────────────────────────────────────────────────

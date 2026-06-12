@@ -23,31 +23,47 @@ pub struct CloudMetadataExposureResult {
 
 /// Check if 169.254.169.254 IMDS endpoint is accessible.
 pub async fn check_cloud_metadata_exposure(req: &CloudMetadataExposureRequest) -> Result<CloudMetadataExposureResult> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(2))
-        .build()
-        .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?;
-
-    let imds_accessible = client
-        .get("http://169.254.169.254/latest/meta-data/")
-        .send()
-        .await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false);
-
-    let risk_level = if imds_accessible {
-        "critical".to_string()
-    } else {
-        "low".to_string()
+    // Resolve the target domain's A record and check if it's the IMDS IP (169.254.169.254)
+    // or another link-local/private address that should not be publicly reachable.
+    // We do NOT directly access 169.254.169.254 — that would query the scanner's own
+    // cloud metadata, not the target's, and would be an information leak.
+    let dns_req = crate::api::DnsCheckRequest {
+        domain: req.domain.clone(),
+        record_types: vec!["A".to_string()],
+        timeout_secs: req.timeout_secs,
+        ..Default::default()
     };
+
+    let mut imds_accessible = false;
+    let mut cloud_provider: Option<String> = None;
+
+    if let Ok(results) = crate::api::check_dns(&dns_req).await {
+        for result in &results {
+            for record in &result.answers {
+                if let crate::api::RecordData::A(ip_str) = &record.data {
+                    // IMDS IP is 169.254.169.254 (AWS) or 169.254.169.254 (GCP/Azure use same IP)
+                    if ip_str == "169.254.169.254" {
+                        imds_accessible = true;
+                        cloud_provider = Some("Cloud IMDS (AWS/GCP/Azure)".to_string());
+                    }
+                    // Also flag if domain resolves to any link-local (169.254.x.x) address
+                    if ip_str.starts_with("169.254.") {
+                        imds_accessible = true;
+                    }
+                }
+            }
+        }
+    }
+
+    let risk_level = if imds_accessible { "critical" } else { "low" }.to_string();
 
     Ok(CloudMetadataExposureResult {
         domain: req.domain.clone(),
         imds_accessible,
-        cloud_provider: if imds_accessible { Some("AWS".to_string()) } else { None },
+        cloud_provider,
         risk_level,
         remediation: if imds_accessible {
-            Some("Restrict IMDS access via security groups or instance metadata options".to_string())
+            Some("Domain resolves to IMDS IP (169.254.x.x) — this indicates a critical DNS misconfiguration or SSRF risk".to_string())
         } else {
             None
         },

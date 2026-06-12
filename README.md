@@ -7,11 +7,11 @@
 
 [日本語](README_ja.md) | [中文](README_zh.md)
 
-**shohei** v2.3.0 — **Rust infrastructure diagnostics library with 153 MCP tools across 57 modules**. Comprehensive security, OSINT, threat intelligence, and governance coverage. DNSSEC chain validation, DANE/TLSA, modern protocols, IPv6 dual-stack, security headers, technology fingerprinting, CVE lookup, typosquatting detection, and redirect analysis built in. **0 API keys required — all free/open APIs. Use in Rust projects or hand to Claude for autonomous diagnosis.**
+**shohei** v2.4.0 — **Rust infrastructure diagnostics library with 168 MCP tools across 62 modules**. Comprehensive security, OSINT, threat intelligence, and governance coverage. DNSSEC chain validation, DANE/TLSA, modern protocols, IPv6 dual-stack, security headers, technology fingerprinting, CVE lookup, typosquatting detection, and redirect analysis built in. **0 API keys required — all free/open APIs. Use in Rust projects or hand to Claude for autonomous diagnosis.**
 
 ### Core Diagnostics (v1.0+)
 
-- **MCP server for Claude** — 41 diagnostic tools; ask "Check example.com's TLS certificate, DNSBL status, IPv6 support, technology stack, CVE vulnerabilities, typosquatting variants, and redirect chain" for autonomous analysis
+- **MCP server for Claude** — 168 diagnostic tools; ask "Check example.com's TLS certificate, DNSBL status, IPv6 support, technology stack, CVE vulnerabilities, typosquatting variants, and redirect chain" for autonomous analysis
 - **TLS certificate inspection** — DANE/TLSA validation (RFC 6698), chain analysis, OCSP responder detection, IPv6 support, OCSP stapling detection, TLS version probing (1.0–1.3), cipher suite enumeration
 - **Email security scoring** — MX records, SPF, DKIM, DMARC, BIMI, MTA-STS, TLS-RPT validation with 0–100 compliance score + issue linting
 - **IP reputation** — DNSBL checks against Spamhaus, Barracuda, SORBS; reverse DNS (PTR) + forward-confirmed reverse DNS (FCrDNS)
@@ -106,16 +106,16 @@ Most infrastructure tools are CLI-only. **shohei is built for AI agents:**
 
 > dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC-validating resolver; drill = ldns-based
 >
-> **v2.2.0 additions**: 140 MCP tools across 56 modules, comprehensive OSINT/threat intel/governance coverage, 0 API keys required.
+> **v2.4.0 additions**: 168 MCP tools across 62 modules, robots.txt/OAuth/OIDC/API exposure, unauthenticated DB/container detection, subdomain takeover (30+ services), DGA risk scoring, DKIM key strength, attack surface composite score, RIPE Stat passive DNS, Azure AD exposure.
 
 ## MCP Security Servers Comparison
 
-shohei v2.2.0 stands out as the most comprehensive free, API-key-free MCP security server:
+shohei v2.4.0 stands out as the most comprehensive free, API-key-free MCP security server:
 
 | Feature | shohei | honeylabs | kastell | unphurl | cloud-audit | maigret |
 |---------|:------:|:---------:|:-------:|:-------:|:-----------:|:-------:|
-| **MCP Tools** | **140** | ~25 | ~30 | ~15 | ~20 | ~35 |
-| **Modules** | **56** | ~8 | ~10 | ~5 | ~7 | ~12 |
+| **MCP Tools** | **168** | ~25 | ~30 | ~15 | ~20 | ~35 |
+| **Modules** | **62** | ~8 | ~10 | ~5 | ~7 | ~12 |
 | **DNS/DNSSEC** | ✓ | ✓ | ✓ | | | |
 | **TLS/Certificate** | ✓ | ✓ | ✓ | | | |
 | **Email Security** | ✓ | | | | | |
@@ -133,9 +133,9 @@ shohei v2.2.0 stands out as the most comprehensive free, API-key-free MCP securi
 | **Open Source** | ✓ (MIT) | | | | | ✓ |
 
 **Key Advantages:**
-- **140 MCP tools** — largest comprehensive security toolkit (v2.2.0)
+- **168 MCP tools** — largest comprehensive security toolkit (v2.4.0)
 - **0 API keys** — all tools use free/open public APIs
-- **56 modules** — DNS, TLS, email, OSINT, threat intel, governance, crypto, web security, compliance
+- **62 modules** — DNS, TLS, email, OSINT, threat intel, governance, crypto, web security, supply chain, compliance
 - **Zero setup cost** — no vendor API accounts or authentication required
 - **Pure library + MCP** — Rust library for CI/CD + MCP server for Claude Desktop/agents
 
@@ -148,7 +148,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-shohei = "1.4"
+shohei = "2.3"
 ```
 
 Then import and use:
@@ -417,9 +417,9 @@ shohei google.com --tui
 
 ## MCP Server & Claude Integration
 
-### ✅ Live Now (v2.2.0+)
+### ✅ Live Now (v2.4.0+)
 
-**MCP (Model Context Protocol) Server** with 140 tools lets Claude Desktop and other AI agents call shohei diagnostics directly:
+**MCP (Model Context Protocol) Server** with 168 tools lets Claude Desktop and other AI agents call shohei diagnostics directly:
 
 ```bash
 # 1. Install shohei
@@ -439,7 +439,7 @@ cargo install shohei
 # 4. Ask Claude: "Check example.com's TLS certificate"
 ```
 
-**140 Tools Available to Claude (56 modules):**
+**168 Tools Available to Claude (62 modules):**
 - **DNS & DNSSEC** (10+ tools) — Query records, DNSSEC validation, propagation checks, zone transfers, latency benchmarking
 - **TLS & Certificates** (8+ tools) — Chain inspection, DANE/TLSA validation, certificate transparency (CT) logs, OCSP checks, cipher suites
 - **Email Security** (6+ tools) — SPF, DKIM, DMARC, BIMI, MTA-STS, TLS-RPT validation with compliance scoring
@@ -454,6 +454,14 @@ cargo install shohei
 - **Cloud Exposure** (4 tools) — Cloud provider asset detection, misconfiguration scanning, cloud infrastructure analysis
 - **OSINT Expansion** (4 tools) — Advanced recon techniques, infrastructure mapping, historical data queries
 - **Network Reputation** (3 tools) — ISP reputation, network behavior analysis, threat scoring
+- **Cloud Infrastructure** (4+ tools) — AWS/GCP/Azure resource exposure, misconfigured storage detection, IAM policy analysis
+- **Credential Security** (4+ tools) — Leaked credential checks, API key exposure scanning, secret detection in public resources
+- **Supply Chain Security** (4+ tools) — Dependency vulnerability analysis, package registry integrity checks, typosquatting in package names
+- **Web Intelligence** (5 tools) — robots.txt analysis, .well-known discovery, OAuth/OIDC audit, cert pinning, API debug endpoint exposure
+- **Service Exposure** (4 tools) — Unauthenticated database access (Redis/MongoDB/Elasticsearch), Docker/Kubernetes API exposure, service fingerprinting, DGA risk scoring
+- **Subdomain Takeover** (3 tools) — 30+ service signatures (GitHub Pages, Heroku, Netlify, Vercel, Azure, AWS, Shopify…), RIPE Stat passive DNS, Azure AD tenant exposure
+- **Email Advanced** (2 tools) — DKIM key strength (1024 vs 2048 vs Ed25519), MX server STARTTLS deep audit
+- **Attack Surface** (1 tool) — Composite CVSS-like score aggregating TLS + web headers + email + network exposure
 
 **Example:** Claude diagnoses a domain autonomously:
 > "Check if example.com's mail configuration is correct, and verify its TLS certificate chain"

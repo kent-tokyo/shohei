@@ -86,7 +86,7 @@ pub async fn check_jwt_security(req: &JwtSecurityRequest) -> Result<JwtSecurityR
     };
 
     Ok(JwtSecurityResult {
-        token_valid: !critical_issues.is_empty() || alg_secure,
+        token_valid: critical_issues.is_empty() && alg_secure,
         alg,
         alg_secure,
         has_expiry,
@@ -194,8 +194,9 @@ pub async fn check_cookie_security(req: &CookieSecurityRequest) -> Result<Cookie
             let security_score = if cookie_count == 0 {
                 100u8
             } else {
-                let score = ((secure_count + httponly_count + samesite_count) as u8 * 100) / (cookie_count as u8 * 3);
-                score
+                let score = ((secure_count + httponly_count + samesite_count) as u32 * 100)
+                    / (cookie_count as u32 * 3);
+                score.min(100) as u8
             };
 
             Ok(CookieSecurityResult {
