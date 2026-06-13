@@ -57,9 +57,9 @@ pub async fn check_compliance(req: &ComplianceRequest) -> Result<ComplianceResul
         timeout_secs: req.timeout_secs,
     };
 
-    let (tls_result, email_result, http_result, caa_result) = (
-        crate::api::check_tls_chain(&tls_req).await,
-        crate::api::check_email_security(&email_req).await,
+    let (tls_result, email_result, http_result, caa_result) = tokio::join!(
+        crate::api::check_tls_chain(&tls_req),
+        crate::api::check_email_security(&email_req),
         async {
             if let Some(url) = &req.url {
                 let http_req = crate::api::HttpCheckRequest {
@@ -71,8 +71,8 @@ pub async fn check_compliance(req: &ComplianceRequest) -> Result<ComplianceResul
             } else {
                 None
             }
-        }.await,
-        crate::api::check_caa(&caa_req).await,
+        },
+        crate::api::check_caa(&caa_req),
     );
 
     let mut items = Vec::new();

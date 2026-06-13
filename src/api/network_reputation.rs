@@ -32,41 +32,21 @@ pub async fn check_asn_reputation(req: &AsnReputationRequest) -> Result<AsnReput
         return Err(crate::error::ShoheError::Parse("Invalid ASN format".to_string()));
     }
 
-    // BGP route lookup uses IP-based origin query; skip for ASN-only input
-    // (check_bgp_route requires an IP to query origin.asn.cymru.com)
-    let bgp_result: Option<crate::api::BgpRouteResult> = None;
+    // BGP route lookup requires an IP to query origin.asn.cymru.com; ASN-only
+    // input cannot be resolved to a route here.  Scoring is a fixed stub:
+    // reputation_score=75, risk_level="medium".  Do not interpret the returned
+    // values as a computed result — they are placeholders until a real ASN
+    // reputation data source (e.g. RIPE STAT /asn-neighbours or Team Cymru
+    // Whois) is integrated.
+    let threat_flags: Vec<String> = Vec::new();
+    let reputation_score = 75u8;
+    let bgp_visibility_percent = 50.0f64;
 
-    let organization = bgp_result
-        .as_ref()
-        .and_then(|r| r.asn_name.clone());
-
-    let bgp_visibility_percent = bgp_result
-        .as_ref()
-        .and_then(|r| r.visibility_percent)
-        .unwrap_or(50.0);
-
-    let mut threat_flags = Vec::new();
-    let mut reputation_score = 75u8;
-
-    if bgp_visibility_percent < 20.0 {
-        threat_flags.push("Low BGP visibility".to_string());
-        reputation_score = reputation_score.saturating_sub(20);
-    }
-
-    if bgp_visibility_percent > 90.0 {
-        reputation_score = reputation_score.saturating_add(10);
-    }
-
-    let risk_level = match reputation_score {
-        0..=25 => "critical".to_string(),
-        26..=50 => "high".to_string(),
-        51..=75 => "medium".to_string(),
-        _ => "low".to_string(),
-    };
+    let risk_level = "medium".to_string();
 
     Ok(AsnReputationResult {
         asn: req.asn.clone(),
-        organization,
+        organization: None,
         reputation_score,
         abuse_reports: 0,
         bgp_visibility_percent,
@@ -194,13 +174,26 @@ pub async fn check_network_exposure_score(req: &NetworkExposureScoreRequest) -> 
     let mut rpki_valid = false;
 
     if is_ip {
-        if let Ok(port_result) = crate::api::check_ports(&crate::api::PortCheckRequest {
+        let port_req = crate::api::PortCheckRequest {
             host: req.target.clone(),
             ports: None,
             timeout_secs: req.timeout_secs,
-        })
-        .await
-        {
+        };
+        let shodan_req = crate::api::ShodanInternetDbRequest {
+            ip: req.target.clone(),
+            timeout_secs: req.timeout_secs,
+        };
+        let rpki_req = crate::api::RpkiCheckRequest {
+            ip: req.target.clone(),
+        };
+
+        let (ports_res, shodan_res, rpki_res) = tokio::join!(
+            crate::api::check_ports(&port_req),
+            crate::api::check_shodan_ip(&shodan_req),
+            crate::api::check_rpki(&rpki_req),
+        );
+
+        if let Ok(port_result) = ports_res {
             open_ports = port_result.ports.iter().filter(|p| p.status == "open").count();
             if open_ports > 5 {
                 score = score.saturating_sub(20);
@@ -208,12 +201,7 @@ pub async fn check_network_exposure_score(req: &NetworkExposureScoreRequest) -> 
             }
         }
 
-        if let Ok(shodan) = crate::api::check_shodan_ip(&crate::api::ShodanInternetDbRequest {
-            ip: req.target.clone(),
-            timeout_secs: req.timeout_secs,
-        })
-        .await
-        {
+        if let Ok(shodan) = shodan_res {
             cves = shodan.vulns.len();
             if cves > 0 {
                 score = score.saturating_sub(25);
@@ -221,11 +209,7 @@ pub async fn check_network_exposure_score(req: &NetworkExposureScoreRequest) -> 
             }
         }
 
-        if let Ok(rpki) = crate::api::check_rpki(&crate::api::RpkiCheckRequest {
-            ip: req.target.clone(),
-        })
-        .await
-        {
+        if let Ok(rpki) = rpki_res {
             rpki_valid = rpki.roa_valid;
             if rpki_valid {
                 score = score.saturating_add(15);

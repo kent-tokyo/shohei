@@ -209,21 +209,15 @@ pub async fn check_tech_stack(req: &TechFingerprintRequest) -> Result<TechFinger
 fn extract_version(input: &str, prefix: &str) -> Option<String> {
     let lower_input = input.to_lowercase();
     let lower_prefix = prefix.to_lowercase();
-
-    if let Some(pos) = lower_input.find(&lower_prefix) {
-        let after_prefix = &input[pos + prefix.len()..];
-        // Look for version after "/" or " "
-        if after_prefix.starts_with('/') || after_prefix.starts_with(' ') {
-            let version_part = &after_prefix[1..];
-            // Extract until whitespace or end
-            let version = version_part
-                .split_whitespace()
-                .next()
-                .unwrap_or("")
-                .to_string();
-            if !version.is_empty() {
-                return Some(version);
-            }
+    let pos = lower_input.find(&lower_prefix)?;
+    // Use lower_input consistently to avoid cross-string byte-index mismatch
+    // (to_lowercase() can change byte length, e.g. Turkish İ or German ß)
+    let after_match = lower_input.get(pos + lower_prefix.len()..)?;
+    // Look for version after "/" or " "
+    if after_match.starts_with('/') || after_match.starts_with(' ') {
+        let version = after_match[1..].split_whitespace().next().unwrap_or("");
+        if !version.is_empty() {
+            return Some(version.to_string());
         }
     }
     None

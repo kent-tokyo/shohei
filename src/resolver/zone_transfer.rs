@@ -161,7 +161,7 @@ pub async fn axfr(domain: &str, server: SocketAddr, timeout_secs: u64) -> Result
         answers: records,
         authority: vec![],
         additional: vec![],
-        duration_ms: 0,
+        duration_ms: start.elapsed().as_millis() as u64,
         server_addr: server.to_string(),
     })
 }

@@ -76,6 +76,7 @@ pub async fn check_zone_transfer(req: &ZoneTransferRequest) -> Result<ZoneTransf
     let mut zone_records = Vec::new();
     let mut transfer_allowed = false;
 
+    let nameservers: Vec<_> = nameservers.into_iter().take(10).collect();
     for ns_name in nameservers {
         nameservers_tried.push(ns_name.clone());
 

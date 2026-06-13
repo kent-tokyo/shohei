@@ -68,7 +68,6 @@ fn parse_dkim_txt(txt: &str) -> Option<DkimKeyResult> {
         let strength = match bits {
             b if b < 1024 => "weak",
             1024 => "weak",
-            b if b < 2048 => "moderate",
             2048 => "good",
             _ => "excellent",
         }.to_string();
@@ -134,9 +133,6 @@ pub async fn check_dkim_key_strength(req: &DkimKeyStrengthRequest) -> Result<Dki
     } else if keys.iter().any(|k| k.strength == "weak") {
         recommendations.push("Upgrade all weak DKIM keys to 2048-bit RSA or Ed25519 immediately".to_string());
         "weak".to_string()
-    } else if keys.iter().any(|k| k.strength == "moderate") {
-        recommendations.push("Consider upgrading 1536-bit DKIM key to 2048-bit or Ed25519".to_string());
-        "moderate".to_string()
     } else if keys.iter().any(|k| k.strength == "good") {
         "good".to_string()
     } else {
@@ -145,7 +141,6 @@ pub async fn check_dkim_key_strength(req: &DkimKeyStrengthRequest) -> Result<Dki
 
     let risk_level = match weakest_strength.as_str() {
         "weak" | "none" => "high",
-        "moderate" => "medium",
         _ => "low",
     }.to_string();
 

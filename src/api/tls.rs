@@ -163,7 +163,7 @@ async fn connect_and_capture_certs(
 // Minimal cert verifier that accepts everything
 #[derive(Debug)]
 #[allow(dead_code)]
-struct SkipVerification;
+pub(crate) struct SkipVerification;
 
 impl rustls::client::danger::ServerCertVerifier for SkipVerification {
     fn verify_server_cert(
@@ -229,7 +229,12 @@ fn verify_hostname_in_cert(chain: &[CertInfo], hostname: &str) -> bool {
 
 fn is_self_signed(chain: &[CertInfo]) -> bool {
     if chain.len() > 1 { return false; }
-    chain.first().map(|leaf| leaf.subject_cn == leaf.issuer_cn).unwrap_or(true)
+    chain.first().map(|leaf| {
+        match (&leaf.subject_cn, &leaf.issuer_cn) {
+            (Some(s), Some(i)) => s == i,
+            _ => false, // can't determine from CN alone
+        }
+    }).unwrap_or(false)
 }
 
 fn parse_certificate_chain(certs: &[CertificateDer<'_>]) -> Vec<CertInfo> {
