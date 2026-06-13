@@ -1,16 +1,52 @@
 //! DNS propagation checker — verify domain consistency across resolvers.
 
+use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use crate::error::Result;
 use crate::api::{check_dns, DnsCheckRequest, Transport};
 
 /// Check DNS propagation across specified resolvers.
 pub async fn check_propagation(req: &PropagationRequest) -> Result<PropagationResult> {
+    // Validate record type allowlist (consistent with check_dns_hijacking)
+    const ALLOWED_TYPES: &[&str] = &["A", "AAAA", "CNAME", "MX", "TXT", "NS"];
+    if !ALLOWED_TYPES.contains(&req.record_type.as_str()) {
+        return Err(crate::error::ShoheError::Parse(
+            format!("Invalid record type: {}", req.record_type)
+        ));
+    }
+
     // Spawn parallel tasks for all resolvers (cap at 50 to prevent DoS)
     let mut handles = vec![];
+    let mut early_errors: Vec<ResolverCheckResult> = vec![];
     let resolvers: Vec<_> = req.resolvers.iter().take(50).cloned().collect();
 
     for resolver in resolvers {
+        // Reject private/reserved IP addresses to prevent SSRF via DNS server
+        let ip_check = std::net::IpAddr::from_str(&resolver.address);
+        match ip_check {
+            Ok(ip) if crate::api::helpers::is_private_or_special_ip(&ip) => {
+                early_errors.push(ResolverCheckResult {
+                    resolver,
+                    status: PropagationStatus::Error("Resolver address is a private or reserved IP".to_string()),
+                    answers: vec![],
+                    duration_ms: 0,
+                    ttl_seconds: None,
+                });
+                continue;
+            }
+            Err(_) => {
+                early_errors.push(ResolverCheckResult {
+                    resolver,
+                    status: PropagationStatus::Error("Invalid resolver IP address".to_string()),
+                    answers: vec![],
+                    duration_ms: 0,
+                    ttl_seconds: None,
+                });
+                continue;
+            }
+            Ok(_) => {}
+        }
+
         let resolver = resolver.clone();
         let domain = req.domain.clone();
         let record_type = req.record_type.clone();

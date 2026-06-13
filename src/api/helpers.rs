@@ -319,6 +319,30 @@ pub fn build_http_client(timeout_secs: u64) -> crate::error::Result<reqwest::Cli
         .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))
 }
 
+/// Build a redirect policy that validates each hop with `validate_url_safety`.
+/// Stops after 10 hops or if any redirect target fails the SSRF safety check.
+pub fn safe_redirect_policy() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() >= 10 {
+            return attempt.stop();
+        }
+        if validate_url_safety(attempt.url().as_str()).is_err() {
+            return attempt.stop();
+        }
+        attempt.follow()
+    })
+}
+
+/// Build a reqwest HTTP client with a timeout and a per-hop SSRF-checking redirect policy.
+/// Use this for requests where redirect-following is legitimate but must be validated.
+pub fn safe_http_client(timeout_secs: u64) -> crate::error::Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .redirect(safe_redirect_policy())
+        .build()
+        .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))
+}
+
 /// Build a DnsCheckRequest for a single record type query.
 pub fn dns_request_for_record_type(
     domain: String,

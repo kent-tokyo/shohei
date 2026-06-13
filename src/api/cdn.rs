@@ -36,7 +36,7 @@ pub async fn detect_cdn(req: &CdnDetectRequest) -> Result<CdnDetectResult> {
             attempt.follow()
         }))
         .build()
-        .unwrap_or_default();
+        .map_err(|e| crate::error::ShoheError::Transport(format!("cdn client build failed: {}", e)))?;
     let response = match timeout(
         Duration::from_secs(req.timeout_secs),
         client.get(&url).send()
