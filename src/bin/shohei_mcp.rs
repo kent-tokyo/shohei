@@ -1186,6 +1186,17 @@ struct AttackSurfaceParams {
     domain: String,
 }
 
+fn default_propagation_resolvers() -> Vec<PropagationResolver> {
+    vec![
+        PropagationResolver { name: "Google".to_string(), address: "8.8.8.8".to_string(), region: None },
+        PropagationResolver { name: "Cloudflare".to_string(), address: "1.1.1.1".to_string(), region: None },
+        PropagationResolver { name: "Quad9".to_string(), address: "9.9.9.9".to_string(), region: None },
+        PropagationResolver { name: "OpenDNS".to_string(), address: "208.67.222.222".to_string(), region: None },
+        PropagationResolver { name: "CleanBrowsing".to_string(), address: "185.228.168.168".to_string(), region: None },
+        PropagationResolver { name: "Comodo".to_string(), address: "8.26.56.26".to_string(), region: None },
+    ]
+}
+
 #[derive(Clone)]
 struct ShoheiServer;
 
@@ -1370,14 +1381,7 @@ impl ShoheiServer {
         let req = PropagationRequest {
             domain: domain.clone(),
             record_type,
-            resolvers: vec![
-                PropagationResolver { name: "Google".to_string(), address: "8.8.8.8".to_string(), region: None },
-                PropagationResolver { name: "Cloudflare".to_string(), address: "1.1.1.1".to_string(), region: None },
-                PropagationResolver { name: "Quad9".to_string(), address: "9.9.9.9".to_string(), region: None },
-                PropagationResolver { name: "OpenDNS".to_string(), address: "208.67.222.222".to_string(), region: None },
-                PropagationResolver { name: "CleanBrowsing".to_string(), address: "185.228.168.168".to_string(), region: None },
-                PropagationResolver { name: "Comodo".to_string(), address: "8.26.56.26".to_string(), region: None },
-            ],
+            resolvers: default_propagation_resolvers(),
             timeout_secs: 5,
         };
         api_result(shohei::api::check_propagation(&req).await)
@@ -1403,14 +1407,7 @@ impl ShoheiServer {
             list
         } else {
             // Default: 6 global resolvers (same as check_propagation_global)
-            vec![
-                PropagationResolver { name: "Google".to_string(), address: "8.8.8.8".to_string(), region: None },
-                PropagationResolver { name: "Cloudflare".to_string(), address: "1.1.1.1".to_string(), region: None },
-                PropagationResolver { name: "Quad9".to_string(), address: "9.9.9.9".to_string(), region: None },
-                PropagationResolver { name: "OpenDNS".to_string(), address: "208.67.222.222".to_string(), region: None },
-                PropagationResolver { name: "CleanBrowsing".to_string(), address: "185.228.168.168".to_string(), region: None },
-                PropagationResolver { name: "Comodo".to_string(), address: "8.26.56.26".to_string(), region: None },
-            ]
+            default_propagation_resolvers()
         };
 
         let req = PropagationRequest {
