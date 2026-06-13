@@ -214,10 +214,49 @@ pub async fn check_mx_security(req: &MxSecurityRequest) -> Result<MxSecurityResu
     let mut findings = Vec::new();
 
     for (host, priority) in &mx_entries {
-        let addr = format!("{}:25", host);
+        // Resolve hostname and validate IPs to prevent SSRF before connecting
+        let addr_str = format!("{}:25", host);
+        let resolved = {
+            let addr_str_clone = addr_str.clone();
+            match tokio::task::spawn_blocking(move || {
+                use std::net::ToSocketAddrs;
+                addr_str_clone.to_socket_addrs().map(|a| a.collect::<Vec<_>>())
+            }).await {
+                Ok(Ok(a)) => a,
+                _ => {
+                    findings.push(format!("MX server {} could not be resolved", host));
+                    mx_servers.push(MxServerSecurity {
+                        hostname: host.clone(),
+                        priority: *priority,
+                        reachable: false,
+                        banner: None,
+                        starttls_available: false,
+                        esmtp_features: vec![],
+                    });
+                    continue;
+                }
+            }
+        };
+        let safe_addrs: Vec<_> = resolved.iter()
+            .filter(|sa| !crate::api::helpers::is_private_or_special_ip(&sa.ip()))
+            .cloned()
+            .collect();
+        if safe_addrs.is_empty() {
+            findings.push(format!("MX server {} resolves to a private/reserved address — blocked for security", host));
+            mx_servers.push(MxServerSecurity {
+                hostname: host.clone(),
+                priority: *priority,
+                reachable: false,
+                banner: None,
+                starttls_available: false,
+                esmtp_features: vec![],
+            });
+            continue;
+        }
+        // Connect to the first validated SocketAddr to avoid TOCTOU re-resolution
         let conn = tokio::time::timeout(
             Duration::from_secs(req.timeout_secs.min(8)),
-            TcpStream::connect(&addr),
+            TcpStream::connect(safe_addrs[0]),
         ).await;
 
         match conn {

@@ -1,6 +1,8 @@
 //! DNS amplification attack potential checker — measure response size ratio.
 
 use serde::{Deserialize, Serialize};
+use std::net::{IpAddr, SocketAddr};
+use std::str::FromStr;
 use tokio::net::UdpSocket;
 use tokio::time::{timeout, Duration};
 use crate::error::Result;
@@ -32,8 +34,34 @@ pub async fn check_dns_amplification(req: &DnsAmplificationRequest) -> Result<Dn
         }
     };
 
-    let addr = format!("{}:{}", nameserver, port);
-    if let Err(e) = socket.connect(&addr).await {
+    // Validate nameserver is a parseable IP address and not a private/reserved address
+    let ip = match IpAddr::from_str(nameserver) {
+        Ok(ip) => ip,
+        Err(_) => {
+            return Ok(DnsAmplificationResult {
+                nameserver: nameserver.clone(),
+                domain: domain.clone(),
+                query_size: query_size as u32,
+                response_size: 0,
+                amplification_factor: 0.0,
+                risk_level: "error".to_string(),
+                error: Some("Invalid IP address".to_string()),
+            });
+        }
+    };
+    if crate::api::helpers::is_private_or_special_ip(&ip) {
+        return Ok(DnsAmplificationResult {
+            nameserver: nameserver.clone(),
+            domain: domain.clone(),
+            query_size: query_size as u32,
+            response_size: 0,
+            amplification_factor: 0.0,
+            risk_level: "error".to_string(),
+            error: Some("Private or reserved IP address blocked".to_string()),
+        });
+    }
+    let addr = SocketAddr::new(ip, port);
+    if let Err(e) = socket.connect(addr).await {
         return Ok(DnsAmplificationResult {
             nameserver: nameserver.clone(),
             domain: domain.clone(),

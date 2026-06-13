@@ -21,16 +21,10 @@ pub async fn check_ipv6(req: &Ipv6CheckRequest) -> Result<Ipv6CheckResult> {
         ..Default::default()
     };
 
+    let mut ipv6_ip_strings = Vec::new();
     let aaaa_present = match crate::api::check_dns(&dns_req).await {
         Ok(results) => {
-            results.iter().any(|r| !r.answers.is_empty())
-        }
-        Err(_) => false,
-    };
-
-    let mut ipv6_ip_strings = Vec::new();
-    if aaaa_present {
-        if let Ok(results) = crate::api::check_dns(&dns_req).await {
+            let has = results.iter().any(|r| !r.answers.is_empty());
             for result in results {
                 for record in result.answers {
                     if let crate::api::RecordData::Aaaa(ipv6_str) = &record.data {
@@ -38,8 +32,10 @@ pub async fn check_ipv6(req: &Ipv6CheckRequest) -> Result<Ipv6CheckResult> {
                     }
                 }
             }
+            has
         }
-    }
+        Err(_) => false,
+    };
 
     // Step 2: IPv6 TCP connectivity
     let tcp_reachable = if !ipv6_ip_strings.is_empty() {
@@ -57,12 +53,9 @@ pub async fn check_ipv6(req: &Ipv6CheckRequest) -> Result<Ipv6CheckResult> {
     };
 
     // Step 3: IPv6 TLS connectivity (if HTTPS)
-    let tls_reachable = if tcp_reachable && port == 443 && !ipv6_ip_strings.is_empty() {
-        // Simplified: TLS is reachable if TCP connected (full TLS check is in check_tls_chain)
-        true
-    } else {
-        false
-    };
+    // Not verified: a real TLS handshake is required before setting this to true.
+    // Callers should use check_tls_chain for actual TLS verification.
+    let tls_reachable = false;
 
     // Step 4: IPv6 HTTP connectivity
     let http_reachable = if tcp_reachable && port == 80 {
@@ -73,12 +66,9 @@ pub async fn check_ipv6(req: &Ipv6CheckRequest) -> Result<Ipv6CheckResult> {
         false
     };
 
-    // Step 5: IPv4 vs IPv6 content comparison (simplified)
-    let content_matches = if aaaa_present && tcp_reachable {
-        true  // Placeholder: ideally compare HTTP response bodies
-    } else {
-        false
-    };
+    // Step 5: IPv4 vs IPv6 content comparison
+    // Not verified: actual HTTP response bodies must be fetched and compared before setting true.
+    let content_matches = false;
 
     Ok(Ipv6CheckResult {
         domain: domain.clone(),
