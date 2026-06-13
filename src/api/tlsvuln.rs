@@ -30,11 +30,13 @@ pub async fn check_tls_vulns(req: &TlsVulnCheckRequest) -> Result<TlsVulnCheckRe
         }),
     };
 
-    // Test each TLS version
-    let tls10_accepted = test_tls_version(&ip, port, hostname_str, "1.0").await;
-    let tls11_accepted = test_tls_version(&ip, port, hostname_str, "1.1").await;
-    let tls12_accepted = test_tls_version(&ip, port, hostname_str, "1.2").await;
-    let tls13_accepted = test_tls_version(&ip, port, hostname_str, "1.3").await;
+    // Test each TLS version concurrently to reduce total latency
+    let (tls10_accepted, tls11_accepted, tls12_accepted, tls13_accepted) = tokio::join!(
+        test_tls_version(&ip, port, hostname_str, "1.0", req.timeout_secs),
+        test_tls_version(&ip, port, hostname_str, "1.1", req.timeout_secs),
+        test_tls_version(&ip, port, hostname_str, "1.2", req.timeout_secs),
+        test_tls_version(&ip, port, hostname_str, "1.3", req.timeout_secs),
+    );
 
     // Forward secrecy: assume supported if TLS 1.2+ available (rustls defaults to ECDHE)
     let forward_secrecy = tls12_accepted || tls13_accepted;
@@ -56,13 +58,14 @@ async fn test_tls_version(
     port: u16,
     hostname: &str,
     version: &str,
+    timeout_secs: u64,
 ) -> bool {
     // Note: rustls dropped support for TLS 1.0 and 1.1 as they are cryptographically broken.
     // We check against the server's capabilities rather than trying to force old protocols.
     // For a production tool, we'd need to use a more flexible TLS library or OpenSSL bindings.
 
     match timeout(
-        Duration::from_secs(5),
+        Duration::from_secs(timeout_secs),
         connect_with_tls(ip, port, hostname),
     )
     .await
@@ -75,8 +78,9 @@ async fn test_tls_version(
                     matches!(tls_ver.as_deref(), Some("TLSv1.2") | Some("TLSv1.3"))
                 }
                 "1.1" => {
-                    matches!(tls_ver.as_deref(),
-                        Some("TLSv1.1") | Some("TLSv1.2") | Some("TLSv1.3"))
+                    // rustls does not support TLS 1.1 (dropped as cryptographically broken).
+                    // Cannot probe whether the server accepts TLS 1.1; report as not accepted.
+                    false
                 }
                 "1.0" => {
                     // TLS 1.0 would be very old; rustls doesn't support it

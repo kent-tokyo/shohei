@@ -53,12 +53,9 @@ pub struct TimestampValidationResult {
 
 /// Validate RFC 3161 timestamp.
 pub async fn validate_timestamp(_req: &TimestampValidationRequest) -> Result<TimestampValidationResult> {
-    Ok(TimestampValidationResult {
-        valid: true,
-        timestamp_value: crate::api::helpers::now_rfc3339(),
-        certificate_chain_valid: true,
-        tsa_trusted: true,
-    })
+    Err(crate::error::ShoheError::Parse(
+        "RFC 3161 timestamp validation is not implemented; cannot verify authenticity".to_string(),
+    ))
 }
 
 /// Sigstore Rekor entry request.
@@ -108,12 +105,9 @@ pub struct RekorEntryVerificationResult {
 
 /// Verify Sigstore Rekor entry.
 pub async fn verify_rekor_entry(_req: &RekorEntryVerificationRequest) -> Result<RekorEntryVerificationResult> {
-    Ok(RekorEntryVerificationResult {
-        verified: true,
-        entry_found: true,
-        consistency_proof_valid: true,
-        leaf_proof_valid: true,
-    })
+    Err(crate::error::ShoheError::Parse(
+        "Sigstore Rekor entry verification is not implemented; cannot verify log inclusion".to_string(),
+    ))
 }
 
 /// Zero-knowledge proof generation request.
@@ -163,11 +157,9 @@ pub struct ZkProofVerificationResult {
 
 /// Verify zero-knowledge proof.
 pub async fn verify_zk_proof(_req: &ZkProofVerificationRequest) -> Result<ZkProofVerificationResult> {
-    Ok(ZkProofVerificationResult {
-        valid: true,
-        verification_time_ms: 50,
-        proof_secure: true,
-    })
+    Err(crate::error::ShoheError::Parse(
+        "Zero-knowledge proof verification is not implemented; cannot verify proof validity".to_string(),
+    ))
 }
 
 /// Escrow agreement request.
@@ -275,12 +267,9 @@ pub struct NotarizationVerificationResult {
 
 /// Verify digital notarization.
 pub async fn verify_notarization(_req: &NotarizationVerificationRequest) -> Result<NotarizationVerificationResult> {
-    Ok(NotarizationVerificationResult {
-        verified: true,
-        notarization_valid: true,
-        document_unchanged: true,
-        notarization_time: crate::api::helpers::now_rfc3339(),
-    })
+    Err(crate::error::ShoheError::Parse(
+        "Digital notarization verification is not implemented; cannot verify document integrity".to_string(),
+    ))
 }
 
 /// Key management request.

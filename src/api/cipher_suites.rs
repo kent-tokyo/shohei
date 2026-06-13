@@ -74,16 +74,8 @@ async fn test_tls_connection(
     use tokio::net::TcpStream;
     use tokio::time::{timeout, Duration};
 
-    let addr_str = format!("{}:{}", hostname, port);
-    let addr: SocketAddr = match addr_str.parse() {
-        Ok(a) => a,
-        Err(e) => {
-            return Err(crate::error::ShoheError::Parse(format!(
-                "Invalid address: {}",
-                e
-            )))
-        }
-    };
+    let ip = crate::api::helpers::resolve_hostname_to_ip(hostname, timeout_secs).await?;
+    let addr = SocketAddr::new(ip, port);
 
     match timeout(
         Duration::from_secs(timeout_secs),

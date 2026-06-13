@@ -84,7 +84,11 @@ pub async fn check_bimi(req: &BimiCheckRequest) -> Result<BimiCheckResult> {
     })
 }
 
+const MAX_VMC_SIZE: u64 = 64 * 1024; // 64 KB is sufficient for any certificate
+
 async fn validate_vmc_certificate(url: &str) -> Result<bool> {
+    crate::api::helpers::validate_url_safety(url)
+        .map_err(|e| crate::error::ShoheError::Parse(format!("Unsafe VMC URL: {}", e)))?;
     // Fetch the VMC from the URL
     let client = reqwest::Client::new();
     let response = client.get(url)
@@ -95,6 +99,12 @@ async fn validate_vmc_certificate(url: &str) -> Result<bool> {
 
     if !response.status().is_success() {
         return Err(crate::error::ShoheError::Transport(format!("VMC fetch returned {}", response.status())));
+    }
+
+    if let Some(len) = response.content_length() {
+        if len > MAX_VMC_SIZE {
+            return Err(crate::error::ShoheError::Parse("VMC response too large".to_string()));
+        }
     }
 
     let cert_bytes = response.bytes()

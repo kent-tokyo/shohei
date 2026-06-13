@@ -53,9 +53,22 @@ pub async fn check_delegation(req: &DelegationCheckRequest) -> Result<Delegation
         let ns_name = ns_server.clone();
         let timeout = req.timeout_secs;
         async move {
+            // Resolve the nameserver hostname to an IP so we can query it directly
+            let ns_ip = match crate::api::helpers::resolve_hostname_to_ip(&ns_name, timeout).await {
+                Ok(ip) => ip.to_string(),
+                Err(_) => {
+                    return DelegationNsResult {
+                        ns_server: ns_name,
+                        reachable: false,
+                        soa_serial: None,
+                    };
+                }
+            };
+
             let soa_req = DnsCheckRequest {
                 domain: domain.clone(),
                 record_types: vec!["SOA".to_string()],
+                transport: crate::api::Transport::Server(ns_ip),
                 timeout_secs: timeout,
                 ..Default::default()
             };

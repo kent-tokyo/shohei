@@ -87,7 +87,10 @@ fn reverse_ip(ip: &IpAddr) -> String {
                     result.push('.');
                 }
             }
-            result.push_str("ip6.arpa");
+            // Remove the trailing dot so format!("{}.{}", reversed_ip, zone) joins cleanly
+            if result.ends_with('.') {
+                result.pop();
+            }
             result
         }
     }
