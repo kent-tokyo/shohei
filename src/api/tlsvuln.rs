@@ -9,6 +9,7 @@ use tokio::time::{timeout, Duration};
 use tokio_rustls::TlsConnector;
 
 use crate::error::Result;
+use crate::api::tls::SkipVerification;
 
 /// Check TLS protocol vulnerabilities — which versions are supported.
 pub async fn check_tls_vulns(req: &TlsVulnCheckRequest) -> Result<TlsVulnCheckResult> {
@@ -124,47 +125,6 @@ async fn connect_with_tls(
     let cipher_suite = conn.negotiated_cipher_suite().map(|cs| format!("{:?}", cs));
 
     Ok((tls_version, cipher_suite))
-}
-
-#[derive(Debug)]
-struct SkipVerification;
-
-impl rustls::client::danger::ServerCertVerifier for SkipVerification {
-    fn verify_server_cert(
-        &self,
-        _end_entity: &rustls::pki_types::CertificateDer<'_>,
-        _intermediates: &[rustls::pki_types::CertificateDer<'_>],
-        _server_name: &rustls::pki_types::ServerName<'_>,
-        _ocsp_response: &[u8],
-        _now: rustls::pki_types::UnixTime,
-    ) -> std::result::Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
-        Ok(rustls::client::danger::ServerCertVerified::assertion())
-    }
-
-    fn verify_tls12_signature(
-        &self,
-        _message: &[u8],
-        _cert: &rustls::pki_types::CertificateDer<'_>,
-        _dss: &rustls::DigitallySignedStruct,
-    ) -> std::result::Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
-    }
-
-    fn verify_tls13_signature(
-        &self,
-        _message: &[u8],
-        _cert: &rustls::pki_types::CertificateDer<'_>,
-        _dss: &rustls::DigitallySignedStruct,
-    ) -> std::result::Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
-    }
-
-    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-        vec![
-            rustls::SignatureScheme::RSA_PKCS1_SHA256,
-            rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
-        ]
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
