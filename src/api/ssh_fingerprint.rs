@@ -92,6 +92,12 @@ pub struct SshFingerprintResult {
 
 /// Compute HASSH SSH fingerprint from KEXINIT packet.
 pub async fn check_ssh_fingerprint(req: &SshFingerprintRequest) -> Result<SshFingerprintResult> {
+    // SSRF guard: reject private/reserved IPs before opening any TCP connection.
+    // validate_url_safety normalises alternative IPv4 representations (0x7f.0.0.1,
+    // 2130706433, 127.1, trailing-dot) via the url crate before the private-IP check.
+    crate::api::helpers::validate_url_safety(&format!("http://{}:{}", req.host, req.port))
+        .map_err(|e| crate::error::ShoheError::Parse(format!("SSRF blocked: {}", e)))?;
+
     let addr = format!("{}:{}", req.host, req.port);
 
     let mut stream = match tokio::time::timeout(

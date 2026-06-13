@@ -77,6 +77,15 @@ pub async fn check_subdomain_takeover(req: &SubdomainTakeoverRequest) -> Result<
     let client = std::sync::Arc::new(
         reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(5))
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                if crate::api::helpers::validate_url_safety(attempt.url().as_str()).is_err() {
+                    return attempt.stop();
+                }
+                if attempt.previous().len() >= 5 {
+                    return attempt.stop();
+                }
+                attempt.follow()
+            }))
             .build()
             .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?,
     );
