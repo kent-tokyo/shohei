@@ -54,7 +54,38 @@ impl SimpleTable {
     }
 }
 
-/// Strip ANSI escape codes to compute visible string width.
+/// Terminal display width of a character per UAX #11 East Asian Width.
+/// Returns 0 for control/combining, 2 for CJK/fullwidth, 1 for everything else.
+fn char_display_width(c: char) -> usize {
+    let cp = c as u32;
+    match cp {
+        // Control characters and non-spacing marks
+        0x0000..=0x001F | 0x007F..=0x009F => 0,
+        // Combining diacritical marks (soft hyphen etc.)
+        0x00AD | 0x0300..=0x036F | 0x0483..=0x0489 => 0,
+        // Wide: Hangul Jamo
+        0x1100..=0x115F | 0xA960..=0xA97F | 0xAC00..=0xD7FF => 2,
+        // Wide: CJK Radicals, Kangxi, Bopomofo, Hiragana, Katakana, Kana, CJK symbols
+        0x2E80..=0x303E | 0x3041..=0x33FF => 2,
+        // Wide: CJK Extension A
+        0x3400..=0x4DBF => 2,
+        // Wide: CJK Unified Ideographs
+        0x4E00..=0x9FFF => 2,
+        // Wide: Yi Syllables
+        0xA000..=0xA4CF => 2,
+        // Wide: CJK Compatibility Ideographs
+        0xF900..=0xFAFF => 2,
+        // Wide: Vertical Forms, CJK Compatibility Forms
+        0xFE10..=0xFE19 | 0xFE30..=0xFE4F => 2,
+        // Wide: Fullwidth ASCII and halfwidth/fullwidth forms
+        0xFF01..=0xFF60 | 0xFFE0..=0xFFE6 => 2,
+        // Wide: CJK Extension B through H and compatibility
+        0x20000..=0x2FFFD | 0x30000..=0x3FFFD => 2,
+        _ => 1,
+    }
+}
+
+/// Strip ANSI escape codes and compute visible terminal width (handles CJK full-width chars).
 fn visible_len(s: &str) -> usize {
     let mut len = 0;
     let mut in_escape = false;
@@ -64,7 +95,7 @@ fn visible_len(s: &str) -> usize {
         } else if c == '\x1b' {
             in_escape = true;
         } else {
-            len += 1;
+            len += char_display_width(c);
         }
     }
     len
