@@ -32,14 +32,40 @@ pub async fn check_domain_health(req: &DomainHealthRequest) -> Result<DomainHeal
     let mut issues = Vec::new();
     let mut recommendations = Vec::new();
 
-    // Check DNS
+    // Build requests for all four independent checks
     let dns_req = DnsCheckRequest {
         domain: req.domain.clone(),
         record_types: vec!["A".to_string(), "AAAA".to_string(), "MX".to_string()],
         timeout_secs: req.timeout_secs,
         ..Default::default()
     };
-    if let Ok(dns_results) = check_dns(&dns_req).await {
+    let tls_req = TlsCheckRequest {
+        hostname: req.domain.clone(),
+        port: 443,
+        check_dane: false,
+        timeout_secs: req.timeout_secs,
+    };
+    let email_req = EmailSecurityRequest {
+        domain: req.domain.clone(),
+        timeout_secs: req.timeout_secs,
+        dkim_selectors: vec![
+            "default".to_string(),
+            "google".to_string(),
+            "selector1".to_string(),
+            "selector2".to_string(),
+        ],
+    };
+
+    // Run all four checks in parallel
+    let (dns_res, tls_res, email_res, prop_res) = tokio::join!(
+        check_dns(&dns_req),
+        check_tls_chain(&tls_req),
+        check_email_security(&email_req),
+        check_propagation_global(&req.domain),
+    );
+
+    // Process DNS result
+    if let Ok(dns_results) = dns_res {
         let has_a = dns_results.iter().any(|r| r.query.record_type == "A" && !r.answers.is_empty());
         let has_aaaa = dns_results.iter().any(|r| r.query.record_type == "AAAA" && !r.answers.is_empty());
         let has_mx = dns_results.iter().any(|r| r.query.record_type == "MX" && !r.answers.is_empty());
@@ -65,14 +91,8 @@ pub async fn check_domain_health(req: &DomainHealthRequest) -> Result<DomainHeal
     }
     dns_health.status = score_to_status(dns_health.score);
 
-    // Check TLS
-    let tls_req = TlsCheckRequest {
-        hostname: req.domain.clone(),
-        port: 443,
-        check_dane: false,
-        timeout_secs: req.timeout_secs,
-    };
-    if let Ok(tls_result) = check_tls_chain(&tls_req).await {
+    // Process TLS result
+    if let Ok(tls_result) = tls_res {
         tls_health.score = if tls_result.valid { 100 } else { 0 };
         tls_health.details.push(format!("Connected: {}", if tls_result.connected { "✓" } else { "✗" }));
         if let Some(days) = tls_result.days_until_expiry {
@@ -95,18 +115,8 @@ pub async fn check_domain_health(req: &DomainHealthRequest) -> Result<DomainHeal
     }
     tls_health.status = score_to_status(tls_health.score);
 
-    // Check Email Security
-    let email_req = EmailSecurityRequest {
-        domain: req.domain.clone(),
-        timeout_secs: req.timeout_secs,
-        dkim_selectors: vec![
-            "default".to_string(),
-            "google".to_string(),
-            "selector1".to_string(),
-            "selector2".to_string(),
-        ],
-    };
-    if let Ok(email_result) = check_email_security(&email_req).await {
+    // Process Email Security result
+    if let Ok(email_result) = email_res {
         email_health.score = email_result.score;
         email_health.details.push(format!("MX: {}", if email_result.mx.valid { "✓" } else { "✗" }));
         email_health.details.push(format!("SPF: {}", if email_result.spf.valid { "✓" } else { "✗" }));
@@ -122,8 +132,8 @@ pub async fn check_domain_health(req: &DomainHealthRequest) -> Result<DomainHeal
     }
     email_health.status = score_to_status(email_health.score);
 
-    // Check Propagation
-    if let Ok(prop_result) = check_propagation_global(&req.domain).await {
+    // Process Propagation result
+    if let Ok(prop_result) = prop_res {
         propagation_health.score = if prop_result.consistent { 100 } else { 50 };
         propagation_health.details.push(format!(
             "Consistent across resolvers: {}",
