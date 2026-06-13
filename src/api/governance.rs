@@ -35,7 +35,7 @@ pub async fn define_policy(req: &PolicyDefinitionRequest) -> Result<PolicyDefini
         policy_type: req.policy_type.clone(),
         rules_count: req.rules.len(),
         enabled: req.enabled,
-        created_at: chrono::Local::now().to_rfc3339(),
+        created_at: crate::api::helpers::now_rfc3339(),
         error: None,
     })
 }
@@ -60,7 +60,7 @@ pub struct DomainBlocklistResult {
 
 /// Add domains to blocklist.
 pub async fn add_domain_blocklist(req: &DomainBlocklistRequest) -> Result<DomainBlocklistResult> {
-    let blocklist_id = format!("bl_{}", chrono::Local::now().timestamp());
+    let blocklist_id = format!("bl_{}", crate::api::helpers::now_timestamp() as i64);
 
     Ok(DomainBlocklistResult {
         domains_blocked: req.domains.len(),
@@ -96,7 +96,7 @@ pub async fn add_ip_blocklist(req: &IpReputationBlocklistRequest) -> Result<IpRe
     Ok(IpReputationBlocklistResult {
         ips_blocked: req.ips.len(),
         threat_levels,
-        blocklist_version: format!("v{}", chrono::Local::now().timestamp()),
+        blocklist_version: format!("v{}", crate::api::helpers::now_timestamp() as i64),
         error: None,
     })
 }
@@ -120,7 +120,7 @@ pub struct AllowlistResult {
 
 /// Add domains to allowlist.
 pub async fn add_allowlist(req: &AllowlistRequest) -> Result<AllowlistResult> {
-    let allowlist_id = format!("wl_{}", chrono::Local::now().timestamp());
+    let allowlist_id = format!("wl_{}", crate::api::helpers::now_timestamp() as i64);
 
     Ok(AllowlistResult {
         domains_whitelisted: req.domains.len(),
@@ -189,7 +189,7 @@ pub struct ApprovalGateResult {
 
 /// Create approval gate for sensitive operations.
 pub async fn create_approval_gate(req: &ApprovalGateRequest) -> Result<ApprovalGateResult> {
-    let request_id = format!("appr_{}", chrono::Local::now().timestamp());
+    let request_id = format!("appr_{}", crate::api::helpers::now_timestamp() as i64);
 
     Ok(ApprovalGateResult {
         request_id,
@@ -197,8 +197,8 @@ pub async fn create_approval_gate(req: &ApprovalGateRequest) -> Result<ApprovalG
         status: "pending".to_string(),
         required_approvals: 2,
         current_approvals: 0,
-        created_at: chrono::Local::now().to_rfc3339(),
-        expires_at: (chrono::Local::now() + chrono::Duration::hours(24)).to_rfc3339(),
+        created_at: crate::api::helpers::now_rfc3339(),
+        expires_at: crate::api::helpers::rfc3339_hours_from_now(24 as u64),
     })
 }
 
@@ -232,13 +232,13 @@ pub struct AuditLogQueryResult {
 
 /// Query audit logs.
 pub async fn query_audit_logs(req: &AuditLogQueryRequest) -> Result<AuditLogQueryResult> {
-    let start_date = chrono::Local::now() - chrono::Duration::days(req.days as i64);
-    let end_date = chrono::Local::now();
+    
+    
 
     Ok(AuditLogQueryResult {
         total_entries: 0,
         entries: Vec::new(),
-        query_date_range: format!("{} to {}", start_date.format("%Y-%m-%d"), end_date.format("%Y-%m-%d")),
+        query_date_range: format!("last {} days to {}", req.days, crate::api::helpers::now_formatted()),
         error: None,
     })
 }
@@ -281,8 +281,8 @@ pub async fn generate_compliance_report(req: &ComplianceReportRequest) -> Result
         passed_controls: (framework_controls as f64 * 0.92) as usize,
         failed_controls: (framework_controls as f64 * 0.05) as usize,
         pending_controls: (framework_controls as f64 * 0.03) as usize,
-        report_date: chrono::Local::now().to_rfc3339(),
-        next_review: (chrono::Local::now() + chrono::Duration::days(30)).to_rfc3339(),
+        report_date: crate::api::helpers::now_rfc3339(),
+        next_review: crate::api::helpers::rfc3339_days_from_now(30 as u64),
     })
 }
 
@@ -377,13 +377,13 @@ pub struct QuarantineResult {
 
 /// Quarantine suspicious domains/IPs.
 pub async fn quarantine_targets(req: &QuarantineRequest) -> Result<QuarantineResult> {
-    let quarantine_id = format!("q_{}", chrono::Local::now().timestamp());
-    let expires = chrono::Local::now() + chrono::Duration::hours(req.duration_hours as i64);
+    let quarantine_id = format!("q_{}", crate::api::helpers::now_timestamp() as i64);
+    let expires_rfc = crate::api::helpers::rfc3339_hours_from_now(req.duration_hours as u64);
 
     Ok(QuarantineResult {
         quarantined_count: req.targets.len(),
         quarantine_id,
-        expires_at: expires.to_rfc3339(),
+        expires_at: expires_rfc,
         review_required: true,
     })
 }
@@ -407,7 +407,7 @@ pub struct AccessControlAuditResult {
 
 /// Audit access control violations.
 pub async fn audit_access_control(req: &AccessControlAuditRequest) -> Result<AccessControlAuditResult> {
-    let audit_id = format!("aca_{}", chrono::Local::now().timestamp());
+    let audit_id = format!("aca_{}", crate::api::helpers::now_timestamp() as i64);
 
     Ok(AccessControlAuditResult {
         audit_id,
@@ -438,14 +438,14 @@ pub struct WorkflowOrchestratorResult {
 
 /// Create governance workflow.
 pub async fn create_governance_workflow(req: &WorkflowOrchestratorRequest) -> Result<WorkflowOrchestratorResult> {
-    let workflow_id = format!("wf_{}", chrono::Local::now().timestamp());
+    let workflow_id = format!("wf_{}", crate::api::helpers::now_timestamp() as i64);
 
     Ok(WorkflowOrchestratorResult {
         workflow_id,
         workflow_name: req.workflow_name.clone(),
         steps_count: req.steps.len(),
         status: "created".to_string(),
-        created_at: chrono::Local::now().to_rfc3339(),
+        created_at: crate::api::helpers::now_rfc3339(),
     })
 }
 
@@ -467,7 +467,7 @@ pub struct PolicyViolationAlertResult {
 
 /// Alert on policy violations.
 pub async fn alert_policy_violation(req: &PolicyViolationAlertRequest) -> Result<PolicyViolationAlertResult> {
-    let alert_id = format!("alert_{}", chrono::Local::now().timestamp());
+    let alert_id = format!("alert_{}", crate::api::helpers::now_timestamp() as i64);
     let severity = match req.violation_type.as_str() {
         "blocklist_match" => "critical".to_string(),
         "rate_limit_exceeded" => "medium".to_string(),
@@ -479,7 +479,7 @@ pub async fn alert_policy_violation(req: &PolicyViolationAlertRequest) -> Result
         alert_id,
         severity,
         action_taken: "Violation logged and escalated".to_string(),
-        timestamp: chrono::Local::now().to_rfc3339(),
+        timestamp: crate::api::helpers::now_rfc3339(),
     })
 }
 
@@ -558,9 +558,9 @@ pub struct PolicyExceptionResult {
 
 /// Create policy exception.
 pub async fn create_policy_exception(req: &PolicyExceptionRequest) -> Result<PolicyExceptionResult> {
-    let exception_id = format!("exc_{}", chrono::Local::now().timestamp());
+    let exception_id = format!("exc_{}", crate::api::helpers::now_timestamp() as i64);
     let expires_at = req.duration_days.map(|d| {
-        (chrono::Local::now() + chrono::Duration::days(d as i64)).to_rfc3339()
+        crate::api::helpers::rfc3339_days_from_now(d as i64 as u64)
     });
 
     Ok(PolicyExceptionResult {
@@ -593,7 +593,7 @@ pub async fn verify_audit_trail(req: &AuditTrailVerificationRequest) -> Result<A
         domain: req.domain.clone(),
         total_events: 1542,
         integrity_verified: true,
-        last_verified: chrono::Local::now().to_rfc3339(),
+        last_verified: crate::api::helpers::now_rfc3339(),
     })
 }
 
@@ -722,14 +722,14 @@ pub struct BreachSimulationResult {
 
 /// Run breach simulation (tabletop exercise).
 pub async fn run_breach_simulation(req: &BreachSimulationRequest) -> Result<BreachSimulationResult> {
-    let simulation_id = format!("sim_{}", chrono::Local::now().timestamp());
-    let completion = chrono::Local::now() + chrono::Duration::hours(4);
+    let simulation_id = format!("sim_{}", crate::api::helpers::now_timestamp() as i64);
+    let completion_rfc = crate::api::helpers::rfc3339_hours_from_now(4);
 
     Ok(BreachSimulationResult {
         simulation_id,
         simulation_type: req.simulation_type.clone(),
-        start_time: chrono::Local::now().to_rfc3339(),
-        estimated_completion: completion.to_rfc3339(),
+        start_time: crate::api::helpers::now_rfc3339(),
+        estimated_completion: completion_rfc,
         success_rate_prediction: 35,
     })
 }

@@ -141,7 +141,8 @@ pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<Redirect
     // Backfill domain age if requested
     if req.check_domain_age {
         use url::Url;
-        use futures_util::future::join_all;
+        let _age_timeout = req.timeout_secs;
+        
         use std::collections::HashMap;
 
         // Extract unique hostnames
@@ -163,7 +164,7 @@ pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<Redirect
             async move {
                 let req = crate::api::DomainRiskRequest {
                     domain: host.clone(),
-                    timeout_secs: req.timeout_secs,
+                    timeout_secs: _age_timeout,
                 };
                 let age = match crate::api::check_domain_risk(&req).await {
                     Ok(result) => result.domain_age_days,
@@ -175,8 +176,8 @@ pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<Redirect
 
         // Add overall timeout to prevent backfill from blocking indefinitely
         let age_results = match tokio::time::timeout(
-            std::time::Duration::from_secs(req.timeout_secs),
-            join_all(age_tasks),
+            std::time::Duration::from_secs(_age_timeout),
+            async { let hs: Vec<_> = age_tasks.into_iter().map(tokio::spawn).collect(); let mut v = vec![]; for h in hs { if let Ok(r) = h.await { v.push(r); } } v },
         ).await {
             Ok(results) => results,
             Err(_) => Vec::new(),  // Timeout: skip backfill, continue with results

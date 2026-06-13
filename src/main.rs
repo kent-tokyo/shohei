@@ -10,7 +10,6 @@ mod tui;
 use std::time::Duration;
 
 use clap::Parser;
-use futures_util::future::join_all;
 use hickory_proto::rr::RecordType;
 /// Minimal progress spinner that writes to stderr (replaces the `indicatif` crate).
 struct Spinner { msg: std::sync::Mutex<String> }
@@ -382,7 +381,8 @@ async fn dispatch_compare_nway(
         });
     }
 
-    let results = join_all(all_opts.iter().map(|o| resolver::standard::query(o))).await;
+    let mut results = Vec::with_capacity(all_opts.len());
+    for o in &all_opts { results.push(resolver::standard::query(o).await); }
     spinner.finish_and_clear();
 
     // Warn on per-server errors but continue with servers that succeeded
@@ -472,8 +472,8 @@ async fn dispatch_standard(
         })
         .collect();
 
-    // All record types queried concurrently; join_all preserves insertion order.
-    let results = join_all(all_opts.iter().map(|o| resolver::standard::query(o))).await;
+    let mut results = Vec::with_capacity(all_opts.len());
+    for o in &all_opts { results.push(resolver::standard::query(o).await); }
     spinner.finish_and_clear();
 
     let mut success = true;

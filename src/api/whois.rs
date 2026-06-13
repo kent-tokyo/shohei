@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use crate::error::{Result, ShoheError};
-use chrono::{DateTime, Utc};
 
 /// Check domain registration details via RDAP API.
 pub async fn check_whois(req: &WhoisCheckRequest) -> Result<WhoisCheckResult> {
@@ -128,15 +127,13 @@ fn parse_rdap_response(domain: &str, rdap_data: &serde_json::Value) -> Result<Wh
 
     // Calculate days until expiry
     let (days_until_expiry, expiry_warning) = if let Some(exp_date_str) = &expiration_date {
-        match parse_date(exp_date_str) {
-            Some(exp_date) => {
-                let now = Utc::now();
-                let duration = exp_date.signed_duration_since(now);
-                let days = duration.num_days();
-                let warning = days < 30 && days > 0;
-                (Some(days), warning)
-            }
-            None => (None, false),
+        if let Some(exp_secs) = parse_date_secs(exp_date_str) {
+            let now_secs = crate::api::helpers::now_timestamp();
+            let days = (exp_secs as i64 - now_secs as i64) / 86400;
+            let warning = days < 30 && days > 0;
+            (Some(days), warning)
+        } else {
+            (None, false)
         }
     } else {
         (None, false)
@@ -157,16 +154,12 @@ fn parse_rdap_response(domain: &str, rdap_data: &serde_json::Value) -> Result<Wh
     })
 }
 
-fn parse_date(date_str: &str) -> Option<DateTime<Utc>> {
-    // Try ISO 8601 format: 2024-12-31T23:59:59Z or 2024-12-31T23:59:59.000Z
-    DateTime::parse_from_rfc3339(date_str)
-        .ok()
-        .map(|dt| dt.with_timezone(&Utc))
+fn parse_date_secs(date_str: &str) -> Option<u64> {
+    // Try RFC 3339 (e.g. "2024-12-31T23:59:59Z")
+    crate::api::helpers::parse_rfc3339_secs(date_str)
         .or_else(|| {
-            // Try basic format without timezone
-            chrono::NaiveDateTime::parse_from_str(date_str, "%Y-%m-%dT%H:%M:%S")
-                .ok()
-                .map(|ndt| ndt.and_utc())
+            // Try "%Y-%m-%dT%H:%M:%S" without timezone
+            crate::api::helpers::parse_naive_datetime_secs(date_str)
         })
 }
 

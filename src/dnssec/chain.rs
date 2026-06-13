@@ -1,7 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
 
-use futures_util::future::join_all;
+
 use hickory_proto::dnssec::rdata::DNSSECRData;
 use hickory_proto::dnssec::{Proof, PublicKey};
 use hickory_proto::rr::{RData, RecordType};
@@ -146,9 +146,14 @@ pub async fn build_chain(
         .collect();
 
     // Run overall trust determination alongside all per-zone queries.
+    let zone_handles: Vec<_> = zone_futs.into_iter().map(tokio::spawn).collect();
     let (overall_result, zone_results) = tokio::join!(
         get_overall_trust(domain, record_type, resolver_ip),
-        join_all(zone_futs),
+        async {
+            let mut v = Vec::with_capacity(zone_handles.len());
+            for h in zone_handles { if let Ok(r) = h.await { v.push(r); } }
+            v
+        },
     );
     let overall = overall_result?;
 

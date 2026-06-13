@@ -1,7 +1,85 @@
-use comfy_table::{Cell, CellAlignment, Table};
-
 use crate::display::colors::{paint_dim, trust_badge};
 use crate::resolver::{DnsQueryResult, RecordData};
+
+// ── Simple ASCII table renderer (replaces comfy-table) ─────────────────────
+
+struct SimpleTable {
+    headers: Vec<String>,
+    rows: Vec<Vec<String>>,
+    right_align: Vec<bool>,  // true → right-align that column
+}
+
+impl SimpleTable {
+    fn new(headers: Vec<&str>, right_align: Vec<bool>) -> Self {
+        Self {
+            headers: headers.iter().map(|s| s.to_string()).collect(),
+            rows: Vec::new(),
+            right_align,
+        }
+    }
+
+    fn add_row(&mut self, row: Vec<String>) { self.rows.push(row); }
+
+    fn render(&self) -> String {
+        let cols = self.headers.len();
+        let mut widths: Vec<usize> = self.headers.iter().map(|h| h.len()).collect();
+        for row in &self.rows {
+            for (i, cell) in row.iter().enumerate().take(cols) {
+                // visible_len strips ANSI escape codes for width calc
+                widths[i] = widths[i].max(visible_len(cell));
+            }
+        }
+
+        let sep: String = widths.iter().map(|&w| "─".repeat(w + 2)).collect::<Vec<_>>().join("┼");
+        let top: String = widths.iter().map(|&w| "─".repeat(w + 2)).collect::<Vec<_>>().join("┬");
+        let bot: String = widths.iter().map(|&w| "─".repeat(w + 2)).collect::<Vec<_>>().join("┴");
+
+        let mut out = format!("┌{}┐\n", top);
+        // Header
+        let hcells: Vec<String> = self.headers.iter().enumerate().map(|(i, h)| {
+            pad(h, widths[i], false)
+        }).collect();
+        out.push_str(&format!("│ {} │\n", hcells.join(" │ ")));
+        out.push_str(&format!("├{}┤\n", sep));
+        // Rows
+        for row in &self.rows {
+            let cells: Vec<String> = (0..cols).map(|i| {
+                let cell = row.get(i).map(|s| s.as_str()).unwrap_or("");
+                pad(cell, widths[i], self.right_align.get(i).copied().unwrap_or(false))
+            }).collect();
+            out.push_str(&format!("│ {} │\n", cells.join(" │ ")));
+        }
+        out.push_str(&format!("└{}┘", bot));
+        out
+    }
+}
+
+/// Strip ANSI escape codes to compute visible string width.
+fn visible_len(s: &str) -> usize {
+    let mut len = 0;
+    let mut in_escape = false;
+    for c in s.chars() {
+        if in_escape {
+            if c == 'm' { in_escape = false; }
+        } else if c == '\x1b' {
+            in_escape = true;
+        } else {
+            len += 1;
+        }
+    }
+    len
+}
+
+/// Pad `s` to `width` visible chars. `right` = right-align.
+fn pad(s: &str, width: usize, right: bool) -> String {
+    let vlen = visible_len(s);
+    let padding = width.saturating_sub(vlen);
+    if right {
+        format!("{}{}", " ".repeat(padding), s)
+    } else {
+        format!("{}{}", s, " ".repeat(padding))
+    }
+}
 
 fn format_ttl(secs: u32) -> String {
     if secs < 60 {
@@ -84,8 +162,11 @@ pub fn render_result(result: &DnsQueryResult, use_color: bool) -> String {
 }
 
 fn render_records_table(records: &[crate::resolver::DnsRecord], use_color: bool) -> String {
-    let mut table = Table::new();
-    table.set_header(vec!["NAME", "TTL", "TYPE", "DATA", "TRUST"]);
+    // right_align: NAME=false, TTL=true, TYPE=false, DATA=false, TRUST=false
+    let mut table = SimpleTable::new(
+        vec!["NAME", "TTL", "TYPE", "DATA", "TRUST"],
+        vec![false, true, false, false, false],
+    );
 
     for record in records {
         let trust_cell = if use_color {
@@ -93,19 +174,16 @@ fn render_records_table(records: &[crate::resolver::DnsRecord], use_color: bool)
         } else {
             record.trust.to_string()
         };
-
         table.add_row(vec![
-            Cell::new(&record.name),
-            Cell::new(format_ttl(record.ttl)).set_alignment(CellAlignment::Right),
-            Cell::new(&record.record_type),
-            Cell::new(format_record_data(&record.data)),
-            Cell::new(trust_cell),
+            record.name.clone(),
+            format_ttl(record.ttl),
+            record.record_type.clone(),
+            format_record_data(&record.data),
+            trust_cell,
         ]);
     }
 
-    let mut out = table.to_string();
-    out.push('\n');
-    out
+    format!("{}\n", table.render())
 }
 
 /// Strip ASCII control characters from DNS-sourced strings before terminal output (S1).

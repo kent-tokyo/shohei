@@ -69,7 +69,7 @@ pub async fn check_ct(req: &CtCheckRequest) -> Result<CtCheckResult> {
                     scts.push(ScTInfo {
                         version: Some(1),
                         log_id: "crt.sh".to_string(),
-                        timestamp: Some(chrono::Local::now().to_rfc3339()),
+                        timestamp: Some(crate::api::helpers::now_rfc3339()),
                     });
                 }
                 Err(_) => {

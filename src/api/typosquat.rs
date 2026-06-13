@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use crate::error::Result;
-use futures_util::future::join_all;
+
 
 /// Request to check for typosquatting variants.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,7 +103,9 @@ pub async fn check_typosquatting(req: &TyposquatRequest) -> Result<TyposquatResu
         })
         .collect();
 
-    let results = join_all(handles).await;
+    let handles_spawned: Vec<_> = handles.into_iter().map(tokio::spawn).collect();
+    let mut results = Vec::with_capacity(handles_spawned.len());
+    for h in handles_spawned { results.push(h.await.unwrap_or(None)); }
     let hits: Vec<TyposquatHit> = results.into_iter().filter_map(|r| r).collect();
     let live_count = hits.iter().filter(|h| h.live).count() as u32;
 

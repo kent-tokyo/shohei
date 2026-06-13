@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::Result;
 use crate::api::{check_dns, DnsCheckRequest};
 use crate::resolver::RecordData;
-use futures_util::future::join_all;
+
 
 /// Check DNS delegation consistency (SOA serial alignment, NS reachability).
 pub async fn check_delegation(req: &DelegationCheckRequest) -> Result<DelegationCheckResult> {
@@ -88,7 +88,9 @@ pub async fn check_delegation(req: &DelegationCheckRequest) -> Result<Delegation
         }
     });
 
-    let ns_results = join_all(soa_futures).await;
+    let spawned_del: Vec<_> = soa_futures.map(tokio::spawn).collect();
+    let mut ns_results = Vec::with_capacity(spawned_del.len());
+    for h in spawned_del { if let Ok(v) = h.await { ns_results.push(v); } }
 
     // Step 3: Check for consistency
     let reachable_count = ns_results.iter().filter(|r| r.reachable).count();

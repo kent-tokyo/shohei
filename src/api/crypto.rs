@@ -24,7 +24,7 @@ pub struct Rfc3161TimestampResult {
 
 /// Request RFC 3161 timestamp from TSA.
 pub async fn request_rfc3161_timestamp(_req: &Rfc3161TimestampRequest) -> Result<Rfc3161TimestampResult> {
-    let timestamp_value = chrono::Local::now().to_rfc3339();
+    let timestamp_value = crate::api::helpers::now_rfc3339();
 
     Ok(Rfc3161TimestampResult {
         timestamp_token: format!("token_{}", crate::api::helpers::generate_id("id")),
@@ -55,7 +55,7 @@ pub struct TimestampValidationResult {
 pub async fn validate_timestamp(_req: &TimestampValidationRequest) -> Result<TimestampValidationResult> {
     Ok(TimestampValidationResult {
         valid: true,
-        timestamp_value: chrono::Local::now().to_rfc3339(),
+        timestamp_value: crate::api::helpers::now_rfc3339(),
         certificate_chain_valid: true,
         tsa_trusted: true,
     })
@@ -85,7 +85,7 @@ pub async fn add_sigstore_rekor_entry(_req: &SignstoreRekorEntryRequest) -> Resu
     Ok(SignstoreRekorEntryResult {
         entry_uuid,
         merkle_tree_leaf_hash: format!("hash_{}", crate::api::helpers::generate_id("id")),
-        integrated_time: chrono::Local::now().to_rfc3339(),
+        integrated_time: crate::api::helpers::now_rfc3339(),
         log_id: "rekor_log".to_string(),
     })
 }
@@ -196,7 +196,7 @@ pub async fn create_escrow_agreement(_req: &EscrowAgreementRequest) -> Result<Es
         escrow_id,
         status: "created".to_string(),
         contract_hash: format!("hash_{}", crate::api::helpers::generate_id("id")),
-        created_at: chrono::Local::now().to_rfc3339(),
+        created_at: crate::api::helpers::now_rfc3339(),
     })
 }
 
@@ -222,7 +222,7 @@ pub async fn release_escrow(_req: &EscrowReleaseRequest) -> Result<EscrowRelease
         released: true,
         transaction_hash: format!("tx_{}", crate::api::helpers::generate_id("id")),
         released_amount: 0,
-        released_at: chrono::Local::now().to_rfc3339(),
+        released_at: crate::api::helpers::now_rfc3339(),
     })
 }
 
@@ -252,7 +252,7 @@ pub async fn notarize_document(req: &DigitalNotarizationRequest) -> Result<Digit
         notarization_id,
         document_hash: req.document_hash.clone(),
         ledger_address: format!("addr_{}", crate::api::helpers::generate_id("id")),
-        notarization_time: chrono::Local::now().to_rfc3339(),
+        notarization_time: crate::api::helpers::now_rfc3339(),
         proof_of_notarization: format!("proof_{}", crate::api::helpers::generate_id("id")),
     })
 }
@@ -279,7 +279,7 @@ pub async fn verify_notarization(_req: &NotarizationVerificationRequest) -> Resu
         verified: true,
         notarization_valid: true,
         document_unchanged: true,
-        notarization_time: chrono::Local::now().to_rfc3339(),
+        notarization_time: crate::api::helpers::now_rfc3339(),
     })
 }
 
@@ -310,7 +310,7 @@ pub async fn manage_cryptographic_key(req: &KeyManagementRequest) -> Result<KeyM
         key_type: req.key_type.clone(),
         key_size: req.key_size,
         public_key: format!("pubkey_{}", crate::api::helpers::generate_id("id")),
-        created_at: chrono::Local::now().to_rfc3339(),
+        created_at: crate::api::helpers::now_rfc3339(),
     })
 }
 
@@ -339,7 +339,7 @@ pub async fn rotate_key(req: &KeyRotationRequest) -> Result<KeyRotationResult> {
         rotated: true,
         old_key_id: req.key_id.clone(),
         new_key_id,
-        rotation_time: chrono::Local::now().to_rfc3339(),
+        rotation_time: crate::api::helpers::now_rfc3339(),
         transition_period_days: 90,
     })
 }

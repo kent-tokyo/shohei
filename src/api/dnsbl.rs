@@ -5,7 +5,6 @@ use crate::error::Result;
 use crate::api::{check_dns, DnsCheckRequest};
 use std::net::IpAddr;
 use std::str::FromStr;
-use futures_util::future::join_all;
 
 /// Check IP reputation against multiple DNSBL services.
 pub async fn check_dnsbl(req: &DnsblCheckRequest) -> Result<DnsblCheckResult> {
@@ -24,6 +23,7 @@ pub async fn check_dnsbl(req: &DnsblCheckRequest) -> Result<DnsblCheckResult> {
 
     // Reverse IP for DNSBL query format
     let reversed_ip = reverse_ip(&ip_addr);
+    let _timeout = req.timeout_secs;
 
     // List of major DNSBL services
     let dnsbl_services = vec![
@@ -40,7 +40,7 @@ pub async fn check_dnsbl(req: &DnsblCheckRequest) -> Result<DnsblCheckResult> {
             let dns_req = DnsCheckRequest {
                 domain: query_domain,
                 record_types: vec!["A".to_string()],
-                timeout_secs: req.timeout_secs,
+                timeout_secs: _timeout,
                 ..Default::default()
             };
 
@@ -58,7 +58,9 @@ pub async fn check_dnsbl(req: &DnsblCheckRequest) -> Result<DnsblCheckResult> {
         }
     });
 
-    let services = join_all(futures).await;
+    let handles: Vec<_> = futures.map(tokio::spawn).collect();
+    let mut services = Vec::with_capacity(handles.len());
+    for h in handles { if let Ok(v) = h.await { services.push(v); } }
     let listed = services.iter().any(|s| s.listed);
 
     Ok(DnsblCheckResult {

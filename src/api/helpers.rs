@@ -2,10 +2,107 @@
 
 use std::net::IpAddr;
 use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use crate::error::Result;
 
 /// Default timeout for all API requests (in seconds). Centralized to enable single-point policy changes.
 pub const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 30;
+
+// ── Chrono replacements ────────────────────────────────────────────────────
+
+/// Current Unix timestamp in seconds (UTC).
+pub fn now_timestamp() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
+}
+
+/// Format a Unix timestamp (seconds) as an RFC 3339 UTC string (e.g. "2026-06-13T12:34:56Z").
+pub fn format_rfc3339(secs: u64) -> String {
+    // Days since 1970-01-01, with Gregorian calendar arithmetic.
+    let s = secs % 60;
+    let m = (secs / 60) % 60;
+    let h = (secs / 3600) % 24;
+    let mut days = secs / 86400;
+
+    let mut year = 1970u32;
+    loop {
+        let days_in_year = if is_leap(year) { 366 } else { 365 };
+        if days < days_in_year { break; }
+        days -= days_in_year;
+        year += 1;
+    }
+    let months = if is_leap(year) { &[31,29,31,30,31,30,31,31,30,31,30,31] }
+                 else              { &[31,28,31,30,31,30,31,31,30,31,30,31] };
+    let mut month = 1u32;
+    for &ml in months.iter() {
+        if days < ml { break; }
+        days -= ml;
+        month += 1;
+    }
+    let day = days + 1;
+    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z", year, month, day, h, m, s)
+}
+
+fn is_leap(y: u32) -> bool { y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) }
+
+/// Current time as RFC 3339 UTC string (replaces `chrono::Local::now().to_rfc3339()`).
+pub fn now_rfc3339() -> String {
+    format_rfc3339(now_timestamp())
+}
+
+/// Current time as "%Y-%m-%d %H:%M:%S" UTC string (replaces `chrono::Local::now().format(...)`).
+pub fn now_formatted() -> String {
+    let t = now_timestamp();
+    let s = t % 60; let m = (t / 60) % 60; let h = (t / 3600) % 24;
+    let days = t / 86400;
+    let mut year = 1970u32; let mut d = days;
+    loop {
+        let dy = if is_leap(year) { 366 } else { 365 };
+        if d < dy { break; } d -= dy; year += 1;
+    }
+    let months = if is_leap(year) { &[31u64,29,31,30,31,30,31,31,30,31,30,31] }
+                 else              { &[31u64,28,31,30,31,30,31,31,30,31,30,31] };
+    let mut mo = 1u32;
+    for &ml in months.iter() { if d < ml { break; } d -= ml; mo += 1; }
+    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, mo, d + 1, h, m, s)
+}
+
+/// RFC 3339 string N days from now (replaces `chrono::Local::now() + Duration::days(N)`).
+pub fn rfc3339_days_from_now(days: u64) -> String {
+    format_rfc3339(now_timestamp() + days * 86400)
+}
+
+/// RFC 3339 string N hours from now.
+pub fn rfc3339_hours_from_now(hours: u64) -> String {
+    format_rfc3339(now_timestamp() + hours * 3600)
+}
+
+/// Parse an RFC 3339 UTC string to Unix seconds (e.g. "2026-01-15T10:30:00Z" → seconds).
+/// Returns None if parsing fails.
+pub fn parse_rfc3339_secs(s: &str) -> Option<u64> {
+    // Expected: YYYY-MM-DDTHH:MM:SS[Z|+00:00|...]
+    let s = s.trim_end_matches('Z').trim_end_matches("+00:00");
+    let s = if s.len() >= 19 { &s[..19] } else { return None; };
+    let year: u32  = s[0..4].parse().ok()?;
+    let month: u32 = s[5..7].parse().ok()?;
+    let day: u32   = s[8..10].parse().ok()?;
+    let hour: u64  = s[11..13].parse().ok()?;
+    let min: u64   = s[14..16].parse().ok()?;
+    let sec: u64   = s[17..19].parse().ok()?;
+    if month < 1 || month > 12 || day < 1 || day > 31 { return None; }
+    // Days from epoch to start of year
+    let mut days = 0u64;
+    for y in 1970..year { days += if is_leap(y) { 366 } else { 365 }; }
+    let months_days: &[u32] = if is_leap(year) { &[0,31,29,31,30,31,30,31,31,30,31,30,31] }
+                              else              { &[0,31,28,31,30,31,30,31,31,30,31,30,31] };
+    for mi in 1..month { days += months_days[mi as usize] as u64; }
+    days += (day - 1) as u64;
+    Some(days * 86400 + hour * 3600 + min * 60 + sec)
+}
+
+/// Parse "%Y-%m-%dT%H:%M:%S" (no timezone) as UTC seconds.
+pub fn parse_naive_datetime_secs(s: &str) -> Option<u64> {
+    parse_rfc3339_secs(&format!("{}Z", s))
+}
 
 /// Verdict engine for determining threat/trust levels from scores.
 pub struct VerdictEngine;
@@ -64,16 +161,20 @@ pub async fn resolve_hostname_to_ip(hostname: &str, timeout_secs: u64) -> Result
 ///
 /// Returns `Err` with a descriptive message if the URL is unsafe.
 pub fn validate_url_safety(url: &str) -> std::result::Result<(), String> {
-    let parsed = url::Url::parse(url).map_err(|e| format!("Invalid URL: {}", e))?;
+    // Extract scheme and host without the `url` crate
+    let (scheme, rest) = url.split_once("://").ok_or("Invalid URL: missing scheme")?;
 
     // Allow only http and https
-    match parsed.scheme() {
+    match scheme {
         "http" | "https" => {}
-        scheme => return Err(format!("Disallowed URL scheme '{}' — only http/https allowed", scheme)),
+        s => return Err(format!("Disallowed URL scheme '{}' — only http/https allowed", s)),
     }
 
-    // Check the host
-    let host = parsed.host_str().ok_or("URL has no host")?;
+    // Extract host (strip path, query, userinfo, port)
+    let hostport = rest.split('/').next().unwrap_or(rest);
+    let host = hostport.split('@').last().unwrap_or(hostport);
+    let host = host.split(':').next().unwrap_or(host);
+    let host = host.trim_matches('[').trim_matches(']'); // IPv6 bracket notation
 
     // If host is an IP address, check for private ranges
     if let Ok(ip) = host.parse::<std::net::IpAddr>() {

@@ -28,7 +28,7 @@ pub async fn detect_pii(req: &PiiDetectionRequest) -> Result<PiiDetectionResult>
         pii_found: false,
         pii_types: Vec::new(),
         risk_score: 0,
-        scan_timestamp: chrono::Local::now().to_rfc3339(),
+        scan_timestamp: crate::api::helpers::now_rfc3339(),
     })
 }
 
@@ -55,7 +55,7 @@ pub async fn anonymize_pii(req: &PiiAnonymizationRequest) -> Result<PiiAnonymiza
         domain: req.domain.clone(),
         anonymized_records: 0,
         anonymization_method: "pseudonymization".to_string(),
-        completed_at: chrono::Local::now().to_rfc3339(),
+        completed_at: crate::api::helpers::now_rfc3339(),
     })
 }
 
@@ -79,14 +79,14 @@ pub struct DataRetentionPolicyResult {
 
 /// Define data retention policy.
 pub async fn define_retention_policy(req: &DataRetentionPolicyRequest) -> Result<DataRetentionPolicyResult> {
-    let next_purge = chrono::Local::now() + chrono::Duration::days(req.retention_days as i64);
+    let next_purge_rfc = crate::api::helpers::rfc3339_days_from_now(req.retention_days as u64);
 
     Ok(DataRetentionPolicyResult {
         policy_id: format!("ret_{}", req.domain.replace(".", "_")),
         domain: req.domain.clone(),
         retention_period: format!("{} days", req.retention_days),
         auto_purge_enabled: true,
-        next_purge_date: next_purge.to_rfc3339(),
+        next_purge_date: next_purge_rfc,
     })
 }
 
@@ -251,13 +251,13 @@ pub struct DataDeletionResult {
 
 /// Delete data according to retention policies.
 pub async fn delete_expired_data(req: &DataDeletionRequest) -> Result<DataDeletionResult> {
-    let deletion_id = format!("del_{}", chrono::Local::now().timestamp());
+    let deletion_id = format!("del_{}", crate::api::helpers::now_timestamp() as i64);
 
     Ok(DataDeletionResult {
         deletion_id,
         records_deleted: 0,
         deletion_verified: true,
-        completed_at: chrono::Local::now().to_rfc3339(),
+        completed_at: crate::api::helpers::now_rfc3339(),
     })
 }
 
@@ -281,15 +281,15 @@ pub struct DataSubjectAccessResult {
 
 /// Process data subject access request (DSAR/SAR).
 pub async fn process_data_subject_access(req: &DataSubjectAccessRequest) -> Result<DataSubjectAccessResult> {
-    let request_id = format!("dsar_{}", chrono::Local::now().timestamp());
-    let deadline = chrono::Local::now() + chrono::Duration::days(30);
+    let request_id = format!("dsar_{}", crate::api::helpers::now_timestamp() as i64);
+    let deadline_rfc30 = crate::api::helpers::rfc3339_days_from_now(30);
 
     Ok(DataSubjectAccessResult {
         request_id,
         subject_identifier: req.subject_identifier.clone(),
         data_elements_found: 0,
         format_options: vec!["CSV".to_string(), "JSON".to_string(), "PDF".to_string()],
-        fulfillment_deadline: deadline.to_rfc3339(),
+        fulfillment_deadline: deadline_rfc30,
     })
 }
 
@@ -316,7 +316,7 @@ pub async fn manage_consent(req: &ConsentManagementRequest) -> Result<ConsentMan
         domain: req.domain.clone(),
         consent_recorded: true,
         opt_in_rate: 78,
-        last_updated: chrono::Local::now().to_rfc3339(),
+        last_updated: crate::api::helpers::now_rfc3339(),
         withdrawal_available: true,
     })
 }
@@ -341,13 +341,13 @@ pub struct CryptographicSignatureResult {
 
 /// Create cryptographic signature for audit trail.
 pub async fn sign_audit_trail(req: &CryptographicSignatureRequest) -> Result<CryptographicSignatureResult> {
-    let signature_id = format!("sig_{}", chrono::Local::now().timestamp());
+    let signature_id = format!("sig_{}", crate::api::helpers::now_timestamp() as i64);
 
     Ok(CryptographicSignatureResult {
         signature_id,
         algorithm: req.algorithm.clone(),
         key_size: 2048,
-        signed_at: chrono::Local::now().to_rfc3339(),
+        signed_at: crate::api::helpers::now_rfc3339(),
         verifiable: true,
     })
 }
@@ -396,7 +396,7 @@ pub struct PrivacyImpactAssessmentResult {
 
 /// Conduct privacy impact assessment.
 pub async fn conduct_privacy_assessment(req: &PrivacyImpactAssessmentRequest) -> Result<PrivacyImpactAssessmentResult> {
-    let pia_id = format!("pia_{}", chrono::Local::now().timestamp());
+    let pia_id = format!("pia_{}", crate::api::helpers::now_timestamp() as i64);
 
     Ok(PrivacyImpactAssessmentResult {
         pia_id,
@@ -426,14 +426,14 @@ pub struct PrivacyBreachNotificationResult {
 
 /// Manage privacy breach notification process.
 pub async fn notify_privacy_breach(req: &PrivacyBreachNotificationRequest) -> Result<PrivacyBreachNotificationResult> {
-    let notification_id = format!("notify_{}", chrono::Local::now().timestamp());
-    let deadline = chrono::Local::now() + chrono::Duration::days(72);
+    let notification_id = format!("notify_{}", crate::api::helpers::now_timestamp() as i64);
+    let deadline_rfc72 = crate::api::helpers::rfc3339_days_from_now(72);
 
     Ok(PrivacyBreachNotificationResult {
         notification_id,
         affected_records: req.breach_scope,
         notification_channels: vec!["email".to_string(), "website".to_string()],
-        deadline: deadline.to_rfc3339(),
+        deadline: deadline_rfc72,
         regulatory_filed: true,
     })
 }

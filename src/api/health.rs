@@ -154,7 +154,7 @@ pub async fn check_domain_health(req: &DomainHealthRequest) -> Result<DomainHeal
         propagation_health,
         issues,
         recommendations,
-        timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        timestamp: crate::api::helpers::now_formatted(),
     })
 }
 

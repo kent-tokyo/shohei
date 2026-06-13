@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use crate::error::Result;
 use crate::api::{check_dns, DnsCheckRequest};
-use futures_util::future::join_all;
+
 
 /// Check common subdomains for DNS/HTTP/TLS validity.
 pub async fn check_common_subdomains(req: &SubdomainCheckRequest) -> Result<SubdomainCheckResult> {
@@ -24,11 +24,12 @@ pub async fn check_common_subdomains(req: &SubdomainCheckRequest) -> Result<Subd
     }
 
     // Parallel DNS resolution for all subdomains
+    let timeout = req.timeout_secs;
     let tasks: Vec<_> = subdomains
         .iter()
         .map(|sub| {
+            let sub = sub.to_string();
             let domain = req.domain.clone();
-            let timeout = req.timeout_secs;
             async move {
                 let full_domain = format!("{}.{}", sub, domain);
                 check_subdomain(&full_domain, timeout).await
@@ -36,7 +37,9 @@ pub async fn check_common_subdomains(req: &SubdomainCheckRequest) -> Result<Subd
         })
         .collect();
 
-    let results = join_all(tasks).await;
+    let handles: Vec<_> = tasks.into_iter().map(tokio::spawn).collect();
+    let mut results = Vec::with_capacity(handles.len());
+    for h in handles { if let Ok(v) = h.await { results.push(v); } }
 
     Ok(SubdomainCheckResult {
         domain: req.domain.clone(),

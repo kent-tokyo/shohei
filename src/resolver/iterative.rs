@@ -1,7 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Instant;
 
-use futures_util::future::join_all;
+
 use hickory_proto::rr::RecordType;
 use hickory_resolver::TokioResolver;
 use hickory_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
@@ -342,5 +342,8 @@ async fn resolve_ns_to_addrs(
         }
     });
 
-    join_all(futs).await.into_iter().flatten().collect()
+    let hs: Vec<_> = futs.map(tokio::spawn).collect();
+    let mut out = Vec::new();
+    for h in hs { if let Ok(Some(v)) = h.await { out.push(v); } }
+    out
 }

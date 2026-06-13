@@ -150,7 +150,7 @@ pub async fn check_threat_intel_aggregate(req: &ThreatIntelRequest) -> Result<Th
         threat_sources,
         overall_verdict,
         flagged_by,
-        last_updated: chrono::Local::now().to_rfc3339(),
+        last_updated: crate::api::helpers::now_rfc3339(),
     })
 }
 

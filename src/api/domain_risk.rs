@@ -63,11 +63,10 @@ pub async fn check_domain_risk(req: &DomainRiskRequest) -> Result<DomainRiskResu
 
     // Calculate domain age if created_date is available
     if let Some(created_str) = &whois_result.created_date {
-        if let Ok(created) = chrono::DateTime::parse_from_rfc3339(created_str) {
-            let now = chrono::Utc::now();
-            let created_utc = created.with_timezone(&chrono::Utc);
-            let age_duration = now.signed_duration_since(created_utc);
-            domain_age_days = Some(age_duration.num_days());
+        if let Some(created_secs) = crate::api::helpers::parse_rfc3339_secs(created_str) {
+            let now_secs = crate::api::helpers::now_timestamp();
+            let age = (now_secs.saturating_sub(created_secs) / 86400) as i64;
+            domain_age_days = Some(age);
 
             if domain_age_days.unwrap_or(0) < 30 {
                 risk_signals.push("newly_registered".to_string());
@@ -79,11 +78,10 @@ pub async fn check_domain_risk(req: &DomainRiskRequest) -> Result<DomainRiskResu
 
     // Calculate days until expiry if expiration_date is available
     if let Some(expiry_str) = &whois_result.expiration_date {
-        if let Ok(expiry) = chrono::DateTime::parse_from_rfc3339(expiry_str) {
-            let now = chrono::Utc::now();
-            let expiry_utc = expiry.with_timezone(&chrono::Utc);
-            let ttl_duration = expiry_utc.signed_duration_since(now);
-            days_until_expiry = Some(ttl_duration.num_days());
+        if let Some(expiry_secs) = crate::api::helpers::parse_rfc3339_secs(expiry_str) {
+            let now_secs = crate::api::helpers::now_timestamp();
+            let ttl = (expiry_secs as i64 - now_secs as i64) / 86400;
+            days_until_expiry = Some(ttl);
 
             if days_until_expiry.unwrap_or(0) < 0 {
                 risk_signals.push("expired".to_string());
