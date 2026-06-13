@@ -263,7 +263,7 @@ pub fn format_record_data(data: &RecordData) -> String {
             public_key,
         } => {
             let key_preview = if public_key.len() > 20 {
-                format!("{}…", &public_key[..20])
+                format!("{}…", public_key.get(..20).unwrap_or(public_key))
             } else {
                 public_key.clone()
             };
@@ -298,7 +298,7 @@ pub fn format_record_data(data: &RecordData) -> String {
             cert_data,
         } => {
             let preview = if cert_data.len() > 20 {
-                format!("{}…", &cert_data[..20])
+                format!("{}…", cert_data.get(..20).unwrap_or(cert_data))
             } else {
                 cert_data.clone()
             };

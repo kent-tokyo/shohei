@@ -86,8 +86,9 @@ pub async fn check_dkim_key_strength(req: &DkimKeyStrengthRequest) -> Result<Dki
         "k1", "k2", "s1", "s2", "smtp", "key1", "protonmail",
         "20230601", "20221208", "20240101",
     ];
-    let selectors: Vec<String> = req.selectors.clone()
+    let mut selectors: Vec<String> = req.selectors.clone()
         .unwrap_or_else(|| default_selectors.iter().map(|s| s.to_string()).collect());
+    selectors.truncate(32);
 
     let domain = req.domain.clone();
     let timeout = req.timeout_secs;
@@ -260,7 +261,7 @@ pub async fn check_mx_security(req: &MxSecurityRequest) -> Result<MxSecurityResu
                     hostname: host.clone(),
                     priority: *priority,
                     reachable: true,
-                    banner: if banner.is_empty() { None } else { Some(banner[..banner.len().min(120)].to_string()) },
+                    banner: if banner.is_empty() { None } else { Some(banner.chars().take(120).collect()) },
                     starttls_available,
                     esmtp_features,
                 });

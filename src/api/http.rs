@@ -9,6 +9,9 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
     use std::str::FromStr;
     use std::time::Instant;
 
+    crate::api::helpers::validate_url_safety(&req.url)
+        .map_err(ShoheError::Parse)?;
+
     let url = url::Url::from_str(&req.url)
         .map_err(|e| ShoheError::Parse(format!("invalid URL: {}", e)))?;
 

@@ -120,6 +120,10 @@ pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<Redirect
 
         // Check for redirect loops
         if let Some(ref next) = location {
+            // Validate each redirect destination to prevent SSRF via Location header
+            if crate::api::helpers::validate_url_safety(next).is_err() {
+                break;
+            }
             if seen_urls.contains(next) {
                 has_loop = true;
                 hops.push(RedirectHop {

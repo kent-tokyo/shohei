@@ -27,6 +27,9 @@ pub struct RobotsTxtResult {
 }
 
 pub async fn check_robots_txt(req: &RobotsTxtRequest) -> Result<RobotsTxtResult> {
+    crate::api::helpers::validate_url_safety(&format!("https://{}", req.domain))
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .user_agent("shohei-security-scanner/2.4")
@@ -123,9 +126,12 @@ pub struct WellKnownResult {
 }
 
 pub async fn check_well_known(req: &WellKnownRequest) -> Result<WellKnownResult> {
+    crate::api::helpers::validate_url_safety(&format!("https://{}", req.domain))
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let client = std::sync::Arc::new(
         reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(5))
+            .timeout(std::time::Duration::from_secs(req.timeout_secs.min(30)))
             .build()
             .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?,
     );
@@ -203,6 +209,9 @@ pub struct OauthOidcResult {
 }
 
 pub async fn check_oauth_oidc(req: &OauthOidcRequest) -> Result<OauthOidcResult> {
+    crate::api::helpers::validate_url_safety(&format!("https://{}", req.domain))
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .build()
@@ -322,6 +331,9 @@ pub struct CertPinningResult {
 }
 
 pub async fn check_cert_pinning(req: &CertPinningRequest) -> Result<CertPinningResult> {
+    crate::api::helpers::validate_url_safety(&format!("https://{}", req.domain))
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .build()
@@ -424,9 +436,12 @@ pub struct ApiExposureResult {
 }
 
 pub async fn check_api_exposure(req: &ApiExposureRequest) -> Result<ApiExposureResult> {
+    crate::api::helpers::validate_url_safety(&format!("https://{}", req.domain))
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let client = std::sync::Arc::new(
         reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(5))
+            .timeout(std::time::Duration::from_secs(req.timeout_secs.min(30)))
             .build()
             .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?,
     );

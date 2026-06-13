@@ -151,6 +151,9 @@ pub struct CookieSecurityResult {
 
 /// Inspect HTTP Set-Cookie headers for security flags.
 pub async fn check_cookie_security(req: &CookieSecurityRequest) -> Result<CookieSecurityResult> {
+    crate::api::helpers::validate_url_safety(&req.url)
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .build()
@@ -245,6 +248,9 @@ pub struct CspAdvancedResult {
 
 /// Deep CSP policy analysis.
 pub async fn check_csp_advanced(req: &CspAdvancedRequest) -> Result<CspAdvancedResult> {
+    crate::api::helpers::validate_url_safety(&req.url)
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .build()

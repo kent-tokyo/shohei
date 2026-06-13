@@ -298,7 +298,7 @@ pub async fn check_azure_ad_exposure(req: &AzureAdExposureRequest) -> Result<Azu
     // Federation check via userealm API (public endpoint)
     let realm_url = format!(
         "https://login.microsoftonline.com/common/userrealm/?user=probe@{}&api-version=2.1&checkForMicrosoftAccount=false",
-        req.domain
+        crate::api::helpers::percent_encode(&req.domain)
     );
     let mut federation_type: Option<String> = None;
     if let Ok(r) = client.get(&realm_url).send().await {

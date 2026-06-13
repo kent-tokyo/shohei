@@ -6,7 +6,7 @@ use crate::error::{Result, ShoheError};
 /// Check domain registration details via RDAP API.
 pub async fn check_whois(req: &WhoisCheckRequest) -> Result<WhoisCheckResult> {
     // Use RDAP (RFC 7480) instead of legacy WHOIS protocol
-    let rdap_url = format!("https://rdap.iana.org/domain/{}", req.domain);
+    let rdap_url = format!("https://rdap.iana.org/domain/{}", crate::api::helpers::percent_encode(&req.domain));
 
     let client = reqwest::Client::new();
     let response = client

@@ -60,12 +60,12 @@ pub fn now_formatted() -> String {
 
 /// RFC 3339 string N days from now (replaces `chrono::Local::now() + Duration::days(N)`).
 pub fn rfc3339_days_from_now(days: u64) -> String {
-    format_rfc3339(now_timestamp() + days * 86400)
+    format_rfc3339(now_timestamp().saturating_add(days.saturating_mul(86400)))
 }
 
 /// RFC 3339 string N hours from now.
 pub fn rfc3339_hours_from_now(hours: u64) -> String {
-    format_rfc3339(now_timestamp() + hours * 3600)
+    format_rfc3339(now_timestamp().saturating_add(hours.saturating_mul(3600)))
 }
 
 /// Parse an RFC 3339 string to Unix seconds, handling UTC and ±HH:MM offsets.
@@ -75,12 +75,21 @@ pub fn parse_rfc3339_secs(s: &str) -> Option<u64> {
     // Formats: "2024-01-15T10:30:00Z" | "2024-01-15T10:30:00+09:00" | "2024-01-15T10:30:00-05:30"
     let (datetime_part, offset_secs) = if s.ends_with('Z') {
         (&s[..s.len()-1], 0i64)
-    } else if s.len() >= 25 {
+    } else if s.len() >= 25 && s.is_ascii() {
         let tz = &s[19..];
-        // Parse ±HH:MM offset
+        // Skip fractional seconds (.NNN) before the ±HH:MM offset
+        let tz = if tz.starts_with('.') {
+            match tz.find(['+', '-']) {
+                Some(idx) => &tz[idx..],
+                None => return None,
+            }
+        } else {
+            tz
+        };
+        // Parse ±HH:MM offset using safe slice access
         let sign: i64 = match tz.chars().next()? { '+' => 1, '-' => -1, _ => return None };
-        let oh: i64 = tz[1..3].parse().ok()?;
-        let om: i64 = tz[4..6].parse().ok()?;
+        let oh: i64 = tz.get(1..3)?.parse().ok()?;
+        let om: i64 = tz.get(4..6)?.parse().ok()?;
         (&s[..19], -sign * (oh * 3600 + om * 60))  // subtract offset to get UTC
     } else {
         (s, 0i64)  // assume UTC
@@ -230,6 +239,10 @@ fn is_private_or_special_ip(ip: &std::net::IpAddr) -> bool {
             || (o[0] == 100 && o[1] >= 64 && o[1] <= 127)
         }
         std::net::IpAddr::V6(v6) => {
+            // IPv4-mapped (::ffff:x.x.x.x) — check the embedded IPv4 address
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return is_private_or_special_ip(&std::net::IpAddr::V4(v4));
+            }
             v6.is_loopback()
                 || v6.is_unspecified()
                 // Unique local: fc00::/7

@@ -26,6 +26,9 @@ pub struct UrlUnshortenResult {
 
 /// Resolve shortened URLs through full redirect chain.
 pub async fn check_url_unshorten(req: &UrlUnshortenRequest) -> Result<UrlUnshortenResult> {
+    crate::api::helpers::validate_url_safety(&req.url)
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .redirect(reqwest::redirect::Policy::limited(20))
@@ -93,6 +96,9 @@ pub struct Ja4hFingerprintResult {
 
 /// Generate JA4H HTTP client fingerprint.
 pub async fn check_ja4h_fingerprint(req: &Ja4hFingerprintRequest) -> Result<Ja4hFingerprintResult> {
+    crate::api::helpers::validate_url_safety(&req.url)
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .build()
@@ -140,7 +146,12 @@ pub async fn check_ja4h_fingerprint(req: &Ja4hFingerprintRequest) -> Result<Ja4h
         .map(|s| s.to_string());
 
     let header_order = headers.join(",");
-    let ja4h_hash = format!("ja4h_{}", header_order.len().to_string());
+    // SHA-256 of sorted header names; not strict JA4H spec but produces a proper fingerprint.
+    let ja4h_hash = {
+        use sha2::Digest;
+        let hash = sha2::Sha256::digest(header_order.as_bytes());
+        format!("ja4h_{}", crate::api::helpers::hex_encode(&hash[..6]))
+    };
 
     let client_type = if let Some(ua) = &user_agent {
         if ua.contains("Chrome") {

@@ -60,6 +60,9 @@ pub struct ExposedDatabasesResult {
 }
 
 pub async fn check_exposed_databases(req: &ExposedDatabasesRequest) -> Result<ExposedDatabasesResult> {
+    crate::api::helpers::validate_url_safety(&format!("http://{}/", req.host))
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let _timeout = req.timeout_secs.min(5);
     let host = &req.host;
     let mut exposed_services = Vec::new();
@@ -119,7 +122,7 @@ pub async fn check_exposed_databases(req: &ExposedDatabasesRequest) -> Result<Ex
         exposed_services.push(ExposedService {
             service: "Redis".to_string(),
             port: 6379,
-            banner: Some(banner[..banner.len().min(120)].to_string()),
+            banner: Some(banner.chars().take(120).collect()),
             unauthenticated: unauth,
             risk_level: risk,
         });
@@ -130,7 +133,7 @@ pub async fn check_exposed_databases(req: &ExposedDatabasesRequest) -> Result<Ex
         exposed_services.push(ExposedService {
             service: "MongoDB".to_string(),
             port: 27017,
-            banner: Some(banner[..banner.len().min(60)].to_string()),
+            banner: Some(banner.chars().take(60).collect()),
             unauthenticated: true,
             risk_level: "critical".to_string(),
         });
@@ -154,7 +157,7 @@ pub async fn check_exposed_databases(req: &ExposedDatabasesRequest) -> Result<Ex
         exposed_services.push(ExposedService {
             service: "Memcached".to_string(),
             port: 11211,
-            banner: Some(banner[..banner.len().min(60)].to_string()),
+            banner: Some(banner.chars().take(60).collect()),
             unauthenticated: true,
             risk_level: "high".to_string(),
         });
@@ -206,6 +209,9 @@ pub struct ContainerExposureResult {
 }
 
 pub async fn check_container_exposure(req: &ContainerExposureRequest) -> Result<ContainerExposureResult> {
+    crate::api::helpers::validate_url_safety(&format!("http://{}/", req.host))
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let timeout = req.timeout_secs.min(5);
     let host = req.host.clone();
     let mut findings = Vec::new();
@@ -218,6 +224,8 @@ pub async fn check_container_exposure(req: &ContainerExposureRequest) -> Result<
                 .await.map(|r| r.is_ok()).unwrap_or(false)
         },
         async {
+            // Self-signed certs are common on k8s API servers; we only check port reachability
+            // via 401/403 responses, so cert validity is intentionally skipped here.
             let client = reqwest::Client::builder()
                 .timeout(Duration::from_secs(timeout.min(4)))
                 .danger_accept_invalid_certs(true)
@@ -340,8 +348,12 @@ fn parse_banner(port: u16, banner: &str) -> (String, Option<String>, Vec<String>
 }
 
 pub async fn check_service_fingerprint(req: &ServiceFingerprintRequest) -> Result<ServiceFingerprintResult> {
+    crate::api::helpers::validate_url_safety(&format!("http://{}/", req.host))
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let default_ports = vec![21u16, 22, 25, 587, 3306, 5432, 6379, 27017];
-    let ports = req.ports.clone().unwrap_or(default_ports);
+    let mut ports = req.ports.clone().unwrap_or(default_ports);
+    ports.truncate(64);
     let timeout = req.timeout_secs.min(5);
 
     let mut handles = Vec::new();
@@ -365,7 +377,7 @@ pub async fn check_service_fingerprint(req: &ServiceFingerprintRequest) -> Resul
                 port,
                 service,
                 version,
-                banner: Some(banner[..banner.len().min(200)].to_string()),
+                banner: Some(banner.chars().take(200).collect()),
                 security_notes: notes,
             });
         }
