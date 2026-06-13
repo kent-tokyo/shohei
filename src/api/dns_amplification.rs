@@ -143,9 +143,11 @@ fn build_dns_query(domain: &str, record_type: u8) -> Result<Vec<u8>> {
     // Simplified DNS query builder (valid minimal DNS query)
     let mut query = Vec::new();
 
-    // Transaction ID (2 bytes): random
-    query.push(0x12);
-    query.push(0x34);
+    // Transaction ID (2 bytes): monotonic counter for uniqueness
+    static QUERY_ID: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(1);
+    let qid = QUERY_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    query.push((qid >> 8) as u8);
+    query.push((qid & 0xff) as u8);
 
     // Flags (2 bytes): standard query (0x0000)
     query.push(0x00);

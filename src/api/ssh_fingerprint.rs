@@ -171,25 +171,26 @@ pub async fn check_ssh_fingerprint(req: &SshFingerprintRequest) -> Result<SshFin
 
     // Step 2: Read KEXINIT packet
     let mut len_buf = [0u8; 4];
-    if let Err(e) = tokio::time::timeout(
+    let ssh_err_result = |msg: String| SshFingerprintResult {
+        host: req.host.clone(),
+        port: req.port,
+        banner: banner.clone(),
+        software: None,
+        hassh: None,
+        hassh_algorithms: None,
+        kex_algorithms: None,
+        encryption_algorithms: None,
+        mac_algorithms: None,
+        compression_algorithms: None,
+        error: Some(msg),
+    };
+    match tokio::time::timeout(
         Duration::from_secs(req.timeout_secs),
         stream.read_exact(&mut len_buf),
-    )
-    .await
-    {
-        return Ok(SshFingerprintResult {
-            host: req.host.clone(),
-            port: req.port,
-            banner,
-            software: None,
-            hassh: None,
-            hassh_algorithms: None,
-            kex_algorithms: None,
-            encryption_algorithms: None,
-            mac_algorithms: None,
-            compression_algorithms: None,
-            error: Some(format!("Failed to read KEXINIT length: {}", e)),
-        });
+    ).await {
+        Ok(Ok(_)) => {}
+        Ok(Err(e)) => return Ok(ssh_err_result(format!("I/O error reading KEXINIT length: {}", e))),
+        Err(_) => return Ok(ssh_err_result("Timeout reading KEXINIT length".to_string())),
     }
 
     let packet_len = u32::from_be_bytes(len_buf) as usize;
@@ -211,25 +212,13 @@ pub async fn check_ssh_fingerprint(req: &SshFingerprintRequest) -> Result<SshFin
     }
 
     let mut packet_buf = vec![0u8; packet_len];
-    if let Err(e) = tokio::time::timeout(
+    match tokio::time::timeout(
         Duration::from_secs(req.timeout_secs),
         stream.read_exact(&mut packet_buf),
-    )
-    .await
-    {
-        return Ok(SshFingerprintResult {
-            host: req.host.clone(),
-            port: req.port,
-            banner,
-            software: None,
-            hassh: None,
-            hassh_algorithms: None,
-            kex_algorithms: None,
-            encryption_algorithms: None,
-            mac_algorithms: None,
-            compression_algorithms: None,
-            error: Some(format!("Failed to read KEXINIT packet: {}", e)),
-        });
+    ).await {
+        Ok(Ok(_)) => {}
+        Ok(Err(e)) => return Ok(ssh_err_result(format!("I/O error reading KEXINIT packet: {}", e))),
+        Err(_) => return Ok(ssh_err_result("Timeout reading KEXINIT packet".to_string())),
     }
 
     // Step 3: Parse KEXINIT

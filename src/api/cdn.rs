@@ -13,8 +13,30 @@ pub async fn detect_cdn(req: &CdnDetectRequest) -> Result<CdnDetectResult> {
         format!("https://{}", req.url)
     };
 
-    // Fetch the page
-    let client = reqwest::Client::new();
+    if let Err(e) = crate::api::helpers::validate_url_safety(&url) {
+        return Ok(CdnDetectResult {
+            url: req.url.clone(),
+            cdn_name: None,
+            confidence: "error".to_string(),
+            detected_headers: vec![],
+            error: Some(format!("URL blocked: {}", e)),
+        });
+    }
+
+    // Fetch the page (custom redirect policy to prevent SSRF via redirects)
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(req.timeout_secs))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if crate::api::helpers::validate_url_safety(attempt.url().as_str()).is_err() {
+                return attempt.stop();
+            }
+            if attempt.previous().len() >= 5 {
+                return attempt.stop();
+            }
+            attempt.follow()
+        }))
+        .build()
+        .unwrap_or_default();
     let response = match timeout(
         Duration::from_secs(req.timeout_secs),
         client.get(&url).send()

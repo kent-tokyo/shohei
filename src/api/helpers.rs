@@ -24,7 +24,7 @@ pub fn format_rfc3339(secs: u64) -> String {
     let mut days = secs / 86400;
 
     let mut year = 1970u32;
-    loop {
+    while year < 9999 {
         let days_in_year = if is_leap(year) { 366 } else { 365 };
         if days < days_in_year { break; }
         days -= days_in_year;
@@ -175,44 +175,49 @@ pub async fn resolve_hostname_to_ip(hostname: &str, timeout_secs: u64) -> Result
 
 /// Validate a URL for SSRF safety: scheme must be http/https, host must not be a private/loopback/link-local IP.
 ///
+/// Uses the `url` crate (WHATWG spec) to normalise alternative IPv4 representations
+/// (decimal integer `2130706433`, short-form `127.1`, hex `0x7f.0.0.1`, trailing-dot `127.0.0.1.`)
+/// before checking against the private-IP block list.
+///
 /// Returns `Err` with a descriptive message if the URL is unsafe.
 pub fn validate_url_safety(url: &str) -> std::result::Result<(), String> {
-    // Extract scheme and host without the `url` crate
-    let (scheme, rest) = url.split_once("://").ok_or("Invalid URL: missing scheme")?;
+    let parsed = url::Url::parse(url).map_err(|e| format!("Invalid URL: {}", e))?;
 
-    // Allow only http and https
-    match scheme {
+    match parsed.scheme() {
         "http" | "https" => {}
         s => return Err(format!("Disallowed URL scheme '{}' — only http/https allowed", s)),
     }
 
-    // Extract host (strip path, query, userinfo, port)
-    let hostport = rest.split('/').next().unwrap_or(rest);
-    let hostport = hostport.split('@').last().unwrap_or(hostport);
-
-    // Handle IPv6 bracket notation BEFORE splitting on ':' (otherwise [::1] gets cut at first ':')
-    let host = if hostport.starts_with('[') {
-        // IPv6: "[::1]" or "[::1]:443"
-        hostport.trim_start_matches('[').split(']').next().unwrap_or(hostport)
-    } else {
-        // IPv4 / hostname: strip optional port
-        hostport.split(':').next().unwrap_or(hostport)
-    };
-
-    // If host is an IP address, check for private ranges
-    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-        if is_private_or_special_ip(&ip) {
-            return Err(format!("Host IP '{}' is a private/reserved address — blocked for security", ip));
+    match parsed.host() {
+        None => return Err("URL has no host".to_string()),
+        Some(url::Host::Ipv4(v4)) => {
+            // The url crate normalises 127.1, 2130706433, 0x7f.0.0.1 → Ipv4 here
+            if is_private_or_special_ip(&std::net::IpAddr::V4(v4)) {
+                return Err(format!("Host IP '{}' is a private/reserved address — blocked for security", v4));
+            }
         }
-    } else {
-        // For hostnames, block obvious internal names
-        let lower = host.to_lowercase();
-        if lower == "localhost"
-            || lower.ends_with(".local")
-            || lower.ends_with(".internal")
-            || lower.ends_with(".intranet")
-        {
-            return Err(format!("Host '{}' appears to be an internal hostname — blocked for security", host));
+        Some(url::Host::Ipv6(v6)) => {
+            if is_private_or_special_ip(&std::net::IpAddr::V6(v6)) {
+                return Err(format!("Host IP '{}' is a private/reserved address — blocked for security", v6));
+            }
+        }
+        Some(url::Host::Domain(domain)) => {
+            // Strip trailing dot and re-attempt IP parse (e.g. "127.0.0.1.")
+            let trimmed = domain.trim_end_matches('.');
+            if let Ok(ip) = trimmed.parse::<std::net::IpAddr>() {
+                if is_private_or_special_ip(&ip) {
+                    return Err(format!("Host IP '{}' is a private/reserved address — blocked for security", ip));
+                }
+            }
+            // Block obvious internal hostnames
+            let lower = trimmed.to_lowercase();
+            if lower == "localhost"
+                || lower.ends_with(".local")
+                || lower.ends_with(".internal")
+                || lower.ends_with(".intranet")
+            {
+                return Err(format!("Host '{}' appears to be an internal hostname — blocked for security", trimmed));
+            }
         }
     }
 
@@ -289,6 +294,27 @@ pub fn generate_id(prefix: &str) -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
     format!("{}_{:x}{:08x}", prefix, dur.as_secs(), dur.subsec_nanos())
+}
+
+/// Resolve the first CNAME record for a domain. Used by cloud exposure detection modules.
+pub async fn resolve_first_cname(domain: &str, timeout_secs: u64) -> Option<String> {
+    crate::api::check_dns(&dns_request_for_record_type(domain.to_string(), "CNAME", timeout_secs))
+        .await
+        .ok()?
+        .into_iter()
+        .flat_map(|r| r.answers)
+        .find_map(|rec| {
+            if let crate::api::RecordData::Cname(c) = rec.data { Some(c) } else { None }
+        })
+}
+
+/// Build a reqwest HTTP client with a timeout. Centralises the 32+ call sites that repeat
+/// `reqwest::Client::builder().timeout(...).build().map_err(...)`.
+pub fn build_http_client(timeout_secs: u64) -> crate::error::Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .build()
+        .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))
 }
 
 /// Build a DnsCheckRequest for a single record type query.

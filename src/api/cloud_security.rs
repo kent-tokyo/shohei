@@ -97,37 +97,20 @@ pub async fn check_azure_blob_exposure(req: &AzureBlobExposureRequest) -> Result
         ..Default::default()
     };
 
-    match crate::api::check_dns(&dns_req).await {
-        Ok(results) => {
-            for result in results {
-                for record in &result.answers {
-                    if let crate::api::RecordData::Cname(cname) = &record.data {
-                        if cname.contains("blob.core.windows.net") {
-                            return Ok(AzureBlobExposureResult {
-                                domain: req.domain.clone(),
-                                has_azure_blob_cname: true,
-                                blob_account: cname.split('.').next().map(|s| s.to_string()),
-                                publicly_accessible: true,
-                                risk_level: "high".to_string(),
-                            });
-                        }
-                    }
-                }
-            }
-            Ok(AzureBlobExposureResult {
-                domain: req.domain.clone(),
-                has_azure_blob_cname: false,
-                blob_account: None,
-                publicly_accessible: false,
-                risk_level: "none".to_string(),
-            })
-        }
-        Err(_) => Ok(AzureBlobExposureResult {
+    match crate::api::helpers::resolve_first_cname(&req.domain, req.timeout_secs).await {
+        Some(cname) if cname.contains("blob.core.windows.net") => Ok(AzureBlobExposureResult {
+            domain: req.domain.clone(),
+            has_azure_blob_cname: true,
+            blob_account: cname.split('.').next().map(|s| s.to_string()),
+            publicly_accessible: true,
+            risk_level: "high".to_string(),
+        }),
+        _ => Ok(AzureBlobExposureResult {
             domain: req.domain.clone(),
             has_azure_blob_cname: false,
             blob_account: None,
             publicly_accessible: false,
-            risk_level: "unknown".to_string(),
+            risk_level: "none".to_string(),
         }),
     }
 }
@@ -159,37 +142,20 @@ pub async fn check_gcs_bucket_exposure(req: &GcsBucketExposureRequest) -> Result
         ..Default::default()
     };
 
-    match crate::api::check_dns(&dns_req).await {
-        Ok(results) => {
-            for result in results {
-                for record in &result.answers {
-                    if let crate::api::RecordData::Cname(cname) = &record.data {
-                        if cname.contains("storage.googleapis.com") {
-                            return Ok(GcsBucketExposureResult {
-                                domain: req.domain.clone(),
-                                has_gcs_cname: true,
-                                bucket_name: cname.split('.').next().map(|s| s.to_string()),
-                                publicly_accessible: true,
-                                risk_level: "high".to_string(),
-                            });
-                        }
-                    }
-                }
-            }
-            Ok(GcsBucketExposureResult {
-                domain: req.domain.clone(),
-                has_gcs_cname: false,
-                bucket_name: None,
-                publicly_accessible: false,
-                risk_level: "none".to_string(),
-            })
-        }
-        Err(_) => Ok(GcsBucketExposureResult {
+    match crate::api::helpers::resolve_first_cname(&req.domain, req.timeout_secs).await {
+        Some(cname) if cname.contains("storage.googleapis.com") => Ok(GcsBucketExposureResult {
+            domain: req.domain.clone(),
+            has_gcs_cname: true,
+            bucket_name: cname.split('.').next().map(|s| s.to_string()),
+            publicly_accessible: true,
+            risk_level: "high".to_string(),
+        }),
+        _ => Ok(GcsBucketExposureResult {
             domain: req.domain.clone(),
             has_gcs_cname: false,
             bucket_name: None,
             publicly_accessible: false,
-            risk_level: "unknown".to_string(),
+            risk_level: "none".to_string(),
         }),
     }
 }
@@ -302,6 +268,9 @@ pub struct SecurityTxtResult {
 
 /// Fetch and parse .well-known/security.txt (RFC 9116).
 pub async fn check_security_txt(req: &SecurityTxtRequest) -> Result<SecurityTxtResult> {
+    crate::api::helpers::validate_url_safety(&format!("https://{}/", req.domain))
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .build()

@@ -27,17 +27,14 @@ pub struct AsnReputationResult {
 pub async fn check_asn_reputation(req: &AsnReputationRequest) -> Result<AsnReputationResult> {
     let asn_clean = req.asn.trim_start_matches("AS").to_string();
 
-    let bgp_ip = match asn_clean.parse::<u32>() {
-        Ok(_) => "0.0.0.0".to_string(),
-        Err(_) => return Err(crate::error::ShoheError::Parse("Invalid ASN format".to_string())),
-    };
+    // Validate ASN format (numeric only)
+    if asn_clean.parse::<u32>().is_err() {
+        return Err(crate::error::ShoheError::Parse("Invalid ASN format".to_string()));
+    }
 
-    let bgp_req = crate::api::BgpRouteRequest {
-        ip: bgp_ip,
-        timeout_secs: req.timeout_secs,
-    };
-
-    let bgp_result = crate::api::check_bgp_route(&bgp_req).await.ok();
+    // BGP route lookup uses IP-based origin query; skip for ASN-only input
+    // (check_bgp_route requires an IP to query origin.asn.cymru.com)
+    let bgp_result: Option<crate::api::BgpRouteResult> = None;
 
     let organization = bgp_result
         .as_ref()

@@ -31,40 +31,24 @@ pub async fn check_s3_bucket_exposure(req: &S3BucketExposureRequest) -> Result<S
         ..Default::default()
     };
 
-    match crate::api::check_dns(&dns_req).await {
-        Ok(results) => {
-            for result in results {
-                for record in &result.answers {
-                    if let crate::api::RecordData::Cname(cname) = &record.data {
-                        if cname.contains("s3") && cname.contains("amazonaws.com") {
-                            return Ok(S3BucketExposureResult {
-                                domain: req.domain.clone(),
-                                has_s3_cname: true,
-                                bucket_name: cname.split('.').next().map(|s| s.to_string()),
-                                publicly_accessible: true,
-                                risk_level: "high".to_string(),
-                                error: None,
-                            });
-                        }
-                    }
-                }
-            }
+    match crate::api::helpers::resolve_first_cname(&req.domain, req.timeout_secs).await {
+        Some(cname) if cname.contains("s3") && cname.contains("amazonaws.com") => {
             Ok(S3BucketExposureResult {
                 domain: req.domain.clone(),
-                has_s3_cname: false,
-                bucket_name: None,
-                publicly_accessible: false,
-                risk_level: "none".to_string(),
+                has_s3_cname: true,
+                bucket_name: cname.split('.').next().map(|s| s.to_string()),
+                publicly_accessible: true,
+                risk_level: "high".to_string(),
                 error: None,
             })
         }
-        Err(_) => Ok(S3BucketExposureResult {
+        Some(_) | None => Ok(S3BucketExposureResult {
             domain: req.domain.clone(),
             has_s3_cname: false,
             bucket_name: None,
             publicly_accessible: false,
-            risk_level: "unknown".to_string(),
-            error: Some("DNS lookup failed".to_string()),
+            risk_level: "none".to_string(),
+            error: None,
         }),
     }
 }

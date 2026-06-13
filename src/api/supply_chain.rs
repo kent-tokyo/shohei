@@ -23,6 +23,9 @@ pub struct ExposedFilesResult {
 
 /// Probe common sensitive paths for exposure.
 pub async fn check_exposed_files(req: &ExposedFilesRequest) -> Result<ExposedFilesResult> {
+    crate::api::helpers::validate_url_safety(&format!("https://{}/", req.domain))
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .build()
@@ -41,16 +44,27 @@ pub async fn check_exposed_files(req: &ExposedFilesRequest) -> Result<ExposedFil
         ".aws/credentials",
     ];
 
-    let mut exposed_files = Vec::new();
+    let handles: Vec<_> = sensitive_paths
+        .into_iter()
+        .map(|path| {
+            let client = client.clone();
+            let url = format!("https://{}/{}", req.domain, path);
+            tokio::spawn(async move {
+                let ok = client.head(&url).send().await
+                    .map(|r| r.status().is_success())
+                    .unwrap_or(false);
+                (path, ok)
+            })
+        })
+        .collect();
 
-    for path in sensitive_paths {
-        let url = format!("https://{}/{}", req.domain, path);
-        if let Ok(response) = client.head(&url).send().await {
-            if response.status().is_success() {
-                exposed_files.push(path.to_string());
-            }
+    let mut exposed_files = Vec::new();
+    for handle in handles {
+        if let Ok((path, true)) = handle.await {
+            exposed_files.push(path.to_string());
         }
     }
+    exposed_files.sort();
 
     let risk_level = match exposed_files.len() {
         0 => "low".to_string(),
@@ -273,26 +287,13 @@ pub async fn check_dependency_confusion(req: &DependencyConfusionRequest) -> Res
     let pypi_url = format!("https://pypi.org/pypi/{}/json", req.internal_package);
     let crates_url = format!("https://crates.io/api/v1/crates/{}", req.internal_package);
 
-    let exists_on_npm = client
-        .head(&npm_url)
-        .send()
-        .await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false);
+    let npm_h = { let c = client.clone(); tokio::spawn(async move { c.head(&npm_url).send().await.map(|r| r.status().is_success()).unwrap_or(false) }) };
+    let pypi_h = { let c = client.clone(); tokio::spawn(async move { c.head(&pypi_url).send().await.map(|r| r.status().is_success()).unwrap_or(false) }) };
+    let crates_h = { let c = client.clone(); tokio::spawn(async move { c.head(&crates_url).send().await.map(|r| r.status().is_success()).unwrap_or(false) }) };
 
-    let exists_on_pypi = client
-        .head(&pypi_url)
-        .send()
-        .await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false);
-
-    let exists_on_crates = client
-        .head(&crates_url)
-        .send()
-        .await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false);
+    let exists_on_npm = npm_h.await.unwrap_or(false);
+    let exists_on_pypi = pypi_h.await.unwrap_or(false);
+    let exists_on_crates = crates_h.await.unwrap_or(false);
 
     let risk_count = (exists_on_npm as u8 + exists_on_pypi as u8 + exists_on_crates as u8) as usize;
     let risk_level = match risk_count {
@@ -337,22 +338,37 @@ pub struct SbomDisclosureResult {
 
 /// Detect accidentally exposed SBOM files.
 pub async fn check_sbom_disclosure(req: &SbomDisclosureRequest) -> Result<SbomDisclosureResult> {
+    crate::api::helpers::validate_url_safety(&format!("https://{}/", req.domain))
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .build()
         .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?;
 
     let sbom_paths = vec!["/sbom.json", "/bom.xml", "/.well-known/sbom"];
-    let mut found_paths = Vec::new();
 
-    for path in sbom_paths {
-        let url = format!("https://{}{}", req.domain, path);
-        if let Ok(response) = client.head(&url).send().await {
-            if response.status().is_success() {
-                found_paths.push(path.to_string());
-            }
+    let handles: Vec<_> = sbom_paths
+        .into_iter()
+        .map(|path| {
+            let client = client.clone();
+            let url = format!("https://{}{}", req.domain, path);
+            tokio::spawn(async move {
+                let ok = client.head(&url).send().await
+                    .map(|r| r.status().is_success())
+                    .unwrap_or(false);
+                (path, ok)
+            })
+        })
+        .collect();
+
+    let mut found_paths = Vec::new();
+    for handle in handles {
+        if let Ok((path, true)) = handle.await {
+            found_paths.push(path.to_string());
         }
     }
+    found_paths.sort();
 
     let risk_level = if found_paths.is_empty() {
         "low".to_string()

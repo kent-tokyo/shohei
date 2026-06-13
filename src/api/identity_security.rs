@@ -41,15 +41,21 @@ pub async fn check_jwt_security(req: &JwtSecurityRequest) -> Result<JwtSecurityR
     let mut alg_secure = true;
     let mut critical_issues = Vec::new();
 
-    if let Ok(header_bytes) = base64_url_decode(parts[0]) {
-        if let Ok(header_str) = String::from_utf8(header_bytes) {
-            if let Ok(header) = serde_json::from_str::<HashMap<String, serde_json::Value>>(&header_str) {
-                if let Some(alg_val) = header.get("alg").and_then(|v| v.as_str()) {
-                    alg = Some(alg_val.to_string());
-                    if alg_val == "none" {
-                        alg_secure = false;
-                        critical_issues.push("Algorithm is 'none' — token signature not validated".to_string());
-                    }
+    match base64_url_decode(parts[0])
+        .ok()
+        .and_then(|b| String::from_utf8(b).ok())
+        .and_then(|s| serde_json::from_str::<HashMap<String, serde_json::Value>>(&s).ok())
+    {
+        None => {
+            alg_secure = false;
+            critical_issues.push("JWT header could not be decoded — invalid token".to_string());
+        }
+        Some(header) => {
+            if let Some(alg_val) = header.get("alg").and_then(|v| v.as_str()) {
+                alg = Some(alg_val.to_string());
+                if alg_val.eq_ignore_ascii_case("none") {
+                    alg_secure = false;
+                    critical_issues.push("Algorithm is 'none' — token signature not validated".to_string());
                 }
             }
         }
@@ -67,9 +73,9 @@ pub async fn check_jwt_security(req: &JwtSecurityRequest) -> Result<JwtSecurityR
                         .duration_since(std::time::UNIX_EPOCH)
                         .map(|d| d.as_secs() as i64)
                         .unwrap_or(0);
-                    expires_in_days = Some((exp - now) / 86400);
+                    expires_in_days = Some(exp.saturating_sub(now) / 86400);
 
-                    if (exp - now) < 0 {
+                    if exp.saturating_sub(now) < 0 {
                         critical_issues.push("Token has already expired".to_string());
                     }
                 }

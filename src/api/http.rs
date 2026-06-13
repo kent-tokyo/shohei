@@ -20,7 +20,15 @@ pub async fn check_http(req: &HttpCheckRequest) -> Result<HttpCheckResult> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .redirect(if req.follow_redirects {
-            reqwest::redirect::Policy::limited(10)
+            reqwest::redirect::Policy::custom(|attempt| {
+                if attempt.previous().len() >= 10 {
+                    return attempt.stop();
+                }
+                if crate::api::helpers::validate_url_safety(attempt.url().as_str()).is_err() {
+                    return attempt.stop();
+                }
+                attempt.follow()
+            })
         } else {
             reqwest::redirect::Policy::none()
         })
@@ -181,200 +189,120 @@ fn default_true() -> bool { true }
 fn default_timeout() -> u64 { 10 }
 
 fn audit_security_headers(headers: &HashMap<String, String>) -> SecurityHeadersAudit {
+    // Pre-lowercase all keys once — reqwest normalises to lowercase already but this is defensive
+    let lower: HashMap<String, &str> = headers.iter()
+        .map(|(k, v)| (k.to_lowercase(), v.as_str()))
+        .collect();
+
+    struct Spec<'a> {
+        canonical: &'a str,
+        lookup: &'a str,
+        penalty_missing: u8,
+        penalty_weak: u8,
+        improvement_missing: &'a str,
+        evaluate: fn(&str) -> (&'static str, bool, Option<&'static str>),
+    }
+
+    let specs: &[Spec] = &[
+        Spec {
+            canonical: "Strict-Transport-Security",
+            lookup: "strict-transport-security",
+            penalty_missing: 20,
+            penalty_weak: 15,
+            improvement_missing: "Add Strict-Transport-Security header for HTTPS sites",
+            evaluate: |v| {
+                let (status, good) = evaluate_hsts(v);
+                let imp = if !good {
+                    Some("HSTS: Increase max-age to ≥ 31536000 (1 year), add includeSubDomains and preload")
+                } else { None };
+                (if good { "good" } else { "weak" }, good, imp)
+            },
+        },
+        Spec {
+            canonical: "Content-Security-Policy",
+            lookup: "content-security-policy",
+            penalty_missing: 15,
+            penalty_weak: 10,
+            improvement_missing: "Add Content-Security-Policy header",
+            evaluate: |v| {
+                let (_, good) = evaluate_csp(v);
+                let imp = if !good { Some("CSP: Remove unsafe-inline and unsafe-eval") } else { None };
+                (if good { "good" } else { "weak" }, good, imp)
+            },
+        },
+        Spec {
+            canonical: "X-Frame-Options",
+            lookup: "x-frame-options",
+            penalty_missing: 10,
+            penalty_weak: 10,
+            improvement_missing: "Add X-Frame-Options: DENY or SAMEORIGIN",
+            evaluate: |v| {
+                let good = v.to_uppercase().contains("DENY") || v.to_uppercase().contains("SAMEORIGIN");
+                (if good { "good" } else { "weak" }, good, None)
+            },
+        },
+        Spec {
+            canonical: "X-Content-Type-Options",
+            lookup: "x-content-type-options",
+            penalty_missing: 5,
+            penalty_weak: 0,
+            improvement_missing: "Add X-Content-Type-Options: nosniff",
+            evaluate: |v| {
+                let good = v.to_lowercase().contains("nosniff");
+                (if good { "good" } else { "weak" }, good, None)
+            },
+        },
+        Spec {
+            canonical: "Referrer-Policy",
+            lookup: "referrer-policy",
+            penalty_missing: 0,
+            penalty_weak: 0,
+            improvement_missing: "",
+            evaluate: |v| {
+                let good = v.to_lowercase().contains("strict-origin-when-cross-origin");
+                (if good { "good" } else { "weak" }, good, None)
+            },
+        },
+        Spec {
+            canonical: "Permissions-Policy",
+            lookup: "permissions-policy",
+            penalty_missing: 0,
+            penalty_weak: 0,
+            improvement_missing: "",
+            evaluate: |_| ("good", true, None),
+        },
+    ];
+
     let mut headers_audit = HashMap::new();
     let mut score = 100u8;
     let mut improvements = Vec::new();
 
-    // Check HSTS
-    let hsts_key = headers
-        .keys()
-        .find(|k| k.to_lowercase() == "strict-transport-security")
-        .cloned();
-
-    if let Some(key) = hsts_key {
-        let hsts_value = &headers[&key];
-        let (hsts_status, hsts_good) = evaluate_hsts(hsts_value);
-        headers_audit.insert(
-            "Strict-Transport-Security".to_string(),
-            HeaderStatus {
+    for spec in specs {
+        if let Some(&value) = lower.get(spec.lookup) {
+            let (status, good, imp) = (spec.evaluate)(value);
+            headers_audit.insert(spec.canonical.to_string(), HeaderStatus {
                 present: true,
-                value: Some(hsts_value.clone()),
-                status: hsts_status,
-            },
-        );
-        if !hsts_good {
-            score = score.saturating_sub(15);
-            improvements.push("HSTS: Increase max-age to ≥ 31536000 (1 year), add includeSubDomains and preload".to_string());
+                value: Some(value.to_string()),
+                status: status.to_string(),
+            });
+            if !good {
+                score = score.saturating_sub(spec.penalty_weak);
+                if let Some(msg) = imp { improvements.push(msg.to_string()); }
+            }
+        } else {
+            headers_audit.insert(spec.canonical.to_string(), HeaderStatus {
+                present: false,
+                value: None,
+                status: "missing".to_string(),
+            });
+            score = score.saturating_sub(spec.penalty_missing);
+            if !spec.improvement_missing.is_empty() {
+                improvements.push(spec.improvement_missing.to_string());
+            }
         }
-    } else {
-        headers_audit.insert(
-            "Strict-Transport-Security".to_string(),
-            HeaderStatus {
-                present: false,
-                value: None,
-                status: "missing".to_string(),
-            },
-        );
-        score = score.saturating_sub(20);
-        improvements.push("Add Strict-Transport-Security header for HTTPS sites".to_string());
     }
 
-    // Check CSP
-    let csp_key = headers
-        .keys()
-        .find(|k| k.to_lowercase() == "content-security-policy")
-        .cloned();
-
-    if let Some(key) = csp_key {
-        let csp_value = &headers[&key];
-        let (csp_status, csp_good) = evaluate_csp(csp_value);
-        headers_audit.insert(
-            "Content-Security-Policy".to_string(),
-            HeaderStatus {
-                present: true,
-                value: Some(csp_value.clone()),
-                status: csp_status,
-            },
-        );
-        if !csp_good {
-            score = score.saturating_sub(10);
-            improvements.push("CSP: Remove unsafe-inline and unsafe-eval".to_string());
-        }
-    } else {
-        headers_audit.insert(
-            "Content-Security-Policy".to_string(),
-            HeaderStatus {
-                present: false,
-                value: None,
-                status: "missing".to_string(),
-            },
-        );
-        score = score.saturating_sub(15);
-        improvements.push("Add Content-Security-Policy header".to_string());
-    }
-
-    // Check X-Frame-Options
-    let xfo_key = headers
-        .keys()
-        .find(|k| k.to_lowercase() == "x-frame-options")
-        .cloned();
-
-    if let Some(key) = xfo_key {
-        let xfo_value = &headers[&key];
-        let xfo_good = xfo_value.to_uppercase().contains("DENY") || xfo_value.to_uppercase().contains("SAMEORIGIN");
-        headers_audit.insert(
-            "X-Frame-Options".to_string(),
-            HeaderStatus {
-                present: true,
-                value: Some(xfo_value.clone()),
-                status: if xfo_good { "good".to_string() } else { "weak".to_string() },
-            },
-        );
-        if !xfo_good {
-            score = score.saturating_sub(10);
-        }
-    } else {
-        headers_audit.insert(
-            "X-Frame-Options".to_string(),
-            HeaderStatus {
-                present: false,
-                value: None,
-                status: "missing".to_string(),
-            },
-        );
-        score = score.saturating_sub(10);
-        improvements.push("Add X-Frame-Options: DENY or SAMEORIGIN".to_string());
-    }
-
-    // Check X-Content-Type-Options
-    let xcto_key = headers
-        .keys()
-        .find(|k| k.to_lowercase() == "x-content-type-options")
-        .cloned();
-
-    if let Some(key) = xcto_key {
-        let xcto_value = &headers[&key];
-        let xcto_good = xcto_value.to_lowercase().contains("nosniff");
-        headers_audit.insert(
-            "X-Content-Type-Options".to_string(),
-            HeaderStatus {
-                present: true,
-                value: Some(xcto_value.clone()),
-                status: if xcto_good { "good".to_string() } else { "weak".to_string() },
-            },
-        );
-    } else {
-        headers_audit.insert(
-            "X-Content-Type-Options".to_string(),
-            HeaderStatus {
-                present: false,
-                value: None,
-                status: "missing".to_string(),
-            },
-        );
-        score = score.saturating_sub(5);
-        improvements.push("Add X-Content-Type-Options: nosniff".to_string());
-    }
-
-    // Check Referrer-Policy
-    let rp_key = headers
-        .keys()
-        .find(|k| k.to_lowercase() == "referrer-policy")
-        .cloned();
-
-    if let Some(key) = rp_key {
-        let rp_value = &headers[&key];
-        let rp_good = rp_value.to_lowercase().contains("strict-origin-when-cross-origin");
-        headers_audit.insert(
-            "Referrer-Policy".to_string(),
-            HeaderStatus {
-                present: true,
-                value: Some(rp_value.clone()),
-                status: if rp_good { "good".to_string() } else { "weak".to_string() },
-            },
-        );
-    } else {
-        headers_audit.insert(
-            "Referrer-Policy".to_string(),
-            HeaderStatus {
-                present: false,
-                value: None,
-                status: "missing".to_string(),
-            },
-        );
-    }
-
-    // Check Permissions-Policy
-    let pp_key = headers
-        .keys()
-        .find(|k| k.to_lowercase() == "permissions-policy")
-        .cloned();
-
-    if pp_key.is_some() {
-        headers_audit.insert(
-            "Permissions-Policy".to_string(),
-            HeaderStatus {
-                present: true,
-                value: pp_key.and_then(|k| headers.get(&k).cloned()),
-                status: "good".to_string(),
-            },
-        );
-    } else {
-        headers_audit.insert(
-            "Permissions-Policy".to_string(),
-            HeaderStatus {
-                present: false,
-                value: None,
-                status: "missing".to_string(),
-            },
-        );
-    }
-
-    SecurityHeadersAudit {
-        score,
-        headers: headers_audit,
-        improvements,
-    }
+    SecurityHeadersAudit { score, headers: headers_audit, improvements }
 }
 
 fn evaluate_hsts(hsts_value: &str) -> (String, bool) {
@@ -393,15 +321,7 @@ fn evaluate_hsts(hsts_value: &str) -> (String, bool) {
     let has_preload = hsts_value.to_lowercase().contains("preload");
 
     let is_good = max_age_ok && has_subdomain && has_preload;
-    let status = if is_good {
-        "good".to_string()
-    } else if max_age_ok {
-        "weak".to_string()
-    } else {
-        "weak".to_string()
-    };
-
-    (status, is_good)
+    (if is_good { "good".to_string() } else { "weak".to_string() }, is_good)
 }
 
 fn evaluate_csp(csp_value: &str) -> (String, bool) {

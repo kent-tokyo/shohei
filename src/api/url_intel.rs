@@ -29,9 +29,24 @@ pub async fn check_url_unshorten(req: &UrlUnshortenRequest) -> Result<UrlUnshort
     crate::api::helpers::validate_url_safety(&req.url)
         .map_err(crate::error::ShoheError::Parse)?;
 
+    // Capture all intermediate redirect URLs
+    let hops = std::sync::Arc::new(std::sync::Mutex::new(vec![req.url.clone()]));
+    let hops_capture = hops.clone();
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
-        .redirect(reqwest::redirect::Policy::limited(20))
+        .redirect(reqwest::redirect::Policy::custom(move |attempt| {
+            if attempt.previous().len() >= 20 {
+                return attempt.stop();
+            }
+            if crate::api::helpers::validate_url_safety(attempt.url().as_str()).is_err() {
+                return attempt.stop();
+            }
+            if let Ok(mut h) = hops_capture.lock() {
+                h.push(attempt.url().to_string());
+            }
+            attempt.follow()
+        }))
         .build()
         .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?;
 
@@ -52,14 +67,21 @@ pub async fn check_url_unshorten(req: &UrlUnshortenRequest) -> Result<UrlUnshort
     };
 
     let final_url = response.url().to_string();
-    let is_shortened = final_url != req.url;
+    // Normalize both URLs before comparing to avoid false positives from trailing-slash additions
+    let orig_normalized = url::Url::parse(&req.url).ok().map(|u| u.to_string());
+    let final_normalized = url::Url::parse(&final_url).ok().map(|u| u.to_string());
+    let is_shortened = orig_normalized.as_deref() != final_normalized.as_deref();
 
     let final_domain = url::Url::parse(&final_url)
         .ok()
         .and_then(|u| u.domain().map(|d| d.to_string()));
 
-    let redirect_chain = vec![req.url.clone(), final_url.clone()];
-    let hop_count = redirect_chain.len() - 1;
+    // Build complete redirect chain including final URL
+    let mut redirect_chain = hops.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    if redirect_chain.last().map(|u| u.as_str()) != Some(&final_url) {
+        redirect_chain.push(final_url.clone());
+    }
+    let hop_count = redirect_chain.len().saturating_sub(1);
 
     Ok(UrlUnshortenResult {
         original_url: req.url.clone(),

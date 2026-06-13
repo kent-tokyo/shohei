@@ -15,9 +15,20 @@ pub async fn check_tls_vulns(req: &TlsVulnCheckRequest) -> Result<TlsVulnCheckRe
     let hostname_str = &req.hostname;
     let port = req.port;
 
-    // Resolve hostname to IP
-    let ip = crate::api::helpers::resolve_hostname_to_ip(hostname_str, req.timeout_secs).await
-        .unwrap_or_else(|_| IpAddr::from([0, 0, 0, 0]));
+    // Resolve hostname to IP — return error on failure to avoid false "unsupported" results
+    let ip = match crate::api::helpers::resolve_hostname_to_ip(hostname_str, req.timeout_secs).await {
+        Ok(ip) => ip,
+        Err(e) => return Ok(TlsVulnCheckResult {
+            hostname: hostname_str.clone(),
+            port,
+            tls10_accepted: false,
+            tls11_accepted: false,
+            tls12_accepted: false,
+            tls13_accepted: false,
+            forward_secrecy: false,
+            error: Some(format!("DNS resolution failed: {}", e)),
+        }),
+    };
 
     // Test each TLS version
     let tls10_accepted = test_tls_version(&ip, port, hostname_str, "1.0").await;

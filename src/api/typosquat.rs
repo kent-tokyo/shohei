@@ -151,11 +151,12 @@ fn generate_mutations(label: &str, tld: &str, max_count: u32) -> Vec<(String, St
     }
 
     // Transposition (swap adjacent characters)
-    for i in 0..label.len().saturating_sub(1) {
+    let label_chars: Vec<char> = label.chars().collect();
+    for i in 0..label_chars.len().saturating_sub(1) {
         if mutations.len() >= max_count as usize {
             break;
         }
-        let mut chars: Vec<char> = label.chars().collect();
+        let mut chars = label_chars.clone();
         chars.swap(i, i + 1);
         let mutated: String = chars.iter().collect();
         mutations.push((
@@ -165,7 +166,7 @@ fn generate_mutations(label: &str, tld: &str, max_count: u32) -> Vec<(String, St
     }
 
     // Double character (duplicate each char)
-    for i in 0..label.len() {
+    for i in 0..label_chars.len() {
         if mutations.len() >= max_count as usize {
             break;
         }

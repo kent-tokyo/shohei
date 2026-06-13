@@ -47,8 +47,11 @@ pub async fn check_tls_chain(req: &TlsCheckRequest) -> Result<TlsCheckResult> {
         (None, false, false)
     };
 
-    // Step 5: Validate certificate (basic check)
-    let valid = connected && !certs.is_empty();
+    // Step 5: Validate certificate — hostname verification + self-signed detection
+    // Note: SkipVerification is used for chain capture; proper trust requires CA chain validation
+    let hostname_verified = !chain.is_empty() && verify_hostname_in_cert(&chain, hostname_str);
+    let self_signed = is_self_signed(&chain);
+    let valid = connected && hostname_verified && !self_signed && !expired;
 
     // Step 6: DANE/TLSA check (optional)
     let dane = if req.check_dane && !certs.is_empty() {
@@ -199,6 +202,34 @@ impl rustls::client::danger::ServerCertVerifier for SkipVerification {
             rustls::SignatureScheme::ED25519,
         ]
     }
+}
+
+fn verify_hostname_in_cert(chain: &[CertInfo], hostname: &str) -> bool {
+    let Some(leaf) = chain.iter().find(|c| c.is_leaf) else { return false; };
+    let hostname_lower = hostname.to_lowercase();
+    if !leaf.subject_san.is_empty() {
+        return leaf.subject_san.iter().any(|san| {
+            if let Some(dns_name) = san.strip_prefix("DNS:") {
+                let dns_lower = dns_name.to_lowercase();
+                dns_lower == hostname_lower
+                    || (dns_lower.starts_with("*.") && {
+                        let suffix = &dns_lower[1..]; // e.g. ".example.com"
+                        hostname_lower.ends_with(suffix)
+                            && !hostname_lower[..hostname_lower.len() - suffix.len()].contains('.')
+                    })
+            } else {
+                false
+            }
+        });
+    }
+    leaf.subject_cn.as_deref()
+        .map(|cn| cn.eq_ignore_ascii_case(hostname))
+        .unwrap_or(false)
+}
+
+fn is_self_signed(chain: &[CertInfo]) -> bool {
+    if chain.len() > 1 { return false; }
+    chain.first().map(|leaf| leaf.subject_cn == leaf.issuer_cn).unwrap_or(true)
 }
 
 fn parse_certificate_chain(certs: &[CertificateDer<'_>]) -> Vec<CertInfo> {

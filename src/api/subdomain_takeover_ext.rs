@@ -112,17 +112,20 @@ pub async fn check_subdomain_takeover(req: &SubdomainTakeoverRequest) -> Result<
 
             for sig in SIGS {
                 if sig.patterns.iter().any(|p| cname_lower.contains(p)) {
-                    // Fetch body to check for the fingerprint
+                    // Fetch body and check for the service-specific fingerprint string
                     let url = format!("http://{}", subdomain);
-                    let body = client.get(&url).send().await
-                        .ok()
-                        .and_then(|r| {
-                            let status = r.status().as_u16();
-                            // Only 4xx responses with fingerprint are vulnerable
-                            if status >= 400 { Some(status) } else { None }
-                        });
+                    if crate::api::helpers::validate_url_safety(&url).is_err() {
+                        return None;
+                    }
+                    let fingerprint_found = async {
+                        let resp = client.get(&url).send().await.ok()?;
+                        let status = resp.status().as_u16();
+                        if status < 400 { return None; }
+                        let body = resp.text().await.ok()?;
+                        if body.contains(sig.fingerprint) { Some(()) } else { None }
+                    }.await;
 
-                    let confidence = if body.is_some() { "high" } else { "medium" }.to_string();
+                    let confidence = if fingerprint_found.is_some() { "high" } else { "medium" }.to_string();
                     return Some((subdomain, cname_target, sig.service.to_string(), sig.fingerprint.to_string(), confidence));
                 }
             }

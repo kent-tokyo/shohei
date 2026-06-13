@@ -53,8 +53,16 @@ pub async fn axfr(domain: &str, server: SocketAddr, timeout_secs: u64) -> Result
     let mut records: Vec<DnsRecord> = Vec::new();
     let mut expected_serial: Option<u32> = None;
     let start = std::time::Instant::now();
+    let mut message_count = 0usize;
+    const MAX_AXFR_MESSAGES: usize = 10_000;
 
     loop {
+        message_count += 1;
+        if message_count > MAX_AXFR_MESSAGES {
+            return Err(ShoheError::Transport(format!(
+                "AXFR from {server} exceeded {MAX_AXFR_MESSAGES} message limit"
+            )));
+        }
         if start.elapsed() >= timeout {
             return Err(ShoheError::Transport(format!("AXFR from {server} timed out")));
         }

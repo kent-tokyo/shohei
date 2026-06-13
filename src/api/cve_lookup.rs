@@ -129,8 +129,9 @@ pub async fn check_cve(req: &CveLookupRequest) -> Result<CveLookupResult> {
                         .as_ref()
                         .and_then(|descs| descs.first())
                         .map(|d| {
-                            if d.value.len() > 200 {
-                                format!("{}...", &d.value[..200])
+                            if d.value.chars().count() > 200 {
+                                let truncated: String = d.value.chars().take(200).collect();
+                                format!("{}...", truncated)
                             } else {
                                 d.value.clone()
                             }

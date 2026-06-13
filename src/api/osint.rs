@@ -346,35 +346,42 @@ pub struct SubdomainBruteforceResult {
     pub error: Option<String>,
 }
 
-/// Perform DNS brute-force on common subdomain prefixes.
+/// Perform DNS brute-force on common subdomain prefixes (parallel).
 pub async fn bruteforce_subdomains(req: &SubdomainBruteforceRequest) -> Result<SubdomainBruteforceResult> {
-    let mut discovered = Vec::new();
-    let common_subs = vec![
+    let common_subs = [
         "www", "mail", "ftp", "smtp", "pop", "imap", "webmail", "admin", "test",
         "staging", "dev", "api", "cdn", "img", "images", "static", "assets",
         "download", "downloads", "upload", "uploads", "blog", "shop", "store",
         "forum", "wiki", "git", "gitlab", "jenkins", "vpn", "remote",
     ];
 
-    for sub in common_subs {
+    let handles: Vec<_> = common_subs.iter().map(|sub| {
         let subdomain = format!("{}.{}", sub, req.domain);
-        if let Ok(results) = crate::api::check_dns(&crate::api::DnsCheckRequest {
-            domain: subdomain.clone(),
-            record_types: vec!["A".to_string()],
-            timeout_secs: 5,
-            ..Default::default()
-        }).await {
-            if !results.is_empty() && !results[0].answers.is_empty() {
-                discovered.push(subdomain);
-            }
+        tokio::spawn(async move {
+            let ok = crate::api::check_dns(&crate::api::DnsCheckRequest {
+                domain: subdomain.clone(),
+                record_types: vec!["A".to_string()],
+                timeout_secs: 5,
+                ..Default::default()
+            }).await
+            .map(|r| !r.is_empty() && !r[0].answers.is_empty())
+            .unwrap_or(false);
+            if ok { Some(subdomain) } else { None }
+        })
+    }).collect();
+
+    let mut discovered: Vec<String> = Vec::new();
+    for handle in handles {
+        if let Ok(Some(sub)) = handle.await {
+            discovered.push(sub);
         }
     }
-
     discovered.sort();
+
     Ok(SubdomainBruteforceResult {
         domain: req.domain.clone(),
-        discovered_subdomains: discovered.clone(),
         discovery_count: discovered.len(),
+        discovered_subdomains: discovered,
         error: None,
     })
 }
@@ -422,12 +429,13 @@ pub async fn detect_typosquats(req: &TyposquatDetectionRequest) -> Result<Typosq
     let domain_name = parts[0];
     let tld = if parts.len() > 1 { parts[1] } else { "com" };
 
-    // Character omissions
-    for i in 0..domain_name.len() {
+    // Character omissions — use char_indices to avoid byte-boundary panic on multibyte chars
+    let domain_chars: Vec<char> = domain_name.chars().collect();
+    for i in 0..domain_chars.len() {
         let variant = format!(
             "{}{}.{}",
-            &domain_name[..i],
-            &domain_name[i + 1..],
+            &domain_chars[..i].iter().collect::<String>(),
+            &domain_chars[i + 1..].iter().collect::<String>(),
             tld
         );
         if variant != req.domain {
@@ -447,9 +455,9 @@ pub async fn detect_typosquats(req: &TyposquatDetectionRequest) -> Result<Typosq
         }
     }
 
-    // Adjacent character swaps
-    for i in 0..domain_name.len().saturating_sub(1) {
-        let mut chars: Vec<char> = domain_name.chars().collect();
+    // Adjacent character swaps — use char count (not byte count) for loop bound
+    for i in 0..domain_chars.len().saturating_sub(1) {
+        let mut chars = domain_chars.clone();
         chars.swap(i, i + 1);
         let swapped: String = chars.iter().collect();
         let variant = format!("{}.{}", swapped, tld);
@@ -585,7 +593,7 @@ pub async fn analyze_domain_age(req: &DomainAgeTimelineRequest) -> Result<Domain
         // Estimate age in days
         if let Some(created) = &whois.created_date {
             if let Ok(created_year) = created.split('-').next().unwrap_or("2024").parse::<u32>() {
-                let current_year = 2026u32;
+                let current_year = (crate::api::helpers::now_timestamp() / (86400 * 365) + 1970) as u32;
                 let age_years = current_year.saturating_sub(created_year);
                 let age_days = age_years * 365;
                 analysis.age_days = Some(age_days);

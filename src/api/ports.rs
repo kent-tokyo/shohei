@@ -31,12 +31,24 @@ pub async fn check_ports(req: &PortCheckRequest) -> Result<PortCheckResult> {
         ]
     };
 
-    let mut results = Vec::new();
+    let host = req.host.clone();
+    let timeout_secs = req.timeout_secs;
 
-    for port in ports {
-        let status = check_port_status(&req.host, port, req.timeout_secs).await;
-        results.push(status);
+    let handles: Vec<_> = ports
+        .into_iter()
+        .map(|port| {
+            let h = host.clone();
+            tokio::spawn(async move { check_port_status(&h, port, timeout_secs).await })
+        })
+        .collect();
+
+    let mut results = Vec::with_capacity(handles.len());
+    for handle in handles {
+        if let Ok(status) = handle.await {
+            results.push(status);
+        }
     }
+    results.sort_by_key(|s| s.port);
 
     Ok(PortCheckResult {
         host: req.host.clone(),

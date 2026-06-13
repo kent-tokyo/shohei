@@ -37,6 +37,16 @@ pub async fn check_mta_sts(req: &MtaStsRequest) -> Result<MtaStsResult> {
 
     // Try to fetch the MTA-STS policy file
     let policy_url = format!("https://mta-sts.{domain}/.well-known/mta-sts.txt", domain = req.domain);
+    if let Err(e) = crate::api::helpers::validate_url_safety(&policy_url) {
+        return Ok(MtaStsResult {
+            domain: req.domain.clone(),
+            txt_record_present,
+            txt_version,
+            policy_url: Some(policy_url),
+            policy: None,
+            fetch_error: Some(format!("Policy URL blocked: {}", e)),
+        });
+    }
     let (policy, fetch_error) = match fetch_mta_sts_policy(&policy_url, req.timeout_secs).await {
         Ok(p) => (Some(p), None),
         Err(e) => (None, Some(e.to_string())),
@@ -53,8 +63,10 @@ pub async fn check_mta_sts(req: &MtaStsRequest) -> Result<MtaStsResult> {
 }
 
 async fn fetch_mta_sts_policy(url: &str, timeout_secs: u64) -> Result<MtaStsPolicy> {
+    // RFC 8461 §3.3: MUST NOT follow HTTP redirects for MTA-STS policy fetch
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(timeout_secs))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| ShoheError::Transport(e.to_string()))?;
 

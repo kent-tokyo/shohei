@@ -69,15 +69,44 @@ pub async fn check_domain_trust_score(req: &DomainTrustScoreRequest) -> Result<T
     let mut risk_factors = Vec::new();
     let mut trust_factors = Vec::new();
 
-    // ─── Dimension 1: DNS Trust (20%)
-    if let Ok(email_result) = crate::api::check_email_security(&crate::api::EmailSecurityRequest {
+    // All 5 dimensions are independent — run concurrently
+    let email_req = crate::api::EmailSecurityRequest {
         domain: req.domain.clone(),
         dkim_selectors: vec!["default".to_string(), "google".to_string()],
         timeout_secs: req.timeout_secs,
-    }).await {
+    };
+    let tls_req = crate::api::TlsCheckRequest {
+        hostname: req.domain.clone(),
+        port: 443,
+        check_dane: false,
+        timeout_secs: req.timeout_secs,
+    };
+    let threat_req = crate::api::ThreatIntelRequest {
+        target: req.domain.clone(),
+        include_sources: None,
+        timeout_secs: req.timeout_secs,
+    };
+    let whois_req = crate::api::WhoisCheckRequest {
+        domain: req.domain.clone(),
+        timeout_secs: req.timeout_secs,
+    };
+    let caa_req = crate::api::CaaCheckRequest {
+        domain: req.domain.clone(),
+        issued_by_ca: None,
+        timeout_secs: req.timeout_secs,
+    };
+    let (email_r, tls_r, threat_r, whois_r, caa_r) = tokio::join!(
+        crate::api::check_email_security(&email_req),
+        crate::api::check_tls_chain(&tls_req),
+        crate::api::check_threat_intel_aggregate(&threat_req),
+        crate::api::check_whois(&whois_req),
+        crate::api::check_caa(&caa_req),
+    );
+
+    // ─── Dimension 1: DNS Trust (20%)
+    if let Ok(email_result) = email_r {
         let has_dmarc = email_result.dmarc.raw.is_some();
         let has_spf = email_result.spf.raw.is_some();
-
         if has_dmarc && has_spf {
             dimensions.dns_trust = 85;
             trust_factors.push("Complete email security (SPF+DMARC)".to_string());
@@ -91,12 +120,7 @@ pub async fn check_domain_trust_score(req: &DomainTrustScoreRequest) -> Result<T
     }
 
     // ─── Dimension 2: TLS Trust (25%)
-    if let Ok(tls_result) = crate::api::check_tls_chain(&crate::api::TlsCheckRequest {
-        hostname: req.domain.clone(),
-        port: 443,
-        check_dane: false,
-        timeout_secs: req.timeout_secs,
-    }).await {
+    if let Ok(tls_result) = tls_r {
         if tls_result.valid {
             let days_until_expiry = tls_result.days_until_expiry.unwrap_or(0);
             if days_until_expiry > 180 {
@@ -109,7 +133,6 @@ pub async fn check_domain_trust_score(req: &DomainTrustScoreRequest) -> Result<T
                 dimensions.tls_trust = 20;
                 risk_factors.push("TLS certificate expiring soon".to_string());
             }
-
             if let Some(version) = &tls_result.tls_version {
                 if version.contains("1.3") {
                     trust_factors.push("TLS 1.3".to_string());
@@ -122,12 +145,8 @@ pub async fn check_domain_trust_score(req: &DomainTrustScoreRequest) -> Result<T
     }
 
     // ─── Dimension 3: Threat Reputation (25%)
-    if let Ok(threat_result) = crate::api::check_threat_intel_aggregate(&crate::api::ThreatIntelRequest {
-        target: req.domain.clone(),
-        include_sources: None,
-        timeout_secs: req.timeout_secs,
-    }).await {
-        dimensions.threat_reputation = std::cmp::max(0, 100 - threat_result.risk_score);
+    if let Ok(threat_result) = threat_r {
+        dimensions.threat_reputation = 100u8.saturating_sub(threat_result.risk_score);
         if threat_result.overall_verdict == "clean" {
             trust_factors.push("Clean threat reputation".to_string());
         } else {
@@ -136,10 +155,7 @@ pub async fn check_domain_trust_score(req: &DomainTrustScoreRequest) -> Result<T
     }
 
     // ─── Dimension 4: Registration Age (15%)
-    if let Ok(whois_result) = crate::api::check_whois(&crate::api::WhoisCheckRequest {
-        domain: req.domain.clone(),
-        timeout_secs: req.timeout_secs,
-    }).await {
+    if let Ok(whois_result) = whois_r {
         if let Some(created) = whois_result.created_date {
             if created.contains("2024") {
                 dimensions.registration_age = 40;
@@ -155,11 +171,7 @@ pub async fn check_domain_trust_score(req: &DomainTrustScoreRequest) -> Result<T
     }
 
     // ─── Dimension 5: Infrastructure Maturity (15%)
-    if let Ok(caa_result) = crate::api::check_caa(&crate::api::CaaCheckRequest {
-        domain: req.domain.clone(),
-        issued_by_ca: None,
-        timeout_secs: req.timeout_secs,
-    }).await {
+    if let Ok(caa_result) = caa_r {
         if !caa_result.records.is_empty() {
             dimensions.infrastructure_maturity = 85;
             trust_factors.push("CAA records configured".to_string());
@@ -210,19 +222,23 @@ pub async fn check_ip_trust_score(req: &IpTrustScoreRequest) -> Result<TrustScor
     let mut risk_factors = Vec::new();
     let mut trust_factors = Vec::new();
 
+    // All independent dimensions — run concurrently
+    let rdns_req = crate::api::RdnsCheckRequest { ip: req.ip.clone(), timeout_secs: req.timeout_secs };
+    let threat_req = crate::api::ThreatIntelRequest { target: req.ip.clone(), include_sources: None, timeout_secs: req.timeout_secs };
+    let bgp_req = crate::api::BgpRouteRequest { ip: req.ip.clone(), timeout_secs: req.timeout_secs };
+    let rpki_req = crate::api::RpkiCheckRequest { ip: req.ip.clone() };
+    let (rdns_r, threat_r, bgp_r, rpki_r) = tokio::join!(
+        crate::api::check_rdns(&rdns_req),
+        crate::api::check_threat_intel_aggregate(&threat_req),
+        crate::api::check_bgp_route(&bgp_req),
+        crate::api::check_rpki(&rpki_req),
+    );
+
     // ─── Dimension 1: DNS Trust (20%)
-    if let Ok(rdns_result) = crate::api::check_rdns(&crate::api::RdnsCheckRequest {
-        ip: req.ip.clone(),
-        timeout_secs: req.timeout_secs,
-    }).await {
-        if let Some(ptr) = &rdns_result.ptr_record {
-            if !ptr.is_empty() {
-                dimensions.dns_trust = 80;
-                trust_factors.push("Reverse DNS configured".to_string());
-            } else {
-                dimensions.dns_trust = 30;
-                risk_factors.push("No reverse DNS".to_string());
-            }
+    if let Ok(rdns_result) = rdns_r {
+        if rdns_result.ptr_record.as_deref().map(|p| !p.is_empty()).unwrap_or(false) {
+            dimensions.dns_trust = 80;
+            trust_factors.push("Reverse DNS configured".to_string());
         } else {
             dimensions.dns_trust = 30;
             risk_factors.push("No reverse DNS".to_string());
@@ -233,12 +249,8 @@ pub async fn check_ip_trust_score(req: &IpTrustScoreRequest) -> Result<TrustScor
     dimensions.tls_trust = 50;  // IP-based TLS less common
 
     // ─── Dimension 3: Threat Reputation (25%)
-    if let Ok(threat_result) = crate::api::check_threat_intel_aggregate(&crate::api::ThreatIntelRequest {
-        target: req.ip.clone(),
-        include_sources: None,
-        timeout_secs: req.timeout_secs,
-    }).await {
-        dimensions.threat_reputation = std::cmp::max(0, 100 - threat_result.risk_score);
+    if let Ok(threat_result) = threat_r {
+        dimensions.threat_reputation = 100u8.saturating_sub(threat_result.risk_score);
         if threat_result.overall_verdict != "clean" {
             risk_factors.push(format!("Threat: {}", threat_result.overall_verdict));
         } else {
@@ -247,10 +259,7 @@ pub async fn check_ip_trust_score(req: &IpTrustScoreRequest) -> Result<TrustScor
     }
 
     // ─── Dimension 4: Registration Age (15%)
-    if let Ok(bgp_result) = crate::api::check_bgp_route(&crate::api::BgpRouteRequest {
-        ip: req.ip.clone(),
-        timeout_secs: req.timeout_secs,
-    }).await {
+    if let Ok(bgp_result) = bgp_r {
         if let Some(asn) = bgp_result.asn {
             dimensions.registration_age = 75;
             trust_factors.push(format!("BGP announced (ASN{})", asn));
@@ -261,9 +270,7 @@ pub async fn check_ip_trust_score(req: &IpTrustScoreRequest) -> Result<TrustScor
     }
 
     // ─── Dimension 5: Infrastructure Maturity (15%)
-    if let Ok(rpki_result) = crate::api::check_rpki(&crate::api::RpkiCheckRequest {
-        ip: req.ip.clone(),
-    }).await {
+    if let Ok(rpki_result) = rpki_r {
         if rpki_result.roa_valid {
             dimensions.infrastructure_maturity = 95;
             trust_factors.push("RPKI ROA valid".to_string());
