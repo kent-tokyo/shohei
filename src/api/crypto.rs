@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use crate::error::Result;
-use uuid::Uuid;
+
 
 /// RFC 3161 timestamp request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,9 +27,9 @@ pub async fn request_rfc3161_timestamp(_req: &Rfc3161TimestampRequest) -> Result
     let timestamp_value = chrono::Local::now().to_rfc3339();
 
     Ok(Rfc3161TimestampResult {
-        timestamp_token: format!("token_{}", Uuid::new_v4()),
+        timestamp_token: format!("token_{}", crate::api::helpers::generate_id("id")),
         timestamp_value,
-        serial_number: format!("sn_{}", Uuid::new_v4()),
+        serial_number: format!("sn_{}", crate::api::helpers::generate_id("id")),
         tsa_name: "RFC3161 TSA".to_string(),
         accuracy_microseconds: 1000,
     })
@@ -80,11 +80,11 @@ pub struct SignstoreRekorEntryResult {
 
 /// Add entry to Sigstore Rekor transparency log.
 pub async fn add_sigstore_rekor_entry(_req: &SignstoreRekorEntryRequest) -> Result<SignstoreRekorEntryResult> {
-    let entry_uuid = Uuid::new_v4().to_string();
+    let entry_uuid = crate::api::helpers::generate_id("id").to_string();
 
     Ok(SignstoreRekorEntryResult {
         entry_uuid,
-        merkle_tree_leaf_hash: format!("hash_{}", Uuid::new_v4()),
+        merkle_tree_leaf_hash: format!("hash_{}", crate::api::helpers::generate_id("id")),
         integrated_time: chrono::Local::now().to_rfc3339(),
         log_id: "rekor_log".to_string(),
     })
@@ -135,13 +135,13 @@ pub struct ZkProofGenerationResult {
 
 /// Generate zero-knowledge proof.
 pub async fn generate_zk_proof(_req: &ZkProofGenerationRequest) -> Result<ZkProofGenerationResult> {
-    let proof_id = format!("zk_proof_{}", Uuid::new_v4());
+    let proof_id = format!("zk_proof_{}", crate::api::helpers::generate_id("id"));
 
     Ok(ZkProofGenerationResult {
         proof_id,
         proof_size_bytes: 256,
         generation_time_ms: 150,
-        verification_key: format!("vk_{}", Uuid::new_v4()),
+        verification_key: format!("vk_{}", crate::api::helpers::generate_id("id")),
     })
 }
 
@@ -190,12 +190,12 @@ pub struct EscrowAgreementResult {
 
 /// Create escrow agreement.
 pub async fn create_escrow_agreement(_req: &EscrowAgreementRequest) -> Result<EscrowAgreementResult> {
-    let escrow_id = format!("escrow_{}", Uuid::new_v4());
+    let escrow_id = format!("escrow_{}", crate::api::helpers::generate_id("id"));
 
     Ok(EscrowAgreementResult {
         escrow_id,
         status: "created".to_string(),
-        contract_hash: format!("hash_{}", Uuid::new_v4()),
+        contract_hash: format!("hash_{}", crate::api::helpers::generate_id("id")),
         created_at: chrono::Local::now().to_rfc3339(),
     })
 }
@@ -220,7 +220,7 @@ pub struct EscrowReleaseResult {
 pub async fn release_escrow(_req: &EscrowReleaseRequest) -> Result<EscrowReleaseResult> {
     Ok(EscrowReleaseResult {
         released: true,
-        transaction_hash: format!("tx_{}", Uuid::new_v4()),
+        transaction_hash: format!("tx_{}", crate::api::helpers::generate_id("id")),
         released_amount: 0,
         released_at: chrono::Local::now().to_rfc3339(),
     })
@@ -246,14 +246,14 @@ pub struct DigitalNotarizationResult {
 
 /// Notarize document digitally.
 pub async fn notarize_document(req: &DigitalNotarizationRequest) -> Result<DigitalNotarizationResult> {
-    let notarization_id = format!("notary_{}", Uuid::new_v4());
+    let notarization_id = format!("notary_{}", crate::api::helpers::generate_id("id"));
 
     Ok(DigitalNotarizationResult {
         notarization_id,
         document_hash: req.document_hash.clone(),
-        ledger_address: format!("addr_{}", Uuid::new_v4()),
+        ledger_address: format!("addr_{}", crate::api::helpers::generate_id("id")),
         notarization_time: chrono::Local::now().to_rfc3339(),
-        proof_of_notarization: format!("proof_{}", Uuid::new_v4()),
+        proof_of_notarization: format!("proof_{}", crate::api::helpers::generate_id("id")),
     })
 }
 
@@ -303,13 +303,13 @@ pub struct KeyManagementResult {
 
 /// Generate and manage cryptographic keys.
 pub async fn manage_cryptographic_key(req: &KeyManagementRequest) -> Result<KeyManagementResult> {
-    let key_id = format!("key_{}", Uuid::new_v4());
+    let key_id = format!("key_{}", crate::api::helpers::generate_id("id"));
 
     Ok(KeyManagementResult {
         key_id,
         key_type: req.key_type.clone(),
         key_size: req.key_size,
-        public_key: format!("pubkey_{}", Uuid::new_v4()),
+        public_key: format!("pubkey_{}", crate::api::helpers::generate_id("id")),
         created_at: chrono::Local::now().to_rfc3339(),
     })
 }
@@ -333,7 +333,7 @@ pub struct KeyRotationResult {
 
 /// Rotate cryptographic key.
 pub async fn rotate_key(req: &KeyRotationRequest) -> Result<KeyRotationResult> {
-    let new_key_id = format!("key_{}", Uuid::new_v4());
+    let new_key_id = format!("key_{}", crate::api::helpers::generate_id("id"));
 
     Ok(KeyRotationResult {
         rotated: true,
@@ -362,12 +362,12 @@ pub struct AuditTrailBindingResult {
 
 /// Bind audit trail entries cryptographically.
 pub async fn bind_audit_trail(req: &AuditTrailBindingRequest) -> Result<AuditTrailBindingResult> {
-    let binding_id = format!("bind_{}", Uuid::new_v4());
+    let binding_id = format!("bind_{}", crate::api::helpers::generate_id("id"));
 
     Ok(AuditTrailBindingResult {
         binding_id,
         entries_bound: req.audit_entries,
-        root_hash: format!("roothash_{}", Uuid::new_v4()),
+        root_hash: format!("roothash_{}", crate::api::helpers::generate_id("id")),
         binding_integrity: true,
     })
 }
@@ -390,7 +390,7 @@ pub struct HsmIntegrationResult {
 
 /// Perform cryptographic operation via HSM.
 pub async fn integrate_hsm(_req: &HsmIntegrationRequest) -> Result<HsmIntegrationResult> {
-    let operation_id = format!("hsm_{}", Uuid::new_v4());
+    let operation_id = format!("hsm_{}", crate::api::helpers::generate_id("id"));
 
     Ok(HsmIntegrationResult {
         operation_id,

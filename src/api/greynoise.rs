@@ -38,7 +38,7 @@ pub async fn check_ip_noise(req: &GreyNoiseRequest) -> Result<GreyNoiseResult> {
     let ip = req.ip.clone();
     let timeout_secs = req.timeout_secs;
 
-    let url = format!("https://api.greynoise.io/v3/community/{}", urlencoding::encode(&ip));
+    let url = format!("https://api.greynoise.io/v3/community/{}", crate::api::helpers::percent_encode(&ip));
 
     let client = reqwest::Client::new();
     let response = match client

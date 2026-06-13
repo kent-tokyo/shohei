@@ -109,7 +109,7 @@ pub async fn check_bgp_hijack_history(req: &BgpHijackHistoryRequest) -> Result<B
     let client = reqwest::Client::new();
     let url = format!(
         "https://stat.ripe.net/data/bgp-updates/data.json?resource={}",
-        urlencoding::encode(&req.prefix)
+        crate::api::helpers::percent_encode(&req.prefix)
     );
 
     match client.get(&url)

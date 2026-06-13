@@ -424,17 +424,17 @@ fn check_tlsa_match(cert_der: &CertificateDer<'_>, selector: &u8, matching_type:
     match matching_type {
         0 => {
             // Exact match - compare raw bytes as hex
-            hex::encode(&data) == *expected
+            crate::api::helpers::hex_encode(&data) == *expected
         }
         1 => {
             // SHA-256 match
             let digest = Sha256::digest(&data);
-            hex::encode(digest) == *expected
+            crate::api::helpers::hex_encode(&digest) == *expected
         }
         2 => {
             // SHA-512 match
             let digest = Sha512::digest(&data);
-            hex::encode(digest) == *expected
+            crate::api::helpers::hex_encode(&digest) == *expected
         }
         _ => false,
     }

@@ -40,7 +40,7 @@ pub async fn check_cve(req: &CveLookupRequest) -> Result<CveLookupResult> {
     let keyword = req.keyword.clone();
     let max_results = std::cmp::min(req.max_results, 20);
 
-    let encoded_keyword = urlencoding::encode(&keyword);
+    let encoded_keyword = crate::api::helpers::percent_encode(&keyword);
     let url = format!(
         "https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch={}&resultsPerPage={}",
         encoded_keyword, max_results

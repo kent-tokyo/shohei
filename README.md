@@ -148,7 +148,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-shohei = "2.3"
+shohei = "2.4"
 ```
 
 Then import and use:
@@ -474,12 +474,6 @@ cargo install shohei
 - **Rust Library**: `use shohei;` in your projects — structured async APIs
 - **CLI**: Manual inspection: `shohei example.com --dnssec --trace`
 - **JSON output**: Scripting and tooling: `shohei example.com --output json`
-
-### Future (v0.6.0+)
-
-- **GitHub Actions**: Automated DNS/TLS checks in CI/CD
-- **Terraform Module**: Infrastructure validation
-- **Ansible Module**: Playbook integration
 
 See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for full details.
 

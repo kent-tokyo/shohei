@@ -190,7 +190,7 @@ pub async fn check_passive_dns(req: &PassiveDnsRequest) -> Result<PassiveDnsResu
     // RIPE Stat DNS History API (free, no API key)
     let url = format!(
         "https://stat.ripe.net/data/dns-history/data.json?resource={}&sourceapp=shohei-mcp",
-        urlencoding::encode(&req.query)
+        crate::api::helpers::percent_encode(&req.query)
     );
 
     let response = match client.get(&url).send().await {
@@ -272,7 +272,7 @@ pub async fn check_azure_ad_exposure(req: &AzureAdExposureRequest) -> Result<Azu
     // Azure AD OIDC discovery for a specific domain (tenant)
     let openid_url = format!(
         "https://login.microsoftonline.com/{}/.well-known/openid-configuration",
-        urlencoding::encode(&req.domain)
+        crate::api::helpers::percent_encode(&req.domain)
     );
 
     let tenant_found = if let Ok(r) = client.get(&openid_url).send().await {

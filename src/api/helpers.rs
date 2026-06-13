@@ -125,6 +125,49 @@ fn is_private_or_special_ip(ip: &std::net::IpAddr) -> bool {
     }
 }
 
+/// Hex-encode bytes using a lookup table (replaces the `hex` crate).
+pub fn hex_encode(data: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut s = String::with_capacity(data.len() * 2);
+    for &b in data {
+        s.push(HEX[(b >> 4) as usize] as char);
+        s.push(HEX[(b & 0xf) as usize] as char);
+    }
+    s
+}
+
+/// Percent-encode a string for use in URLs (replaces the `urlencoding` crate).
+/// Leaves ASCII alphanumerics and `-_.~` unencoded per RFC 3986.
+pub fn percent_encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for byte in s.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char);
+            }
+            _ => {
+                use std::fmt::Write;
+                let _ = write!(out, "%{:02X}", byte);
+            }
+        }
+    }
+    out
+}
+
+/// Generate a unique ID string using monotonic system time (replaces the `uuid` crate for stub implementations).
+/// Format: `{prefix}_{nanos_hex}` — not a real UUID but unique within a process.
+pub fn generate_id(prefix: &str) -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos();
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    format!("{}_{:x}{:08x}", prefix, secs, nanos)
+}
+
 /// Build a DnsCheckRequest for a single record type query.
 pub fn dns_request_for_record_type(
     domain: String,

@@ -64,7 +64,7 @@ async fn check_rpki_validity(ip: &str) -> Result<RpkiCheckResult> {
     let rpki_url = if let Some(asn_num) = asn {
         format!(
             "https://rpki.cloudflare.com/api/v1/validity/AS{}/{}",
-            asn_num, urlencoding::encode(&prefix)
+            asn_num, crate::api::helpers::percent_encode(&prefix)
         )
     } else {
         // Without ASN, we can't validate

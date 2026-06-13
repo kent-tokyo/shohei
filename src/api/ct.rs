@@ -137,7 +137,7 @@ impl CrtShCertEntry {
 }
 
 async fn query_crt_sh(domain: &str) -> Result<Vec<std::collections::HashMap<String, String>>> {
-    let url = format!("https://crt.sh/?q={}&output=json", urlencoding::encode(domain));
+    let url = format!("https://crt.sh/?q={}&output=json", crate::api::helpers::percent_encode(domain));
     let client = reqwest::Client::new();
 
     match client.get(&url).timeout(std::time::Duration::from_secs(10)).send().await {

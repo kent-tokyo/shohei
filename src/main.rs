@@ -12,7 +12,18 @@ use std::time::Duration;
 use clap::Parser;
 use futures_util::future::join_all;
 use hickory_proto::rr::RecordType;
-use indicatif::{ProgressBar, ProgressStyle};
+/// Minimal progress spinner that writes to stderr (replaces the `indicatif` crate).
+struct Spinner { msg: std::sync::Mutex<String> }
+impl Spinner {
+    fn new() -> Self { Spinner { msg: std::sync::Mutex::new(String::new()) } }
+    fn set_message(&self, m: impl Into<String>) {
+        let m = m.into();
+        eprint!("\r{:<80}", m);
+        let _ = std::io::Write::flush(&mut std::io::stderr());
+        *self.msg.lock().unwrap() = m;
+    }
+    fn finish_and_clear(&self) { eprint!("\r{:<80}\r", ""); }
+}
 
 use cli::args::{Args, OutputFormat};
 use cli::output::{
@@ -189,7 +200,7 @@ async fn run_batch(args: &Args, renderer: &dyn Render, domains: Vec<String>) -> 
 // ---------------------------------------------------------------------------
 
 /// Finish the spinner, print an error, and return false (stops the watch loop).
-fn bail(spinner: &ProgressBar, msg: &dyn std::fmt::Display) -> bool {
+fn bail(spinner: &Spinner, msg: &dyn std::fmt::Display) -> bool {
     spinner.finish_and_clear();
     eprintln!("Error: {msg}");
     false
@@ -227,7 +238,7 @@ async fn dispatch_axfr(
     args: &Args,
     renderer: &dyn Render,
     domain: &str,
-    spinner: &ProgressBar,
+    spinner: &Spinner,
 ) -> bool {
     let server = match &args.server {
         None => return bail(spinner, &"--axfr requires -s <server>"),
@@ -255,7 +266,7 @@ async fn dispatch_compare(
     renderer: &dyn Render,
     domain: &str,
     primary_type: RecordType,
-    spinner: &ProgressBar,
+    spinner: &Spinner,
 ) -> bool {
     if args.compare.len() == 1 {
         dispatch_compare_two(args, renderer, domain, primary_type, spinner).await
@@ -269,7 +280,7 @@ async fn dispatch_compare_two(
     renderer: &dyn Render,
     domain: &str,
     primary_type: RecordType,
-    spinner: &ProgressBar,
+    spinner: &Spinner,
 ) -> bool {
     let compare_addr = &args.compare[0];
     spinner.set_message(format!("Comparing {} against {}...", domain, compare_addr));
@@ -336,7 +347,7 @@ async fn dispatch_compare_nway(
     renderer: &dyn Render,
     domain: &str,
     primary_type: RecordType,
-    spinner: &ProgressBar,
+    spinner: &Spinner,
 ) -> bool {
     let compare_addrs = args.compare.iter().map(|a| a.as_str()).collect::<Vec<_>>();
     spinner.set_message(format!(
@@ -401,7 +412,7 @@ async fn dispatch_trace(
     domain: &str,
     primary_type: RecordType,
     resolver_ip: Option<std::net::IpAddr>,
-    spinner: &ProgressBar,
+    spinner: &Spinner,
 ) -> bool {
     spinner.set_message(format!("Tracing resolution path for {}...", domain));
     match resolver::iterative::trace(domain, primary_type, resolver_ip).await {
@@ -420,7 +431,7 @@ async fn dispatch_dnssec(
     domain: &str,
     primary_type: RecordType,
     resolver_ip: Option<std::net::IpAddr>,
-    spinner: &ProgressBar,
+    spinner: &Spinner,
 ) -> bool {
     spinner.set_message(format!("Validating DNSSEC chain for {}...", domain));
     match dnssec::build_chain(domain, primary_type, resolver_ip, args.verbose).await {
@@ -442,7 +453,7 @@ async fn dispatch_standard(
     renderer: &dyn Render,
     domain: &str,
     record_types: &[RecordType],
-    spinner: &ProgressBar,
+    spinner: &Spinner,
 ) -> bool {
     spinner.set_message(format!("Querying {}...", domain));
 
@@ -482,15 +493,8 @@ async fn dispatch_standard(
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn make_spinner() -> ProgressBar {
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.cyan} {msg}")
-            .expect("spinner template is a valid literal"),
-    );
-    pb.enable_steady_tick(Duration::from_millis(80));
-    pb
+fn make_spinner() -> Spinner {
+    Spinner::new()
 }
 
 async fn build_query_opts(
