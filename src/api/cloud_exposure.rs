@@ -24,13 +24,6 @@ pub struct S3BucketExposureResult {
 
 /// Check if domain maps to AWS S3 bucket.
 pub async fn check_s3_bucket_exposure(req: &S3BucketExposureRequest) -> Result<S3BucketExposureResult> {
-    let dns_req = crate::api::DnsCheckRequest {
-        domain: req.domain.clone(),
-        record_types: vec!["CNAME".to_string()],
-        timeout_secs: req.timeout_secs,
-        ..Default::default()
-    };
-
     match crate::api::helpers::resolve_first_cname(&req.domain, req.timeout_secs).await {
         Some(cname) if cname.contains("s3") && cname.contains("amazonaws.com") => {
             Ok(S3BucketExposureResult {
@@ -160,6 +153,7 @@ pub async fn check_server_hardening(req: &ServerHardeningRequest) -> Result<Serv
     crate::api::helpers::validate_url_safety(&req.url).map_err(crate::error::ShoheError::Parse)?;
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?;
 

@@ -90,13 +90,6 @@ pub struct AzureBlobExposureResult {
 
 /// Detect Azure Blob Storage CNAME exposure.
 pub async fn check_azure_blob_exposure(req: &AzureBlobExposureRequest) -> Result<AzureBlobExposureResult> {
-    let dns_req = crate::api::DnsCheckRequest {
-        domain: req.domain.clone(),
-        record_types: vec!["CNAME".to_string()],
-        timeout_secs: req.timeout_secs,
-        ..Default::default()
-    };
-
     match crate::api::helpers::resolve_first_cname(&req.domain, req.timeout_secs).await {
         Some(cname) if cname.contains("blob.core.windows.net") => Ok(AzureBlobExposureResult {
             domain: req.domain.clone(),
@@ -135,13 +128,6 @@ pub struct GcsBucketExposureResult {
 
 /// Detect Google Cloud Storage CNAME exposure.
 pub async fn check_gcs_bucket_exposure(req: &GcsBucketExposureRequest) -> Result<GcsBucketExposureResult> {
-    let dns_req = crate::api::DnsCheckRequest {
-        domain: req.domain.clone(),
-        record_types: vec!["CNAME".to_string()],
-        timeout_secs: req.timeout_secs,
-        ..Default::default()
-    };
-
     match crate::api::helpers::resolve_first_cname(&req.domain, req.timeout_secs).await {
         Some(cname) if cname.contains("storage.googleapis.com") => Ok(GcsBucketExposureResult {
             domain: req.domain.clone(),
@@ -185,6 +171,7 @@ pub async fn check_cors_policy(req: &CorsPolicyRequest) -> Result<CorsPolicyResu
     crate::api::helpers::validate_url_safety(&req.url).map_err(crate::error::ShoheError::Parse)?;
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?;
 

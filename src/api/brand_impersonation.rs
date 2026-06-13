@@ -69,8 +69,10 @@ const SUSPICIOUS_TLDS: &[&str] = &[".xyz", ".tk", ".ml", ".ga", ".cf", ".pw", ".
 
 /// Calculate Levenshtein distance between two strings.
 fn levenshtein_distance(s1: &str, s2: &str) -> u32 {
-    let len1 = s1.len();
-    let len2 = s2.len();
+    let s1_chars: Vec<char> = s1.chars().collect();
+    let s2_chars: Vec<char> = s2.chars().collect();
+    let len1 = s1_chars.len();
+    let len2 = s2_chars.len();
 
     if len1 == 0 {
         return len2 as u32;
@@ -87,9 +89,6 @@ fn levenshtein_distance(s1: &str, s2: &str) -> u32 {
     for j in 0..=len2 {
         matrix[0][j] = j as u32;
     }
-
-    let s1_chars: Vec<char> = s1.chars().collect();
-    let s2_chars: Vec<char> = s2.chars().collect();
 
     for i in 1..=len1 {
         for j in 1..=len2 {
@@ -134,15 +133,25 @@ pub async fn check_brand_impersonation(req: &BrandImpersonationRequest) -> Resul
     for (brand_name, brand_domain) in BRANDS {
         let brand_sld = extract_sld(brand_domain);
 
-        // Check 1: Exact match (TLD swap)
+        // Check 1: Exact SLD match — differentiate TLD variant vs. true exact match
         if sld == brand_sld {
-            matches.push(BrandMatch {
-                brand: brand_name.to_string(),
-                brand_domain: brand_domain.to_string(),
-                edit_distance: 0,
-                match_type: "exact".to_string(),
-                risk: "high".to_string(),
-            });
+            if !tld.is_empty() && SUSPICIOUS_TLDS.iter().any(|st| tld.ends_with(st)) {
+                matches.push(BrandMatch {
+                    brand: brand_name.to_string(),
+                    brand_domain: brand_domain.to_string(),
+                    edit_distance: 0,
+                    match_type: "tld_variant".to_string(),
+                    risk: "medium".to_string(),
+                });
+            } else {
+                matches.push(BrandMatch {
+                    brand: brand_name.to_string(),
+                    brand_domain: brand_domain.to_string(),
+                    edit_distance: 0,
+                    match_type: "exact".to_string(),
+                    risk: "high".to_string(),
+                });
+            }
             continue;
         }
 
@@ -169,17 +178,6 @@ pub async fn check_brand_impersonation(req: &BrandImpersonationRequest) -> Resul
                 risk: "medium".to_string(),
             });
             continue;
-        }
-
-        // Check 4: TLD variant (suspicious TLD)
-        if sld == brand_sld && !tld.is_empty() && SUSPICIOUS_TLDS.iter().any(|st| tld.ends_with(st)) {
-            matches.push(BrandMatch {
-                brand: brand_name.to_string(),
-                brand_domain: brand_domain.to_string(),
-                edit_distance: 0,
-                match_type: "tld_variant".to_string(),
-                risk: "medium".to_string(),
-            });
         }
     }
 

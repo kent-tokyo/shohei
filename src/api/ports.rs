@@ -31,6 +31,9 @@ pub async fn check_ports(req: &PortCheckRequest) -> Result<PortCheckResult> {
         ]
     };
 
+    crate::api::helpers::validate_url_safety(&format!("http://{}/", req.host))
+        .map_err(crate::error::ShoheError::Parse)?;
+
     let host = req.host.clone();
     let timeout_secs = req.timeout_secs;
 

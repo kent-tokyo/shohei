@@ -162,6 +162,15 @@ pub async fn check_cookie_security(req: &CookieSecurityRequest) -> Result<Cookie
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 10 {
+                return attempt.stop();
+            }
+            if crate::api::helpers::validate_url_safety(attempt.url().as_str()).is_err() {
+                return attempt.stop();
+            }
+            attempt.follow()
+        }))
         .build()
         .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?;
 
@@ -177,11 +186,10 @@ pub async fn check_cookie_security(req: &CookieSecurityRequest) -> Result<Cookie
                 if key.as_str().to_lowercase() == "set-cookie" {
                     if let Ok(cookie_str) = val.to_str() {
                         cookie_count += 1;
-                        let cookie_lower = cookie_str.to_lowercase();
-
-                        let has_secure = cookie_lower.contains("secure");
-                        let has_httponly = cookie_lower.contains("httponly");
-                        let has_samesite = cookie_lower.contains("samesite");
+                        let attrs: Vec<&str> = cookie_str.split(';').skip(1).collect();
+                        let has_secure = attrs.iter().any(|a| a.trim().eq_ignore_ascii_case("secure"));
+                        let has_httponly = attrs.iter().any(|a| a.trim().eq_ignore_ascii_case("httponly"));
+                        let has_samesite = attrs.iter().any(|a| a.trim().to_lowercase().starts_with("samesite"));
 
                         if has_secure {
                             secure_count += 1;
@@ -259,6 +267,15 @@ pub async fn check_csp_advanced(req: &CspAdvancedRequest) -> Result<CspAdvancedR
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 10 {
+                return attempt.stop();
+            }
+            if crate::api::helpers::validate_url_safety(attempt.url().as_str()).is_err() {
+                return attempt.stop();
+            }
+            attempt.follow()
+        }))
         .build()
         .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?;
 

@@ -123,6 +123,15 @@ pub async fn check_ja4h_fingerprint(req: &Ja4hFingerprintRequest) -> Result<Ja4h
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 10 {
+                return attempt.stop();
+            }
+            if crate::api::helpers::validate_url_safety(attempt.url().as_str()).is_err() {
+                return attempt.stop();
+            }
+            attempt.follow()
+        }))
         .build()
         .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?;
 

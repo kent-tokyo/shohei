@@ -71,6 +71,8 @@ pub fn rfc3339_hours_from_now(hours: u64) -> String {
 /// Parse an RFC 3339 string to Unix seconds, handling UTC and ±HH:MM offsets.
 /// Returns None if parsing fails.
 pub fn parse_rfc3339_secs(s: &str) -> Option<u64> {
+    // Reject non-ASCII input early; all byte-index slices below assume ASCII.
+    if !s.is_ascii() { return None; }
     // Separate the datetime part and optional timezone offset
     // Formats: "2024-01-15T10:30:00Z" | "2024-01-15T10:30:00+09:00" | "2024-01-15T10:30:00-05:30"
     let (datetime_part, offset_secs) = if s.ends_with('Z') {
@@ -224,7 +226,7 @@ pub fn validate_url_safety(url: &str) -> std::result::Result<(), String> {
     Ok(())
 }
 
-fn is_private_or_special_ip(ip: &std::net::IpAddr) -> bool {
+pub(crate) fn is_private_or_special_ip(ip: &std::net::IpAddr) -> bool {
     match ip {
         std::net::IpAddr::V4(v4) => {
             let o = v4.octets();

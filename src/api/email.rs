@@ -6,6 +6,7 @@ use crate::api::{check_dns, DnsCheckRequest};
 use crate::resolver::RecordData;
 use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
+use std::net::ToSocketAddrs;
 
 /// Check email security configuration for a domain.
 pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSecurityResult> {
@@ -91,10 +92,11 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
     if spf_valid { score += 25; }
     if dmarc_policy != Some(DmarcPolicy::None) && dmarc_policy.is_some() { score += 25; }
 
-    // Check DKIM selectors
+    // Check DKIM selectors — cap at 32 to prevent unbounded DNS queries
+    let dkim_selectors: Vec<String> = req.dkim_selectors.iter().take(32).cloned().collect();
     let mut dkim_results = Vec::new();
-    let mut dkim_present_count = 0;
-    for selector in &req.dkim_selectors {
+    let mut dkim_present_count: u32 = 0;
+    for selector in &dkim_selectors {
         let dkim_req = DnsCheckRequest {
             domain: format!("{}._domainkey.{}", selector, req.domain),
             record_types: vec!["TXT".to_string()],
@@ -125,15 +127,17 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
         });
     }
 
-    // Award DKIM points proportionally
-    if dkim_present_count > 0 {
-        score = score.saturating_add((25 * dkim_present_count as u8) / (req.dkim_selectors.len() as u8));
+    // Award DKIM points proportionally — use u32 to avoid overflow/divide-by-zero
+    let selectors_len = dkim_selectors.len();
+    if selectors_len > 0 && dkim_present_count > 0 {
+        let dkim_score = ((25u32 * dkim_present_count) / selectors_len as u32) as u8;
+        score = score.saturating_add(dkim_score);
     }
     score = score.min(100);
 
-    // Check MX reachability
+    // Check MX reachability — cap at 5 to limit SSRF surface
     let mut mx_reachability = Vec::new();
-    for mx in &mx_records {
+    for mx in mx_records.iter().take(5) {
         let dns_resolves = match check_dns(&DnsCheckRequest {
             domain: mx.exchange.clone(),
             record_types: vec!["A".to_string(), "AAAA".to_string()],
@@ -222,15 +226,18 @@ pub async fn check_email_security(req: &EmailSecurityRequest) -> Result<EmailSec
 
 fn parse_dmarc_policy(raw: &Option<String>) -> Option<DmarcPolicy> {
     raw.as_ref().and_then(|s| {
-        if s.contains("p=reject") {
-            Some(DmarcPolicy::Reject)
-        } else if s.contains("p=quarantine") {
-            Some(DmarcPolicy::Quarantine)
-        } else if s.contains("p=none") {
-            Some(DmarcPolicy::None)
-        } else {
-            None
+        for part in s.split(';') {
+            let part = part.trim();
+            if let Some(v) = part.strip_prefix("p=") {
+                return match v.trim() {
+                    "reject" => Some(DmarcPolicy::Reject),
+                    "quarantine" => Some(DmarcPolicy::Quarantine),
+                    "none" => Some(DmarcPolicy::None),
+                    _ => None,
+                };
+            }
         }
+        None
     })
 }
 
@@ -379,9 +386,28 @@ pub struct DkimCheckResult {
 }
 
 async fn check_mx_port_25(hostname: &str, timeout_secs: u64) -> bool {
-    let addr = format!("{}:25", hostname);
-    match timeout(Duration::from_secs(timeout_secs), TcpStream::connect(&addr)).await {
-        Ok(Ok(_)) => true,
-        _ => false,
+    // Resolve hostname and validate all resulting IPs to prevent SSRF via DNS rebinding
+    let addr_str = format!("{}:25", hostname);
+    let addrs = match tokio::task::spawn_blocking(move || addr_str.to_socket_addrs()).await {
+        Ok(Ok(a)) => a.collect::<Vec<_>>(),
+        _ => return false,
+    };
+    if addrs.is_empty() {
+        return false;
     }
+    // Require at least one routable (non-private) address
+    let safe_addrs: Vec<_> = addrs.iter()
+        .filter(|sa| !crate::api::helpers::is_private_or_special_ip(&sa.ip()))
+        .cloned()
+        .collect();
+    if safe_addrs.is_empty() {
+        return false;
+    }
+    // Connect directly to the validated SocketAddr to avoid TOCTOU re-resolution
+    for sa in safe_addrs {
+        if let Ok(Ok(_)) = timeout(Duration::from_secs(timeout_secs), TcpStream::connect(sa)).await {
+            return true;
+        }
+    }
+    false
 }
