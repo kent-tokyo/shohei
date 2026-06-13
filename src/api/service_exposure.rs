@@ -60,7 +60,7 @@ pub struct ExposedDatabasesResult {
 }
 
 pub async fn check_exposed_databases(req: &ExposedDatabasesRequest) -> Result<ExposedDatabasesResult> {
-    let timeout = req.timeout_secs.min(5);
+    let _timeout = req.timeout_secs.min(5);
     let host = &req.host;
     let mut exposed_services = Vec::new();
     let mut findings = Vec::new();

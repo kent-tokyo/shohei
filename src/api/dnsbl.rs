@@ -23,7 +23,7 @@ pub async fn check_dnsbl(req: &DnsblCheckRequest) -> Result<DnsblCheckResult> {
 
     // Reverse IP for DNSBL query format
     let reversed_ip = reverse_ip(&ip_addr);
-    let _timeout = req.timeout_secs;
+    let timeout = req.timeout_secs;
 
     // List of major DNSBL services
     let dnsbl_services = vec![
@@ -40,7 +40,7 @@ pub async fn check_dnsbl(req: &DnsblCheckRequest) -> Result<DnsblCheckResult> {
             let dns_req = DnsCheckRequest {
                 domain: query_domain,
                 record_types: vec!["A".to_string()],
-                timeout_secs: _timeout,
+                timeout_secs: timeout,
                 ..Default::default()
             };
 

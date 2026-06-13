@@ -250,7 +250,7 @@ pub struct DataDeletionResult {
 }
 
 /// Delete data according to retention policies.
-pub async fn delete_expired_data(req: &DataDeletionRequest) -> Result<DataDeletionResult> {
+pub async fn delete_expired_data(_req: &DataDeletionRequest) -> Result<DataDeletionResult> {
     let deletion_id = format!("del_{}", crate::api::helpers::now_timestamp() as i64);
 
     Ok(DataDeletionResult {
@@ -395,7 +395,7 @@ pub struct PrivacyImpactAssessmentResult {
 }
 
 /// Conduct privacy impact assessment.
-pub async fn conduct_privacy_assessment(req: &PrivacyImpactAssessmentRequest) -> Result<PrivacyImpactAssessmentResult> {
+pub async fn conduct_privacy_assessment(_req: &PrivacyImpactAssessmentRequest) -> Result<PrivacyImpactAssessmentResult> {
     let pia_id = format!("pia_{}", crate::api::helpers::now_timestamp() as i64);
 
     Ok(PrivacyImpactAssessmentResult {

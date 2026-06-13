@@ -2,8 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use crate::error::Result;
-use std::process::Command;
-use std::time::Instant;
 
 /// Run traceroute to a hostname and measure hop latencies.
 pub async fn check_traceroute(req: &TracerouteRequest) -> Result<TracerouteResult> {
@@ -67,7 +65,7 @@ async fn run_traceroute_command(ip: &str, max_hops: u32, timeout: u32) -> Vec<Ho
     let mut hops = Vec::new();
 
     // Platform-specific traceroute command
-    let cmd = if cfg!(target_os = "windows") {
+    let _cmd = if cfg!(target_os = "windows") {
         format!("tracert -h {} -w {} {}", max_hops, timeout * 1000, ip)
     } else if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
         format!("traceroute -m {} -w {} {}", max_hops, timeout, ip)

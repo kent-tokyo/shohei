@@ -43,6 +43,7 @@ pub struct RedirectChainResult {
 
 /// Trace HTTP redirect chain for a URL.
 pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<RedirectChainResult> {
+    crate::api::helpers::validate_url_safety(&req.url).map_err(crate::error::ShoheError::Parse)?;
     let original_url = req.url.clone();
     const MAX_HOPS_LIMIT: u32 = 100;  // Cap to prevent resource exhaustion
     let max_hops = std::cmp::min(req.max_hops, MAX_HOPS_LIMIT) as usize;
@@ -141,7 +142,7 @@ pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<Redirect
     // Backfill domain age if requested
     if req.check_domain_age {
         use url::Url;
-        let _age_timeout = req.timeout_secs;
+        let age_timeout = req.timeout_secs;
         
         use std::collections::HashMap;
 
@@ -164,7 +165,7 @@ pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<Redirect
             async move {
                 let req = crate::api::DomainRiskRequest {
                     domain: host.clone(),
-                    timeout_secs: _age_timeout,
+                    timeout_secs: age_timeout,
                 };
                 let age = match crate::api::check_domain_risk(&req).await {
                     Ok(result) => result.domain_age_days,
@@ -176,7 +177,7 @@ pub async fn check_redirect_chain(req: &RedirectChainRequest) -> Result<Redirect
 
         // Add overall timeout to prevent backfill from blocking indefinitely
         let age_results = match tokio::time::timeout(
-            std::time::Duration::from_secs(_age_timeout),
+            std::time::Duration::from_secs(age_timeout),
             async { let hs: Vec<_> = age_tasks.into_iter().map(tokio::spawn).collect(); let mut v = vec![]; for h in hs { if let Ok(r) = h.await { v.push(r); } } v },
         ).await {
             Ok(results) => results,

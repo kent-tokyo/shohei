@@ -216,6 +216,7 @@ pub struct CorsPolicyResult {
 
 /// Analyze CORS policy from HTTP response headers.
 pub async fn check_cors_policy(req: &CorsPolicyRequest) -> Result<CorsPolicyResult> {
+    crate::api::helpers::validate_url_safety(&req.url).map_err(crate::error::ShoheError::Parse)?;
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .build()

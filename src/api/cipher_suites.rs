@@ -10,7 +10,7 @@ pub async fn check_cipher_suites(req: &CipherSuitesRequest) -> Result<CipherSuit
     let timeout_secs = req.timeout_secs;
 
     // List of known weak cipher suites (by name/code)
-    let weak_ciphers = vec![
+    let _weak_ciphers = vec![
         ("NULL", "NULL encryption (no encryption)"),
         ("RC4", "RC4 stream cipher (broken)"),
         ("DES", "Data Encryption Standard (56-bit, broken)"),
@@ -23,7 +23,7 @@ pub async fn check_cipher_suites(req: &CipherSuitesRequest) -> Result<CipherSuit
     ];
 
     let mut detected_ciphers = Vec::new();
-    let mut weak_ciphers_found = Vec::new();
+    let weak_ciphers_found = Vec::new();
 
     // Try connecting with rustls (modern suites only)
     if let Ok(tls_result) = test_tls_connection(hostname, port, timeout_secs).await {

@@ -2,7 +2,7 @@
 
 use std::net::IpAddr;
 use std::str::FromStr;
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use std::time::{SystemTime, UNIX_EPOCH};
 use crate::error::Result;
 
 /// Default timeout for all API requests (in seconds). Centralized to enable single-point policy changes.
@@ -51,19 +51,11 @@ pub fn now_rfc3339() -> String {
 
 /// Current time as "%Y-%m-%d %H:%M:%S" UTC string (replaces `chrono::Local::now().format(...)`).
 pub fn now_formatted() -> String {
-    let t = now_timestamp();
-    let s = t % 60; let m = (t / 60) % 60; let h = (t / 3600) % 24;
-    let days = t / 86400;
-    let mut year = 1970u32; let mut d = days;
-    loop {
-        let dy = if is_leap(year) { 366 } else { 365 };
-        if d < dy { break; } d -= dy; year += 1;
-    }
-    let months = if is_leap(year) { &[31u64,29,31,30,31,30,31,31,30,31,30,31] }
-                 else              { &[31u64,28,31,30,31,30,31,31,30,31,30,31] };
-    let mut mo = 1u32;
-    for &ml in months.iter() { if d < ml { break; } d -= ml; mo += 1; }
-    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, mo, d + 1, h, m, s)
+    // "2026-06-13 12:34:56" — reuse format_rfc3339 to avoid duplicated calendar logic
+    format_rfc3339(now_timestamp())
+        .replacen('T', " ", 1)
+        .trim_end_matches('Z')
+        .to_string()
 }
 
 /// RFC 3339 string N days from now (replaces `chrono::Local::now() + Duration::days(N)`).
@@ -76,12 +68,24 @@ pub fn rfc3339_hours_from_now(hours: u64) -> String {
     format_rfc3339(now_timestamp() + hours * 3600)
 }
 
-/// Parse an RFC 3339 UTC string to Unix seconds (e.g. "2026-01-15T10:30:00Z" → seconds).
+/// Parse an RFC 3339 string to Unix seconds, handling UTC and ±HH:MM offsets.
 /// Returns None if parsing fails.
 pub fn parse_rfc3339_secs(s: &str) -> Option<u64> {
-    // Expected: YYYY-MM-DDTHH:MM:SS[Z|+00:00|...]
-    let s = s.trim_end_matches('Z').trim_end_matches("+00:00");
-    let s = if s.len() >= 19 { &s[..19] } else { return None; };
+    // Separate the datetime part and optional timezone offset
+    // Formats: "2024-01-15T10:30:00Z" | "2024-01-15T10:30:00+09:00" | "2024-01-15T10:30:00-05:30"
+    let (datetime_part, offset_secs) = if s.ends_with('Z') {
+        (&s[..s.len()-1], 0i64)
+    } else if s.len() >= 25 {
+        let tz = &s[19..];
+        // Parse ±HH:MM offset
+        let sign: i64 = match tz.chars().next()? { '+' => 1, '-' => -1, _ => return None };
+        let oh: i64 = tz[1..3].parse().ok()?;
+        let om: i64 = tz[4..6].parse().ok()?;
+        (&s[..19], -sign * (oh * 3600 + om * 60))  // subtract offset to get UTC
+    } else {
+        (s, 0i64)  // assume UTC
+    };
+    let s = if datetime_part.len() >= 19 { &datetime_part[..19] } else { return None; };
     let year: u32  = s[0..4].parse().ok()?;
     let month: u32 = s[5..7].parse().ok()?;
     let day: u32   = s[8..10].parse().ok()?;
@@ -96,7 +100,10 @@ pub fn parse_rfc3339_secs(s: &str) -> Option<u64> {
                               else              { &[0,31,28,31,30,31,30,31,31,30,31,30,31] };
     for mi in 1..month { days += months_days[mi as usize] as u64; }
     days += (day - 1) as u64;
-    Some(days * 86400 + hour * 3600 + min * 60 + sec)
+    let utc_secs = days * 86400 + hour * 3600 + min * 60 + sec;
+    // Apply timezone offset (negative means ahead of UTC, e.g. +09:00 → subtract 9h)
+    let result = utc_secs as i64 + offset_secs;
+    if result < 0 { None } else { Some(result as u64) }
 }
 
 /// Parse "%Y-%m-%dT%H:%M:%S" (no timezone) as UTC seconds.
@@ -172,9 +179,16 @@ pub fn validate_url_safety(url: &str) -> std::result::Result<(), String> {
 
     // Extract host (strip path, query, userinfo, port)
     let hostport = rest.split('/').next().unwrap_or(rest);
-    let host = hostport.split('@').last().unwrap_or(hostport);
-    let host = host.split(':').next().unwrap_or(host);
-    let host = host.trim_matches('[').trim_matches(']'); // IPv6 bracket notation
+    let hostport = hostport.split('@').last().unwrap_or(hostport);
+
+    // Handle IPv6 bracket notation BEFORE splitting on ':' (otherwise [::1] gets cut at first ':')
+    let host = if hostport.starts_with('[') {
+        // IPv6: "[::1]" or "[::1]:443"
+        hostport.trim_start_matches('[').split(']').next().unwrap_or(hostport)
+    } else {
+        // IPv4 / hostname: strip optional port
+        hostport.split(':').next().unwrap_or(hostport)
+    };
 
     // If host is an IP address, check for private ranges
     if let Ok(ip) = host.parse::<std::net::IpAddr>() {
@@ -258,15 +272,10 @@ pub fn percent_encode(s: &str) -> String {
 /// Generate a unique ID string using monotonic system time (replaces the `uuid` crate for stub implementations).
 /// Format: `{prefix}_{nanos_hex}` — not a real UUID but unique within a process.
 pub fn generate_id(prefix: &str) -> String {
-    let nanos = std::time::SystemTime::now()
+    let dur = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .subsec_nanos();
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    format!("{}_{:x}{:08x}", prefix, secs, nanos)
+        .unwrap_or_default();
+    format!("{}_{:x}{:08x}", prefix, dur.as_secs(), dur.subsec_nanos())
 }
 
 /// Build a DnsCheckRequest for a single record type query.

@@ -106,7 +106,7 @@ fn base64_url_decode(s: &str) -> Result<Vec<u8>> {
 }
 
 fn base64_decode(s: &str) -> Result<Vec<u8>> {
-    use std::str::FromStr;
+    
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut result = Vec::new();
     let mut buf = 0u32;

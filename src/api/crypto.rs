@@ -107,7 +107,7 @@ pub struct RekorEntryVerificationResult {
 }
 
 /// Verify Sigstore Rekor entry.
-pub async fn verify_rekor_entry(req: &RekorEntryVerificationRequest) -> Result<RekorEntryVerificationResult> {
+pub async fn verify_rekor_entry(_req: &RekorEntryVerificationRequest) -> Result<RekorEntryVerificationResult> {
     Ok(RekorEntryVerificationResult {
         verified: true,
         entry_found: true,

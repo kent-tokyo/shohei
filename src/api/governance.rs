@@ -198,7 +198,7 @@ pub async fn create_approval_gate(req: &ApprovalGateRequest) -> Result<ApprovalG
         required_approvals: 2,
         current_approvals: 0,
         created_at: crate::api::helpers::now_rfc3339(),
-        expires_at: crate::api::helpers::rfc3339_hours_from_now(24 as u64),
+        expires_at: crate::api::helpers::rfc3339_hours_from_now(24),
     })
 }
 
@@ -282,7 +282,7 @@ pub async fn generate_compliance_report(req: &ComplianceReportRequest) -> Result
         failed_controls: (framework_controls as f64 * 0.05) as usize,
         pending_controls: (framework_controls as f64 * 0.03) as usize,
         report_date: crate::api::helpers::now_rfc3339(),
-        next_review: crate::api::helpers::rfc3339_days_from_now(30 as u64),
+        next_review: crate::api::helpers::rfc3339_days_from_now(30),
     })
 }
 
@@ -406,7 +406,7 @@ pub struct AccessControlAuditResult {
 }
 
 /// Audit access control violations.
-pub async fn audit_access_control(req: &AccessControlAuditRequest) -> Result<AccessControlAuditResult> {
+pub async fn audit_access_control(_req: &AccessControlAuditRequest) -> Result<AccessControlAuditResult> {
     let audit_id = format!("aca_{}", crate::api::helpers::now_timestamp() as i64);
 
     Ok(AccessControlAuditResult {
@@ -560,7 +560,7 @@ pub struct PolicyExceptionResult {
 pub async fn create_policy_exception(req: &PolicyExceptionRequest) -> Result<PolicyExceptionResult> {
     let exception_id = format!("exc_{}", crate::api::helpers::now_timestamp() as i64);
     let expires_at = req.duration_days.map(|d| {
-        crate::api::helpers::rfc3339_days_from_now(d as i64 as u64)
+        crate::api::helpers::rfc3339_days_from_now(d as u64)
     });
 
     Ok(PolicyExceptionResult {

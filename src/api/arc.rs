@@ -11,13 +11,13 @@ pub async fn check_arc(req: &ArcCheckRequest) -> Result<ArcCheckResult> {
     // We check for the presence of ARC seals and authorization records
 
     let mut arc_seals = Vec::new();
-    let mut arc_aars = Vec::new();
+    let arc_aars = Vec::new();
 
     // Check for ARC-Seal and ARC-Authentication-Results records
     for i in 1..=5 {
         // Query _arc<i>._domainkey.<domain>
         let seal_domain = format!("_arc{}.{}", i, domain);
-        let aar_domain = format!("_dmarc.{}", domain);  // ARC uses DMARC authentication
+        let _aar_domain = format!("_dmarc.{}", domain);  // ARC uses DMARC authentication
 
         let dns_req = crate::api::DnsCheckRequest {
             domain: seal_domain.clone(),

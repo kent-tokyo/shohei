@@ -336,7 +336,7 @@ pub async fn check_ssh_fingerprint(req: &SshFingerprintRequest) -> Result<SshFin
         offset += len;
     }
 
-    if name_lists.len() < 4 {
+    if name_lists.len() < 7 { // indices 0,2,4,6 used — need at least 7 elements
         return Ok(SshFingerprintResult {
             host: req.host.clone(),
             port: req.port,

@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::net::{SocketAddr, IpAddr};
-use std::str::FromStr;
 use std::sync::Arc;
 use rustls::pki_types::ServerName;
 use tokio::net::TcpStream;
@@ -10,7 +9,6 @@ use tokio::time::{timeout, Duration};
 use tokio_rustls::TlsConnector;
 
 use crate::error::Result;
-use crate::api::{check_dns, DnsCheckRequest, RecordData};
 
 /// Check TLS protocol vulnerabilities — which versions are supported.
 pub async fn check_tls_vulns(req: &TlsVulnCheckRequest) -> Result<TlsVulnCheckResult> {
