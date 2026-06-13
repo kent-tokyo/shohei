@@ -7,7 +7,7 @@
 
 [日本語](README_ja.md) | [中文](README_zh.md)
 
-**shohei** v2.4.0 — **Rust infrastructure diagnostics library with 168 MCP tools across 62 modules**. Comprehensive security, OSINT, threat intelligence, and governance coverage. DNSSEC chain validation, DANE/TLSA, modern protocols, IPv6 dual-stack, security headers, technology fingerprinting, CVE lookup, typosquatting detection, and redirect analysis built in. **0 API keys required — all free/open APIs. Use in Rust projects or hand to Claude for autonomous diagnosis.**
+**shohei** v2.5.0 — **Rust infrastructure diagnostics library with 168 MCP tools across 62 modules**. Comprehensive security, OSINT, threat intelligence, and governance coverage. DNSSEC chain validation, DANE/TLSA, modern protocols, IPv6 dual-stack, security headers, technology fingerprinting, CVE lookup, typosquatting detection, and redirect analysis built in. **0 API keys required — all free/open APIs. Use in Rust projects or hand to Claude for autonomous diagnosis.**
 
 ### Core Diagnostics (v1.0+)
 
@@ -107,10 +107,12 @@ Most infrastructure tools are CLI-only. **shohei is built for AI agents:**
 > dig = BIND utils 9.16+; q = [natesales/q](https://github.com/natesales/q); delv = BIND DNSSEC-validating resolver; drill = ldns-based
 >
 > **v2.4.0 additions**: 168 MCP tools across 62 modules, robots.txt/OAuth/OIDC/API exposure, unauthenticated DB/container detection, subdomain takeover (30+ services), DGA risk scoring, DKIM key strength, attack surface composite score, RIPE Stat passive DNS, Azure AD exposure.
+>
+> **v2.5.0 security patch**: 9 CRITICAL/HIGH SSRF fixes (VMC fetch, TCP port scan, MX connect, redirect-follow without per-hop validation across 8 modules), 15+ bug fixes (IPv6 DNSBL trailing-dot, Levenshtein panic on IDN, crypto stubs returning `valid=true`, hardcoded year comparisons, SPF `all` qualifier never populated, sequential awaits parallelised), 4× performance improvement on trust/threat scoring via `tokio::join!`.
 
 ## MCP Security Servers Comparison
 
-shohei v2.4.0 stands out as the most comprehensive free, API-key-free MCP security server:
+shohei v2.5.0 stands out as the most comprehensive free, API-key-free MCP security server:
 
 | Feature | shohei | honeylabs | kastell | unphurl | cloud-audit | maigret |
 |---------|:------:|:---------:|:-------:|:-------:|:-----------:|:-------:|
@@ -133,7 +135,7 @@ shohei v2.4.0 stands out as the most comprehensive free, API-key-free MCP securi
 | **Open Source** | ✓ (MIT) | | | | | ✓ |
 
 **Key Advantages:**
-- **168 MCP tools** — largest comprehensive security toolkit (v2.4.0)
+- **168 MCP tools** — largest comprehensive security toolkit (v2.5.0)
 - **0 API keys** — all tools use free/open public APIs
 - **62 modules** — DNS, TLS, email, OSINT, threat intel, governance, crypto, web security, supply chain, compliance
 - **Zero setup cost** — no vendor API accounts or authentication required
@@ -417,7 +419,7 @@ shohei google.com --tui
 
 ## MCP Server & Claude Integration
 
-### ✅ Live Now (v2.4.0+)
+### ✅ Live Now (v2.5.0+)
 
 **MCP (Model Context Protocol) Server** with 168 tools lets Claude Desktop and other AI agents call shohei diagnostics directly:
 
