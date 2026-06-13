@@ -281,14 +281,14 @@ pub async fn assess_dns_takeover_risk(req: &DnsTakeoverRiskRequest) -> Result<Dn
         for result in dns_result {
             for answer in &result.answers {
                 if let crate::resolver::RecordData::Ns(ns_domain) = &answer.data {
-                    let responds = if let Ok(_) = crate::api::check_rdns(&crate::api::RdnsCheckRequest {
-                        ip: ns_domain.clone(),
+                    let responds = crate::api::check_dns(&crate::api::DnsCheckRequest {
+                        domain: ns_domain.clone(),
+                        record_types: vec!["A".to_string()],
                         timeout_secs: req.timeout_secs,
-                    }).await {
-                        true
-                    } else {
-                        false
-                    };
+                        ..Default::default()
+                    }).await
+                    .map(|r| !r.is_empty() && !r[0].answers.is_empty())
+                    .unwrap_or(false);
 
                     nameservers.push(NameserverStatus {
                         ns: ns_domain.clone(),
@@ -1151,6 +1151,7 @@ pub async fn detect_infrastructure_overlap(req: &InfrastructureOverlapRequest) -
 
     for domain in &req.domains {
         // Get IPs
+        let prev_len = all_ips.len();
         if let Ok(dns_results) = crate::api::check_dns(&crate::api::DnsCheckRequest {
             domain: domain.clone(),
             record_types: vec!["A".to_string()],
@@ -1182,8 +1183,8 @@ pub async fn detect_infrastructure_overlap(req: &InfrastructureOverlapRequest) -
             }
         }
 
-        // Get ASNs
-        if let Some(ip) = all_ips.last() {
+        // Get ASNs — only look up ASN for the current domain's first new IP
+        if let Some(ip) = all_ips[prev_len..].first() {
             if let Ok(bgp) = crate::api::check_bgp_route(&crate::api::BgpRouteRequest {
                 ip: ip.clone(),
                 timeout_secs: req.timeout_secs,
@@ -1231,7 +1232,7 @@ pub async fn detect_infrastructure_overlap(req: &InfrastructureOverlapRequest) -
         .collect();
 
     let overlap_indicators = result.shared_ips.len() + result.shared_nameservers.len() + result.shared_asns.len();
-    result.overlap_score = std::cmp::min(100, (overlap_indicators * 25) as u8);
+    result.overlap_score = (overlap_indicators * 25).min(100) as u8;
 
     result.suspicion_level = match result.overlap_score {
         0 => "none".to_string(),

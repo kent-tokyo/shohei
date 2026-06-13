@@ -33,12 +33,27 @@ pub async fn check_robots_txt(req: &RobotsTxtRequest) -> Result<RobotsTxtResult>
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
         .user_agent("shohei-security-scanner/2.4")
+        .redirect(crate::api::helpers::safe_redirect_policy())
         .build()
         .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?;
 
     let url = format!("https://{}/robots.txt", req.domain);
     let body = match client.get(&url).send().await {
-        Ok(r) if r.status().is_success() => r.text().await.unwrap_or_default(),
+        Ok(r) if r.status().is_success() => {
+            if r.content_length().map(|l| l > 1024 * 512).unwrap_or(false) {
+                return Ok(RobotsTxtResult {
+                    domain: req.domain.clone(),
+                    found: false,
+                    disallowed_paths: vec![],
+                    sensitive_paths: vec![],
+                    crawl_delay: None,
+                    sitemap_urls: vec![],
+                    risk_level: "info".to_string(),
+                    findings: vec!["No robots.txt found".to_string()],
+                });
+            }
+            r.text().await.unwrap_or_default()
+        }
         _ => {
             return Ok(RobotsTxtResult {
                 domain: req.domain.clone(),
@@ -132,6 +147,7 @@ pub async fn check_well_known(req: &WellKnownRequest) -> Result<WellKnownResult>
     let client = std::sync::Arc::new(
         reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(req.timeout_secs.min(30)))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?,
     );
@@ -214,13 +230,30 @@ pub async fn check_oauth_oidc(req: &OauthOidcRequest) -> Result<OauthOidcResult>
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?;
 
     let url = format!("https://{}/.well-known/openid-configuration", req.domain);
 
     let response = match client.get(&url).send().await {
-        Ok(r) if r.status().is_success() => r,
+        Ok(r) if r.status().is_success() => {
+            if r.content_length().map(|l| l > 1024 * 512).unwrap_or(false) {
+                return Ok(OauthOidcResult {
+                    domain: req.domain.clone(),
+                    oidc_found: true,
+                    issuer: None,
+                    grant_types_supported: vec![],
+                    response_types_supported: vec![],
+                    pkce_supported: false,
+                    implicit_flow_enabled: false,
+                    device_flow_enabled: false,
+                    security_issues: vec!["OIDC response body too large — skipped".to_string()],
+                    risk_level: "medium".to_string(),
+                });
+            }
+            r
+        }
         _ => {
             return Ok(OauthOidcResult {
                 domain: req.domain.clone(),
@@ -336,6 +369,7 @@ pub async fn check_cert_pinning(req: &CertPinningRequest) -> Result<CertPinningR
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(req.timeout_secs))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?;
 
@@ -442,6 +476,7 @@ pub async fn check_api_exposure(req: &ApiExposureRequest) -> Result<ApiExposureR
     let client = std::sync::Arc::new(
         reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(req.timeout_secs.min(30)))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?,
     );

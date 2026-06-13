@@ -157,15 +157,32 @@ pub async fn check_domain_trust_score(req: &DomainTrustScoreRequest) -> Result<T
     // ─── Dimension 4: Registration Age (15%)
     if let Ok(whois_result) = whois_r {
         if let Some(created) = whois_result.created_date {
-            if created.contains("2024") {
-                dimensions.registration_age = 40;
-                risk_factors.push("Recently registered".to_string());
-            } else if created.contains("2023") {
-                dimensions.registration_age = 70;
-                trust_factors.push("Established domain (1-2 years)".to_string());
-            } else {
-                dimensions.registration_age = 85;
-                trust_factors.push("Legacy domain".to_string());
+            let current_year = {
+                use std::time::{SystemTime, UNIX_EPOCH};
+                let secs = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                // Approximate: 1970 + seconds / seconds-per-year
+                1970u32 + (secs / 31_557_600) as u32
+            };
+            if created.len() >= 4 {
+                if let Ok(year) = created[..4].parse::<u32>() {
+                    let age_years = current_year.saturating_sub(year);
+                    if age_years == 0 {
+                        dimensions.registration_age = 20;
+                        risk_factors.push("Recently registered".to_string());
+                    } else if age_years == 1 {
+                        dimensions.registration_age = 40;
+                        risk_factors.push("Recently registered".to_string());
+                    } else if age_years <= 3 {
+                        dimensions.registration_age = 70;
+                        trust_factors.push("Established domain (1-2 years)".to_string());
+                    } else {
+                        dimensions.registration_age = 85;
+                        trust_factors.push("Legacy domain".to_string());
+                    }
+                }
             }
         }
     }

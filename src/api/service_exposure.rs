@@ -63,7 +63,7 @@ pub async fn check_exposed_databases(req: &ExposedDatabasesRequest) -> Result<Ex
     crate::api::helpers::validate_url_safety(&format!("http://{}/", req.host))
         .map_err(crate::error::ShoheError::Parse)?;
 
-    let _timeout = req.timeout_secs.min(5);
+    let timeout = req.timeout_secs.min(5);
     let host = &req.host;
     let mut exposed_services = Vec::new();
     let mut findings = Vec::new();
@@ -75,7 +75,7 @@ pub async fn check_exposed_databases(req: &ExposedDatabasesRequest) -> Result<Ex
             use tokio::io::AsyncWriteExt;
             let addr = format!("{}:6379", h);
             if let Ok(Ok(mut stream)) = tokio::time::timeout(
-                Duration::from_secs(4), TcpStream::connect(&addr)
+                Duration::from_secs(timeout), TcpStream::connect(&addr)
             ).await {
                 let _ = stream.write_all(b"PING\r\n").await;
                 let mut buf = [0u8; 128];
@@ -94,25 +94,25 @@ pub async fn check_exposed_databases(req: &ExposedDatabasesRequest) -> Result<Ex
     // MongoDB 27017 — wire protocol hello (binary), just check TCP open
     let mongo_handle = {
         let h = host.to_string();
-        tokio::spawn(async move { probe_tcp_banner(&h, 27017, 4).await })
+        tokio::spawn(async move { probe_tcp_banner(&h, 27017, timeout).await })
     };
 
     // Elasticsearch 9200 — HTTP REST
     let es_handle = {
         let h = host.to_string();
-        tokio::spawn(async move { http_get_succeeds(&h, 9200, "/_cluster/health", 4).await })
+        tokio::spawn(async move { http_get_succeeds(&h, 9200, "/_cluster/health", timeout).await })
     };
 
     // Memcached 11211
     let mc_handle = {
         let h = host.to_string();
-        tokio::spawn(async move { probe_tcp_banner(&h, 11211, 4).await })
+        tokio::spawn(async move { probe_tcp_banner(&h, 11211, timeout).await })
     };
 
     // CouchDB 5984 — HTTP REST
     let couch_handle = {
         let h = host.to_string();
-        tokio::spawn(async move { http_get_succeeds(&h, 5984, "/_all_dbs", 4).await })
+        tokio::spawn(async move { http_get_succeeds(&h, 5984, "/_all_dbs", timeout).await })
     };
 
     if let Ok(Some((unauth, banner))) = redis_handle.await {

@@ -87,7 +87,7 @@ pub async fn check_propagation(req: &PropagationRequest) -> Result<PropagationRe
     }
 
     // Collect results from all parallel tasks
-    let mut results = Vec::new();
+    let mut results: Vec<ResolverCheckResult> = early_errors;
     for handle in handles {
         let result = handle.await.map_err(|e| crate::error::ShoheError::Transport(e.to_string()))?;
         results.push(result);
