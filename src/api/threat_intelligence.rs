@@ -72,59 +72,69 @@ pub async fn check_threat_intel_aggregate(req: &ThreatIntelRequest) -> Result<Th
     let mut flagged_count = 0u8;
     let mut total_scores = Vec::new();
 
+    // Run all five independent threat checks concurrently
+    let gn_fut = async {
+        if sources_to_check.contains(&"GreyNoise".to_string()) && target_type == "ip" {
+            check_greynoise_threat(&req.target, req.timeout_secs).await.ok()
+        } else { None }
+    };
+    let shodan_fut = async {
+        if sources_to_check.contains(&"Shodan".to_string()) && target_type == "ip" {
+            check_shodan_threat(&req.target, req.timeout_secs).await.ok()
+        } else { None }
+    };
+    let urlhaus_fut = async {
+        if sources_to_check.contains(&"URLhaus".to_string()) && target_type == "domain" {
+            check_urlhaus_threat(&req.target, req.timeout_secs).await.ok()
+        } else { None }
+    };
+    let brand_fut = async {
+        if sources_to_check.contains(&"BrandImpersonation".to_string()) && target_type == "domain" {
+            check_brand_threat(&req.target, req.timeout_secs).await.ok()
+        } else { None }
+    };
+    let ct_fut = async {
+        if sources_to_check.contains(&"CT".to_string()) && target_type == "domain" {
+            check_ct_threat(&req.target, req.timeout_secs).await.ok()
+        } else { None }
+    };
+
+    let (gn_result, shodan_result, urlhaus_result, brand_result, ct_result) =
+        tokio::join!(gn_fut, shodan_fut, urlhaus_fut, brand_fut, ct_fut);
+
     // GreyNoise: IP reputation
-    if sources_to_check.contains(&"GreyNoise".to_string()) && target_type == "ip" {
-        if let Ok(result) = check_greynoise_threat(&req.target, req.timeout_secs).await {
-            if result.is_malicious {
-                flagged_count += 1;
-            }
-            total_scores.push(result.score);
-            threat_sources.push(result.source);
-        }
+    if let Some(result) = gn_result {
+        if result.is_malicious { flagged_count += 1; }
+        total_scores.push(result.score);
+        threat_sources.push(result.source);
     }
 
     // Shodan: Open ports, CVEs, banners
-    if sources_to_check.contains(&"Shodan".to_string()) && target_type == "ip" {
-        if let Ok(result) = check_shodan_threat(&req.target, req.timeout_secs).await {
-            if result.is_malicious {
-                flagged_count += 1;
-            }
-            total_scores.push(result.score);
-            threat_sources.push(result.source);
-        }
+    if let Some(result) = shodan_result {
+        if result.is_malicious { flagged_count += 1; }
+        total_scores.push(result.score);
+        threat_sources.push(result.source);
     }
 
     // URLhaus: Malware/phishing URLs
-    if sources_to_check.contains(&"URLhaus".to_string()) && target_type == "domain" {
-        if let Ok(result) = check_urlhaus_threat(&req.target, req.timeout_secs).await {
-            if result.is_malicious {
-                flagged_count += 1;
-            }
-            total_scores.push(result.score);
-            threat_sources.push(result.source);
-        }
+    if let Some(result) = urlhaus_result {
+        if result.is_malicious { flagged_count += 1; }
+        total_scores.push(result.score);
+        threat_sources.push(result.source);
     }
 
     // Brand impersonation
-    if sources_to_check.contains(&"BrandImpersonation".to_string()) && target_type == "domain" {
-        if let Ok(result) = check_brand_threat(&req.target, req.timeout_secs).await {
-            if result.is_malicious {
-                flagged_count += 1;
-            }
-            total_scores.push(result.score);
-            threat_sources.push(result.source);
-        }
+    if let Some(result) = brand_result {
+        if result.is_malicious { flagged_count += 1; }
+        total_scores.push(result.score);
+        threat_sources.push(result.source);
     }
 
     // Certificate Transparency: Unexpected CAs
-    if sources_to_check.contains(&"CT".to_string()) && target_type == "domain" {
-        if let Ok(result) = check_ct_threat(&req.target, req.timeout_secs).await {
-            if result.is_malicious {
-                flagged_count += 1;
-            }
-            total_scores.push(result.score);
-            threat_sources.push(result.source);
-        }
+    if let Some(result) = ct_result {
+        if result.is_malicious { flagged_count += 1; }
+        total_scores.push(result.score);
+        threat_sources.push(result.source);
     }
 
     // Calculate aggregate risk score
@@ -388,11 +398,34 @@ pub async fn phishing_detection_aggregate(domain: &str, timeout_secs: u64) -> Re
     let mut phishing_score = 0u8;
     let mut is_phishing = false;
 
-    // Check brand impersonation
-    if let Ok(result) = crate::api::check_brand_impersonation(&crate::api::BrandImpersonationRequest {
+    let url = format!("https://{}", domain);
+
+    // Run all four independent phishing checks concurrently
+    let brand_req = crate::api::BrandImpersonationRequest {
         domain: domain.to_string(),
         timeout_secs,
-    }).await {
+    };
+    let urlhaus_req = crate::api::UrlhausRequest {
+        url: url.clone(),
+        timeout_secs,
+    };
+    let url_analysis_req = crate::api::UrlAnalysisRequest {
+        url: url.clone(),
+    };
+    let whois_req = crate::api::WhoisCheckRequest {
+        domain: domain.to_string(),
+        timeout_secs,
+    };
+
+    let (brand_result, urlhaus_result, url_analysis_result, whois_result) = tokio::join!(
+        crate::api::check_brand_impersonation(&brand_req),
+        crate::api::check_url_reputation(&urlhaus_req),
+        crate::api::check_url_analysis(&url_analysis_req),
+        crate::api::check_whois(&whois_req),
+    );
+
+    // Check brand impersonation
+    if let Ok(result) = brand_result {
         if result.is_impersonating {
             is_phishing = true;
             phishing_score = std::cmp::max(phishing_score, 85u8);
@@ -401,11 +434,7 @@ pub async fn phishing_detection_aggregate(domain: &str, timeout_secs: u64) -> Re
     }
 
     // Check URLhaus for phishing URLs
-    let url = format!("https://{}", domain);
-    if let Ok(result) = crate::api::check_url_reputation(&crate::api::UrlhausRequest {
-        url: url.clone(),
-        timeout_secs,
-    }).await {
+    if let Ok(result) = urlhaus_result {
         if result.is_malicious && result.threat.as_ref().map(|t| t.contains("phishing")).unwrap_or(false) {
             is_phishing = true;
             phishing_score = std::cmp::max(phishing_score, 90u8);
@@ -414,9 +443,7 @@ pub async fn phishing_detection_aggregate(domain: &str, timeout_secs: u64) -> Re
     }
 
     // Check URL structural analysis for phishing indicators
-    if let Ok(result) = crate::api::check_url_analysis(&crate::api::UrlAnalysisRequest {
-        url: url.clone(),
-    }).await {
+    if let Ok(result) = url_analysis_result {
         if result.risk_score > 70 {
             phishing_score = std::cmp::max(phishing_score, 60u8);
             if !result.risk_signals.is_empty() {
@@ -426,15 +453,15 @@ pub async fn phishing_detection_aggregate(domain: &str, timeout_secs: u64) -> Re
     }
 
     // Check domain age (new domains more suspicious)
-    if let Ok(result) = crate::api::check_whois(&crate::api::WhoisCheckRequest {
-        domain: domain.to_string(),
-        timeout_secs,
-    }).await {
+    if let Ok(result) = whois_result {
         if let Some(created) = result.created_date {
             // Parse created date and check if < 6 months old
-            if created.contains("202") && (created.contains("202412") || created.contains("202501") || created.contains("202502")) {
-                phishing_score = std::cmp::max(phishing_score, 40u8);
-                phishing_indicators.push("Recently registered domain (< 6 months)".to_string());
+            if let Some(created_secs) = crate::api::helpers::parse_rfc3339_secs(&created) {
+                let age_days = (crate::api::helpers::now_timestamp().saturating_sub(created_secs)) / 86400;
+                if age_days < 180 {
+                    phishing_score = std::cmp::max(phishing_score, 40u8);
+                    phishing_indicators.push("Recently registered domain (< 6 months)".to_string());
+                }
             }
         }
     }

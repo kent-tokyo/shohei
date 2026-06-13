@@ -49,18 +49,23 @@ pub async fn check_spf_deep(req: &SpfAnalysisRequest) -> Result<SpfAnalysisResul
     let mut nodes = Vec::new();
     let mut total_lookups = 0u32;
 
+    let mut root_all_qualifier: Option<String> = None;
+
     while let Some((domain, depth)) = work_queue.pop() {
         if depth >= MAX_SPF_DEPTH || visited.contains(&domain) || work_queue.len() >= MAX_QUEUE_SIZE {
             continue;
         }
         visited.insert(domain.clone());
 
-        if let Some(node) = resolve_spf_domain(&domain, depth, req.timeout_secs).await {
+        if let Some((node, all_q)) = resolve_spf_domain(&domain, depth, req.timeout_secs).await {
             total_lookups = total_lookups.saturating_add(node.lookup_count);
             for include_domain in &node.includes {
                 if !visited.contains(include_domain) {
                     work_queue.push((include_domain.clone(), depth + 1));
                 }
+            }
+            if depth == 0 {
+                root_all_qualifier = all_q;
             }
             nodes.push(node);
         }
@@ -86,12 +91,12 @@ pub async fn check_spf_deep(req: &SpfAnalysisRequest) -> Result<SpfAnalysisResul
         authorized_ip4: all_ip4,
         authorized_ip6: all_ip6,
         include_tree: nodes,
-        all_qualifier: None,
+        all_qualifier: root_all_qualifier,
         error: None,
     })
 }
 
-async fn resolve_spf_domain(domain: &str, depth: u32, timeout_secs: u64) -> Option<SpfIncludeNode> {
+async fn resolve_spf_domain(domain: &str, depth: u32, timeout_secs: u64) -> Option<(SpfIncludeNode, Option<String>)> {
     // Fetch TXT records
     let dns_req = crate::api::DnsCheckRequest {
         domain: domain.to_string(),
@@ -103,7 +108,7 @@ async fn resolve_spf_domain(domain: &str, depth: u32, timeout_secs: u64) -> Opti
     let txt_records = match crate::api::check_dns(&dns_req).await {
         Ok(results) => results,
         Err(_) => {
-            return Some(SpfIncludeNode {
+            return Some((SpfIncludeNode {
                 domain: domain.to_string(),
                 raw: None,
                 depth,
@@ -111,7 +116,7 @@ async fn resolve_spf_domain(domain: &str, depth: u32, timeout_secs: u64) -> Opti
                 ip6_cidrs: vec![],
                 includes: vec![],
                 lookup_count: 1,
-            });
+            }, None));
         }
     };
 
@@ -136,6 +141,7 @@ async fn resolve_spf_domain(domain: &str, depth: u32, timeout_secs: u64) -> Opti
     let mut ip6_cidrs = Vec::new();
     let mut includes = Vec::new();
     let lookup_count = 1u32;
+    let mut all_qualifier: Option<String> = None;
 
     if let Some(spf) = spf_raw.as_ref() {
         // Parse SPF record
@@ -151,11 +157,24 @@ async fn resolve_spf_domain(domain: &str, depth: u32, timeout_secs: u64) -> Opti
             } else if part.starts_with("redirect=") && part.len() > 9 {
                 let redirect_domain = &part[9..];
                 includes.push(redirect_domain.to_string());
+            } else {
+                // Detect `all` qualifier: optional leading +/-/~/? followed by "all"
+                let stripped = part.strip_prefix(['+', '-', '~', '?']).unwrap_or(part);
+                if stripped == "all" {
+                    let qualifier = match part.chars().next() {
+                        Some('+') => "+all",
+                        Some('-') => "-all",
+                        Some('~') => "~all",
+                        Some('?') => "?all",
+                        _ => "+all",  // bare "all" defaults to "+" per RFC 7208
+                    };
+                    all_qualifier = Some(qualifier.to_string());
+                }
             }
         }
     }
 
-    Some(SpfIncludeNode {
+    Some((SpfIncludeNode {
         domain: domain.to_string(),
         raw: spf_raw,
         depth,
@@ -163,5 +182,5 @@ async fn resolve_spf_domain(domain: &str, depth: u32, timeout_secs: u64) -> Opti
         ip6_cidrs,
         includes,
         lookup_count,
-    })
+    }, all_qualifier))
 }
