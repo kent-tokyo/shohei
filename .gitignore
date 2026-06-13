@@ -1,9 +1,20 @@
+# Build
 /target
+
+# Environment
+.env
+
+# OS
+.DS_Store
+
+# Editor
 *.swp
 *.swo
-.DS_Store
-tasks/
-CLAUDE.md
-memo.txt
+
+# Claude Code
 .claude/
-.env
+CLAUDE.md
+
+# Personal notes
+tasks/
+memo.txt
