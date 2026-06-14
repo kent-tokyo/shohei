@@ -9,7 +9,7 @@
 
 > **SHOHEI** — **S**ecurity **H**ost **O**bservation & **H**ealthy **E**valuation **I**nstrument
 
-**shohei** v2.5.0 — **168 MCP 工具 × 62 模块**的 Rust 基础设施诊断库。全面的安全、OSINT、威胁情报和治理功能。DNS、TLS、邮件安全、DNS 传播、IPv6 双栈、安全头自动检查。**API 密钥零需求 — 完全免费、开源 API 专用**。可集成到 Rust 项目，也可与 AI 代理协作。
+**shohei** v2.5.1 — **168 MCP 工具 × 62 模块**的 Rust 基础设施诊断库。全面的安全、OSINT、威胁情报和治理功能。DNS、TLS、邮件安全、DNS 传播、IPv6 双栈、安全头自动检查。**API 密钥零需求 — 完全免费、开源 API 专用**。可集成到 Rust 项目，也可与 AI 代理协作。
 
 - **Claude MCP 服务器** — 从 Claude Desktop 调用 **168 个工具**。告诉 Claude「检查 example.com 的安全性」即可自动诊断 TLS、邮件、DNS、IPv6、RPKI、威胁情报
 - **TLS 证书检查** — DANE/TLSA 验证（RFC 6698 全部 6 种组合）、证书链分析、OCSP 响应钉扎检测、TLS 版本检测（1.0～1.3）、暗号套件枚举
@@ -74,11 +74,11 @@
 >
 > **v2.4.0 新增功能**: 168 MCP 工具 × 62 模块、robots.txt/OAuth/OIDC/API 暴露检测、未授权数据库和容器检测、子域名接管（30+ 服务）、DGA 风险评分、DKIM 密钥强度、攻击面综合评分、RIPE Stat 被动 DNS、Azure AD 暴露检测。
 >
-> **v2.5.0 安全补丁**: 修复 9 处 CRITICAL/HIGH SSRF 漏洞 — VMC 证书抓取、TCP 端口扫描、MX 服务器连接、8 个模块的重定向跟踪均缺少逐跳验证。修复 15+ 个 bug（IPv6 DNSBL 尾部点号、IDN 域名 Levenshtein 越界 panic、stub 函数始终返回 `valid=true`、硬编码年份比较、SPF `all` 限定符未填充）。通过 `tokio::join!` 使信任评分和威胁评分速度提升 4 倍。
+> **v2.5.1 安全补丁**: 修复 9 处 CRITICAL/HIGH SSRF 漏洞 — VMC 证书抓取、TCP 端口扫描、MX 服务器连接、8 个模块的重定向跟踪均缺少逐跳验证。修复 15+ 个 bug（IPv6 DNSBL 尾部点号、IDN 域名 Levenshtein 越界 panic、stub 函数始终返回 `valid=true`、硬编码年份比较、SPF `all` 限定符未填充）。通过 `tokio::join!` 使信任评分和威胁评分速度提升 4 倍。
 
 ## MCP 安全服务器对比
 
-shohei v2.5.0 是功能最全面、完全免费、无需 API 密钥的 MCP 安全服务器：
+shohei v2.5.1 是功能最全面、完全免费、无需 API 密钥的 MCP 安全服务器：
 
 | 功能 | shohei | honeylabs | kastell | unphurl | cloud-audit | maigret |
 |------|:------:|:---------:|:-------:|:-------:|:-----------:|:-------:|
@@ -101,7 +101,7 @@ shohei v2.5.0 是功能最全面、完全免费、无需 API 密钥的 MCP 安�
 | **开源** | ✓ (MIT) | | | | | ✓ |
 
 **主要优势：**
-- **168 MCP 工具** — 最大的综合安全工具包（v2.5.0）
+- **168 MCP 工具** — 最大的综合安全工具包（v2.5.1）
 - **0 API 密钥** — 所有工具使用免费/开源公共 API
 - **62 模块** — DNS、TLS、邮件、OSINT、威胁情报、治理、加密货币、Web 安全、供应链安全、合规性
 - **零设置成本** — 无需供应商 API 账户或身份验证
@@ -342,7 +342,7 @@ shohei google.com --tui
 
 ## MCP 服务器 & Claude 集成
 
-### ✅ v2.5.0+ 已完成实现
+### ✅ v2.5.1+ 已完成实现
 
 **MCP（Model Context Protocol）服务器**（168 工具）让 Claude Desktop 和其他 AI 代理能直接调用 shohei 诊断：
 
