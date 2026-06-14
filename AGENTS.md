@@ -1,4 +1,4 @@
-shohei — Rust MCP security server + library (v2.5.0)
+shohei — Rust MCP security server + library
 
 @tasks/todo.md
 @tasks/lessons.md

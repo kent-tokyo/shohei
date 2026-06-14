@@ -7,6 +7,8 @@
 
 [日本語](README_ja.md) | [中文](README_zh.md)
 
+> **SHOHEI** — **S**ecurity **H**ost **O**bservation & **H**ealthy **E**valuation **I**nstrument
+
 **shohei** v2.5.0 — **Rust infrastructure diagnostics library with 168 MCP tools across 62 modules**. Comprehensive security, OSINT, threat intelligence, and governance coverage. DNSSEC chain validation, DANE/TLSA, modern protocols, IPv6 dual-stack, security headers, technology fingerprinting, CVE lookup, typosquatting detection, and redirect analysis built in. **0 API keys required — all free/open APIs. Use in Rust projects or hand to Claude for autonomous diagnosis.**
 
 ### Core Diagnostics (v1.0+)

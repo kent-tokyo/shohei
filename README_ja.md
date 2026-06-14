@@ -7,6 +7,8 @@
 
 [English](README.md) | [中文](README_zh.md)
 
+> **SHOHEI** — **S**ecurity **H**ost **O**bservation & **H**ealthy **E**valuation **I**nstrument
+
 **shohei** v2.5.0 — **168 MCP ツール × 62 モジュール**搭載 Rust インフラ診断ライブラリ。包括的なセキュリティ・OSINT・脅威インテリジェンス・ガバナンス機能。DNS・TLS・メールセキュリティ・DNS伝播・IPv6 デュアルスタック・セキュリティヘッダを自動検査。**API キー不要 — 完全無料・オープン API のみ使用**。Rust プロジェクトへの組込みも、AI エージェント連携も対応。
 
 - **Claude MCP サーバー** — Claude Desktop から **168 個のツール**を呼び出し可能。「example.com のセキュリティをチェック」と聞けば TLS・メール・DNS・IPv6・RPKI・脅威インテリジェンスを自動診断
